@@ -112,11 +112,7 @@ router.get('/callback/google', async (req, res) => {
       console.log('✅ Tokens saved to Supabase for:', userInfo.email)
     }
 
-    res.json({
-      success: true,
-      email: userInfo.email,
-      hasRefreshToken: !!tokens.refresh_token
-    })
+    res.redirect('http://localhost:3000/connect?google=connected')
 
   } catch (err) {
     console.error('OAuth error:', err.message)
@@ -188,11 +184,7 @@ router.get('/callback/slack', async (req, res) => {
       console.log('✅ Slack tokens saved to Supabase')
     }
 
-    res.json({
-      success: true,
-      team: teamName,
-      userId
-    })
+    res.redirect('http://localhost:3000/connect?slack=connected')
 
   } catch (err) {
     console.error('Slack OAuth error:', err.message)

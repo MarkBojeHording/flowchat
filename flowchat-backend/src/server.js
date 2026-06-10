@@ -15,6 +15,12 @@ app.get('/health', (req, res) => {
 const authRoutes = require('./routes/auth')
 app.use('/api/auth', authRoutes)
 
+const workflowRoutes = require('./routes/workflows')
+app.use('/api/workflows', workflowRoutes)
+
+const chatRoutes = require('./routes/chat')
+app.use('/api/chat', chatRoutes)
+
 const PORT = process.env.PORT || 3456
 app.listen(PORT, () => {
   console.log(`flowchat backend running on port ${PORT}`)
