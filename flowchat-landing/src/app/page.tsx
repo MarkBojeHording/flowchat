@@ -1,8 +1,16 @@
 "use client";
 
-import { FormEvent, Fragment, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { Fragment, useEffect, useState } from "react";
 
-const WAITLIST_KEY = "flowchat-waitlist";
+const PENDING_AUTOMATION_KEY = "pending_automation";
+
+type Interpretation = {
+  trigger: { app: string; event: string; description: string };
+  actions: { app: string; event: string; description: string }[];
+  name: string;
+  description: string;
+};
 
 const PLACEHOLDER_EXAMPLES = [
   "When someone fills my Typeform, add them to Google Sheets and notify my Slack...",
@@ -13,76 +21,44 @@ const PLACEHOLDER_EXAMPLES = [
 const APP_PILLS = [
   { emoji: "📋", label: "Typeform" },
   { emoji: "📧", label: "Gmail" },
-  { emoji: "📊", label: "Sheets" },
+  { emoji: "📊", label: "Google Sheets" },
   { emoji: "💬", label: "Slack" },
   { emoji: "📝", label: "Notion" },
   { emoji: "🗃️", label: "Airtable" },
 ];
 
-type DemoMessage = {
-  role: "user" | "assistant";
-  content: string;
-  buildingMs?: number;
-};
-
-const DEMO_MESSAGES: DemoMessage[] = [
-  {
-    role: "user",
-    content:
-      "When someone fills my Typeform contact form, add them to Google Sheets and send my team a Slack message",
-  },
-  {
-    role: "assistant",
-    buildingMs: 1000,
-    content: `✅ Automation created! Here's what will happen:
-
-▸ Trigger: New Typeform response
-▸ Add row to Google Sheets (tab: Contacts)
-▸ Send Slack message to #team-leads
-
-Your automation is live. Want to add anything else?`,
-  },
-  {
-    role: "user",
-    content: "Also send them a confirmation email from Gmail",
-  },
-  {
-    role: "assistant",
-    buildingMs: 1000,
-    content:
-      "✅ Added! Gmail confirmation email is now part of your automation. It will send automatically to every new respondent.",
-  },
+const SUPPORTED_APPS = [
+  { emoji: "📋", name: "Typeform" },
+  { emoji: "📧", name: "Gmail" },
+  { emoji: "📊", name: "Google Sheets" },
+  { emoji: "💬", name: "Slack" },
+  { emoji: "📝", name: "Notion" },
+  { emoji: "🗃️", name: "Airtable" },
 ];
 
 const STEPS = [
   {
+    icon: "💬",
     title: "Describe it",
-    description:
-      "Type what you want to automate in plain English. No technical terms needed.",
+    description: "Type what you want in plain English.",
   },
   {
+    icon: "⚡",
     title: "We build it",
-    description:
-      "Our AI understands your request and sets up the automation instantly.",
+    description: "AI creates your automation instantly.",
   },
   {
+    icon: "✅",
     title: "It runs forever",
-    description:
-      "Your automation runs in the background 24/7. Change or fix it anytime by chatting.",
+    description: "Runs 24/7, fix or change anytime by chatting.",
   },
 ];
 
-function getWaitlistCount(): number {
-  if (typeof window === "undefined") return 0;
-  try {
-    const stored = localStorage.getItem(WAITLIST_KEY);
-    if (!stored) return 0;
-    const emails = JSON.parse(stored) as string[];
-    return Array.isArray(emails) ? emails.length : 0;
-  } catch {
-    return 0;
-  }
-}
+const PREVIEW_FLOW = [
+  { label: "Typeform", sub: "New form response", borderColor: "border-l-[#262ead]" },
+  { label: "Google Sheets", sub: "Add row to Contacts", borderColor: "border-l-[#0f9d58]" },
+  { label: "Slack", sub: "Notify #team-leads", borderColor: "border-l-[#4a154b]" },
+];
 
 function scrollToSection(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -94,7 +70,7 @@ function BuildingDots() {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="h-1.5 w-1.5 rounded-full bg-muted animate-bounce-dot"
+          className="h-1.5 w-1.5 rounded-full bg-[#00d4aa] animate-bounce-dot"
           style={{ animationDelay: `${i * 0.16}s` }}
         />
       ))}
@@ -102,10 +78,107 @@ function BuildingDots() {
   );
 }
 
-function HeroChatInput() {
-  const [value, setValue] = useState("");
+function MacWindowBar() {
+  return (
+    <div className="relative flex items-center border-b border-[#2a2a4a] bg-[#0f0f1a] px-4 py-3">
+      <div className="flex items-center gap-2">
+        <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+        <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
+        <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+      </div>
+      <span className="absolute left-1/2 -translate-x-1/2 text-sm font-medium text-[#8888aa]">
+        flowchat assistant
+      </span>
+    </div>
+  );
+}
+
+function HeroPreviewCard() {
+  const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    const timers = [
+      setTimeout(() => setPhase(1), 800),
+      setTimeout(() => setPhase(2), 2200),
+      setTimeout(() => setPhase(3), 3200),
+    ];
+    const loop = setInterval(() => {
+      setPhase(0);
+      setTimeout(() => setPhase(1), 800);
+      setTimeout(() => setPhase(2), 2200);
+      setTimeout(() => setPhase(3), 3200);
+    }, 8000);
+    return () => {
+      timers.forEach(clearTimeout);
+      clearInterval(loop);
+    };
+  }, []);
+
+  return (
+    <div className="flex max-h-[420px] flex-col overflow-hidden rounded-2xl border border-[#2a2a4a] bg-[#1a1a2e] shadow-2xl">
+      <MacWindowBar />
+
+      <div className="min-h-0 flex-1 overflow-hidden p-3">
+        <div className="space-y-3">
+          {phase >= 1 && (
+            <div className="flex justify-end animate-fade-slide-up">
+              <div className="max-w-[90%] rounded-2xl bg-[#2a2a4a] px-4 py-3 text-sm leading-relaxed text-[#e8e8f0]">
+                When someone fills my Typeform, add to Google Sheets and notify
+                Slack
+              </div>
+            </div>
+          )}
+
+          {phase === 2 && (
+            <div className="flex justify-start animate-fade-slide-up">
+              <div className="rounded-2xl border border-[#2a2a4a] border-l-4 border-l-[#00d4aa] bg-[#1a1a2e] px-4 py-3">
+                <BuildingDots />
+              </div>
+            </div>
+          )}
+
+          {phase >= 3 && (
+            <div className="flex justify-start animate-fade-slide-up">
+              <div className="max-w-[90%] rounded-2xl border border-[#2a2a4a] border-l-4 border-l-[#00d4aa] bg-[#1a1a2e] px-4 py-3 text-sm leading-relaxed text-[#e8e8f0]">
+                ✅ Automation ready! Here&apos;s what I&apos;ve built for you.
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div
+          className={`mt-3 space-y-1 transition-opacity duration-500 ${
+            phase >= 3 ? "opacity-100" : "opacity-40"
+          }`}
+        >
+          {PREVIEW_FLOW.map((step, i) => (
+            <Fragment key={step.label}>
+              <div
+                className={`mx-3 flex items-start gap-2 rounded-2xl border border-[#2a2a4a] border-l-2 bg-[#0f0f1a] px-3 py-2 ${step.borderColor}`}
+              >
+                <div>
+                  <p className="text-sm font-medium text-[#e8e8f0]">{step.label}</p>
+                  <p className="text-xs text-[#8888aa]">{step.sub}</p>
+                </div>
+              </div>
+              {i < PREVIEW_FLOW.length - 1 && (
+                <div className="flex justify-center text-xs text-[#00d4aa]">↓</div>
+              )}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InteractiveDemo() {
+  const [inputValue, setInputValue] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [placeholderVisible, setPlaceholderVisible] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<Interpretation | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -118,356 +191,318 @@ function HeroChatInput() {
     return () => clearInterval(interval);
   }, []);
 
-  return (
-    <div className="mx-auto mt-12 w-full max-w-2xl">
-      <div className="rounded-2xl bg-gradient-to-r from-green-400 to-emerald-600 p-[1px] shadow-2xl">
-        <div className="overflow-hidden rounded-2xl bg-white p-4">
-          <p className="mb-2 text-xs font-medium uppercase tracking-widest text-gray-400">
-            Describe your automation
-          </p>
-          <div className="relative">
-            <textarea
-              rows={4}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-foreground outline-none"
-            />
-            {!value && (
-              <div
-                className={`pointer-events-none absolute inset-0 text-[15px] leading-relaxed text-muted transition-opacity duration-300 ${
-                  placeholderVisible ? "opacity-100" : "opacity-0"
-                }`}
-                aria-hidden
-              >
-                {PLACEHOLDER_EXAMPLES[placeholderIndex]}
-              </div>
-            )}
-          </div>
+  async function handleAutomate() {
+    if (!inputValue.trim()) return;
 
-          <div className="mt-3 flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-1.5">
-              {APP_PILLS.map((app) => (
-                <span
-                  key={app.label}
-                  className="inline-flex items-center gap-1 rounded-full border border-border bg-[#F8F7F4] px-2.5 py-1 text-xs text-muted"
-                >
-                  <span>{app.emoji}</span>
-                  <span>{app.label}</span>
-                </span>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => scrollToSection("waitlist")}
-              className="shrink-0 rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-foreground/90 active:scale-[0.98]"
+    setIsLoading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const response = await fetch("/api/interpret", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: inputValue }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.error || "Something went wrong");
+
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  return (
+    <div id="try-it" className="w-full">
+      <div className="overflow-hidden rounded-2xl border border-[#e5e5ea] bg-white p-4 shadow-sm md:p-5">
+        <p className="mb-3 text-sm font-medium text-[#0f0f1a]">
+          Try it now — describe your automation
+        </p>
+
+        <div className="relative">
+          <textarea
+            rows={3}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleAutomate();
+              }
+            }}
+            disabled={isLoading}
+            className="w-full resize-none rounded-xl border border-[#e5e5ea] bg-white p-3 text-sm leading-relaxed text-[#0f0f1a] outline-none transition-shadow focus:ring-2 focus:ring-[#00c49a] disabled:opacity-60"
+          />
+          {!inputValue && (
+            <div
+              className={`pointer-events-none absolute inset-0 p-3 text-sm leading-relaxed text-[#6e6e80] transition-opacity duration-300 ${
+                placeholderVisible ? "opacity-100" : "opacity-0"
+              }`}
+              aria-hidden
             >
-              Automate →
-            </button>
+              {PLACEHOLDER_EXAMPLES[placeholderIndex]}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 flex flex-col gap-3 border-t border-[#e5e5ea] pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-1.5">
+            {APP_PILLS.map((app) => (
+              <span
+                key={app.label}
+                className="inline-flex items-center gap-1 rounded-full border border-[#e5e5ea] bg-white px-2.5 py-1 text-xs text-[#6e6e80]"
+              >
+                <span>{app.emoji}</span>
+                <span>{app.label}</span>
+              </span>
+            ))}
           </div>
+          <button
+            type="button"
+            onClick={handleAutomate}
+            disabled={isLoading || !inputValue.trim()}
+            className="shrink-0 rounded-full bg-[#00c49a] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#00a882] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isLoading ? "Building..." : "Automate →"}
+          </button>
         </div>
       </div>
 
-      <p className="mt-5 text-center text-sm text-muted">
-        No credit card required · Setup in 60 seconds · Cancel anytime
-      </p>
+      {result && (
+        <div className="mt-6 rounded-2xl border border-[#e5e5ea] border-l-4 border-l-[#00c49a] bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="text-xl">✅</span>
+            <span className="text-lg font-semibold text-[#0f0f1a]">
+              Your automation is ready
+            </span>
+          </div>
+
+          <div className="mb-2 rounded-xl border border-[#e5e5ea] bg-[#f5f5f7] px-4 py-3">
+            <div className="mb-1 text-xs uppercase tracking-wider text-[#00c49a]">
+              Trigger
+            </div>
+            <div className="font-medium capitalize text-[#0f0f1a]">
+              {result.trigger?.app?.replace("_", " ")}
+            </div>
+            <div className="text-sm text-[#6e6e80]">{result.trigger?.description}</div>
+          </div>
+
+          {result.actions?.map((action, idx) => (
+            <div key={idx}>
+              <div className="my-2 text-center text-[#00c49a]">↓</div>
+              <div className="rounded-xl border border-[#e5e5ea] bg-[#f5f5f7] px-4 py-3">
+                <div className="mb-1 text-xs uppercase tracking-wider text-[#00c49a]">
+                  Action {idx + 1}
+                </div>
+                <div className="font-medium capitalize text-[#0f0f1a]">
+                  {action.app?.replace("_", " ")}
+                </div>
+                <div className="text-sm text-[#6e6e80]">{action.description}</div>
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.setItem(
+                PENDING_AUTOMATION_KEY,
+                JSON.stringify(result),
+              );
+              window.location.href = "/signup";
+            }}
+            className="mt-6 w-full rounded-xl bg-[#00c49a] py-4 text-lg font-bold text-white transition-colors hover:bg-[#00a882]"
+          >
+            Activate this automation →
+          </button>
+          <p className="mt-2 text-center text-sm text-[#6e6e80]">
+            Free 3-day trial · No credit card required
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-4 rounded-xl border border-red-500/30 bg-red-900/20 px-4 py-3 text-sm text-red-400">
+          {error}
+        </div>
+      )}
     </div>
   );
 }
 
-function ChatDemo() {
-  const [visibleCount, setVisibleCount] = useState(0);
-  const [isBuilding, setIsBuilding] = useState(false);
-  const [cycleKey, setCycleKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-
-    const wait = (ms: number) =>
-      new Promise<void>((resolve) => {
-        const id = setTimeout(() => resolve(), ms);
-        timers.push(id);
-      });
-
-    const runSequence = async () => {
-      setVisibleCount(0);
-      setIsBuilding(false);
-
-      for (let i = 0; i < DEMO_MESSAGES.length; i++) {
-        if (cancelled) return;
-
-        const message = DEMO_MESSAGES[i];
-
-        if (message.role === "assistant" && message.buildingMs) {
-          setIsBuilding(true);
-          await wait(message.buildingMs);
-          if (cancelled) return;
-          setIsBuilding(false);
-        } else if (i > 0) {
-          await wait(1200);
-          if (cancelled) return;
-        }
-
-        setVisibleCount(i + 1);
-        await wait(1500);
-        if (cancelled) return;
-      }
-
-      if (cancelled) return;
-      setIsBuilding(false);
-      await wait(3000);
-      if (cancelled) return;
-
-      setCycleKey((k) => k + 1);
-    };
-
-    runSequence();
-
-    return () => {
-      cancelled = true;
-      timers.forEach(clearTimeout);
-    };
-  }, [cycleKey]);
-
-  return (
-    <section id="demo" className="px-4 py-24 sm:py-32">
-      <div className="mx-auto max-w-3xl">
-        <div className="mb-8 text-center">
-          <div className="mb-3 flex items-center justify-center gap-3">
-            <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
-              See it in action
-            </h2>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/20 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              Live demo
-            </span>
-          </div>
-        </div>
-
-        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <span className="text-sm font-medium text-foreground">
-              flowchat assistant
-            </span>
-            <span className="flex items-center gap-2 text-xs text-muted">
-              <span className="h-2 w-2 rounded-full bg-accent" />
-              Online
-            </span>
-          </div>
-
-          <div className="flex min-h-[400px] flex-col gap-4 p-4 md:min-h-[440px] md:p-6">
-            {DEMO_MESSAGES.slice(0, visibleCount).map((message, index) => (
-              <div
-                key={`${cycleKey}-${index}`}
-                className={`animate-fade-slide-up ${
-                  message.role === "user"
-                    ? "flex justify-end"
-                    : "flex justify-start"
-                }`}
-              >
-                {message.role === "user" ? (
-                  <div className="max-w-[90%] rounded-2xl bg-foreground px-4 py-3 text-sm leading-relaxed text-white md:max-w-[85%]">
-                    {message.content}
-                  </div>
-                ) : (
-                  <div className="max-w-[90%] rounded-2xl border border-border border-l-[3px] border-l-accent bg-card px-4 py-3 text-sm leading-relaxed text-foreground shadow-sm md:max-w-[85%]">
-                    {message.content.split("\n").map((line, lineIndex) => (
-                      <span key={lineIndex}>
-                        {line}
-                        {lineIndex < message.content.split("\n").length - 1 && (
-                          <br />
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {isBuilding && visibleCount < DEMO_MESSAGES.length && (
-              <div className="flex justify-start animate-fade-slide-up">
-                <div className="rounded-2xl border border-border border-l-[3px] border-l-accent bg-card px-4 py-2 shadow-sm">
-                  <BuildingDots />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function WaitlistForm({ onJoin }: { onJoin: (count: number) => void }) {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = useCallback(
-    (e: FormEvent<HTMLFormElement>) => {
-      e.preventDefault();
-      const trimmed = email.trim().toLowerCase();
-      if (!trimmed || !trimmed.includes("@")) return;
-
-      try {
-        const stored = localStorage.getItem(WAITLIST_KEY);
-        const emails: string[] = stored ? JSON.parse(stored) : [];
-        if (!emails.includes(trimmed)) {
-          emails.push(trimmed);
-          localStorage.setItem(WAITLIST_KEY, JSON.stringify(emails));
-        }
-        onJoin(emails.length);
-        setSubmitted(true);
-        setEmail("");
-      } catch {
-        setSubmitted(true);
-      }
-    },
-    [email, onJoin],
-  );
-
-  return (
-    <section id="waitlist" className="px-4 py-24 sm:py-32">
-      <div className="mx-auto max-w-xl rounded-2xl border border-border bg-card p-8 text-center shadow-sm md:p-12">
-        <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-          Be the first to automate smarter.
-        </h2>
-        <p className="mt-4 text-muted">
-          Early access users get 3 months free on any paid plan.
-        </p>
-
-        {submitted ? (
-          <div className="mt-10 rounded-2xl border border-accent/20 bg-accent/5 px-6 py-5">
-            <p className="font-medium text-accent">
-              You&apos;re on the list! We&apos;ll be in touch soon.
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="mt-10">
-            <div className="mx-auto flex max-w-md gap-2">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="flex-1 rounded-full border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-              <button
-                type="submit"
-                className="whitespace-nowrap rounded-full bg-gray-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-              >
-                Get early access
-              </button>
-            </div>
-          </form>
-        )}
-
-        <p className="mt-4 text-xs text-muted">
-          No spam. No credit card. Just early access.
-        </p>
-      </div>
-    </section>
-  );
-}
-
 export default function Home() {
-  const [, setWaitlistCount] = useState(0);
-
-  useEffect(() => {
-    setWaitlistCount(getWaitlistCount());
-  }, []);
-
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white">
       {/* NAV */}
-      <nav className="sticky top-0 z-50 border-b border-border bg-white/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 md:px-6">
-          <div className="flex items-center gap-1.5 text-lg font-semibold tracking-tight text-foreground">
-            <span>⚡</span>
-            <span>flowchat</span>
-          </div>
-          <div className="flex items-center gap-4 md:gap-6">
+      <div className="sticky top-3 z-50 px-4 pt-3">
+        <nav className="relative mx-auto flex max-w-7xl items-center justify-between rounded-2xl border border-[#e5e5ea] border-b border-[#e5e5ea] bg-white px-6 py-3 shadow-sm">
+          <Link
+            href="/"
+            className="font-bold text-xl tracking-tight text-[#0f0f1a]"
+            style={{ fontFamily: "var(--font-plus-jakarta)" }}
+          >
+            flowchat
+          </Link>
+
+          <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-6">
+            <Link
+              href="/examples"
+              className="text-sm text-[#6e6e80] transition-colors hover:text-[#0f0f1a]"
+            >
+              Examples
+            </Link>
             <button
               type="button"
-              className="text-sm text-muted transition-colors hover:text-foreground"
+              onClick={() => scrollToSection("pricing")}
+              className="text-sm text-[#6e6e80] transition-colors hover:text-[#0f0f1a]"
+            >
+              Pricing
+            </button>
+          </div>
+
+          <div className="flex items-center gap-4 md:gap-6">
+            <Link
+              href="/login"
+              className="text-sm text-[#6e6e80] transition-colors hover:text-[#0f0f1a]"
             >
               Sign in
-            </button>
+            </Link>
             <button
               type="button"
-              onClick={() => scrollToSection("waitlist")}
-              className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-white transition-all hover:bg-foreground/90 active:scale-[0.98]"
+              onClick={() => scrollToSection("try-it")}
+              className="rounded-full bg-[#00c49a] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#00a882] active:scale-[0.98]"
             >
-              Get early access
+              Get started free
             </button>
           </div>
-        </div>
-      </nav>
+        </nav>
+      </div>
 
       {/* HERO */}
-      <section className="flex min-h-screen flex-col items-center justify-center px-4 py-24 sm:py-32">
-        <div className="mx-auto max-w-4xl text-center">
-          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-sm text-muted shadow-sm">
-            <span className="h-2 w-2 rounded-full bg-accent" />
-            Now in early access
+      <section
+        className="px-4 pt-20 pb-20"
+        style={{ background: "linear-gradient(to bottom, #ffffff, #f0f0f5)" }}
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-[45fr_55fr] lg:gap-8">
+            <div className="flex flex-col justify-center">
+              <div className="mb-4 inline-flex w-fit items-center gap-2 rounded-full border border-[#e5e5ea] bg-[#f5f5f7] px-4 py-2 text-sm">
+                <span className="h-2 w-2 rounded-full bg-[#00c49a] animate-pulse" />
+                <span className="text-[#0f0f1a]">247 automations created today</span>
+              </div>
+
+              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+                <span className="block text-[#0f0f1a]">Automate anything.</span>
+                <span className="block text-[#00c49a] italic">Just say it.</span>
+              </h1>
+
+              <p className="mt-4 max-w-md text-base text-[#6e6e80] sm:text-lg">
+                Connect your apps and automate your work by describing what you
+                want. No technical knowledge needed.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => scrollToSection("try-it")}
+                className="mt-6 w-fit rounded-full bg-[#00c49a] px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#00a882] active:scale-[0.98] sm:text-base"
+              >
+                Start automating free →
+              </button>
+              <p className="mt-2 text-sm text-[#6e6e80]">
+                No credit card · 3-day free trial
+              </p>
+            </div>
+
+            <div className="w-full">
+              <HeroPreviewCard />
+            </div>
           </div>
-
-          <h1 className="text-5xl font-bold tracking-tight md:text-7xl">
-            <span className="block">Automate anything.</span>
-            <span className="block text-accent">Just describe it.</span>
-          </h1>
-
-          <p className="mx-auto mt-6 max-w-lg text-lg text-muted">
-            Type what you want to automate. Our AI builds it instantly — no
-            technical setup, no learning curve.
-          </p>
-
-          <HeroChatInput />
         </div>
       </section>
 
-      {/* CHAT DEMO */}
-      <ChatDemo />
+      {/* INTERACTIVE DEMO */}
+      <section className="bg-[#f5f5f7] px-4 py-16">
+        <div className="mx-auto max-w-7xl">
+          <InteractiveDemo />
+        </div>
+      </section>
 
       {/* HOW IT WORKS */}
-      <section id="how-it-works" className="px-4 py-24 sm:py-32">
+      <section id="how-it-works" className="bg-[#0f0f1a] px-4 py-24">
         <div className="mx-auto max-w-5xl">
-          <h2 className="mb-12 text-center text-2xl font-bold tracking-tight md:text-3xl">
+          <h2 className="mb-12 text-center text-2xl font-bold tracking-tight text-[#e8e8f0] md:text-3xl">
             How it works
           </h2>
-          <div className="flex flex-col items-center gap-6 md:flex-row md:items-center md:justify-center">
+          <div className="grid gap-6 md:grid-cols-3">
             {STEPS.map((step, index) => (
-              <Fragment key={step.title}>
-                <div className="relative w-full rounded-2xl border border-gray-100 bg-white p-8 shadow-sm md:w-64 lg:w-72">
-                  <span className="absolute right-6 top-6 text-6xl font-bold text-gray-100">
-                    {index + 1}
-                  </span>
-                  <h3 className="mt-4 text-xl font-semibold text-gray-900">
-                    {step.title}
-                  </h3>
-                  <p className="mt-2 text-sm text-gray-500">
-                    {step.description}
-                  </p>
-                </div>
-                {index < STEPS.length - 1 && (
-                  <span className="hidden text-2xl text-gray-300 md:block">
-                    →
-                  </span>
-                )}
-              </Fragment>
+              <div
+                key={step.title}
+                className="relative overflow-hidden rounded-2xl border border-[#2a2a4a] bg-[#1a1a2e] p-8"
+              >
+                <span className="absolute right-6 top-4 text-7xl font-bold text-[#2a2a4a]">
+                  {index + 1}
+                </span>
+                <span className="text-2xl text-[#00c49a]">{step.icon}</span>
+                <h3 className="mt-4 text-xl font-semibold text-[#e8e8f0]">
+                  {step.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#8888aa]">
+                  {step.description}
+                </p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* WAITLIST */}
-      <WaitlistForm onJoin={setWaitlistCount} />
+      {/* SUPPORTED APPS */}
+      <section className="bg-white px-4 py-24">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="mb-8 text-center text-2xl font-bold text-[#0f0f1a]">
+            Works with your favourite tools
+          </h2>
+          <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10">
+            {SUPPORTED_APPS.map((app) => (
+              <div
+                key={app.name}
+                className="flex flex-col items-center gap-2 transition-transform hover:scale-105"
+              >
+                <span className="text-3xl">{app.emoji}</span>
+                <span className="text-xs text-[#6e6e80]">{app.name}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-8 text-sm text-[#6e6e80]">
+            Works with the tools you already use
+          </p>
+        </div>
+      </section>
 
       {/* FOOTER */}
-      <footer className="border-t border-border px-4 py-8">
-        <div className="mx-auto flex max-w-6xl items-center justify-between text-sm text-muted">
-          <span className="font-medium text-foreground">flowchat.now</span>
-          <span>© 2026</span>
+      <footer className="border-t border-[#2a2a4a] bg-[#0f0f1a] px-4 py-8">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-sm sm:flex-row">
+          <span className="font-medium text-[#e8e8f0]">flowchat.now</span>
+          <div className="flex items-center gap-6 text-[#8888aa]">
+            <Link
+              href="/login"
+              className="transition-colors hover:text-[#e8e8f0]"
+            >
+              Sign in
+            </Link>
+            <button
+              type="button"
+              onClick={() => scrollToSection("try-it")}
+              className="transition-colors hover:text-[#e8e8f0]"
+            >
+              Get started
+            </button>
+            <span>© 2026</span>
+          </div>
         </div>
       </footer>
     </div>
