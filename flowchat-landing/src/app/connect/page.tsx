@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
 const BACKEND_URL =
@@ -16,7 +15,6 @@ type Automation = {
 };
 
 export default function ConnectPage() {
-  const [user, setUser] = useState<User | null>(null);
   const [pendingAutomation, setPendingAutomation] = useState<Automation | null>(
     null
   );
@@ -25,7 +23,6 @@ export default function ConnectPage() {
   const [activating, setActivating] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
     try {
       const saved = localStorage.getItem("pending_automation");
       if (saved) setPendingAutomation(JSON.parse(saved));

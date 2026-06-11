@@ -36,12 +36,8 @@ export default function DashboardPage() {
   const [conversationHistory, setConversationHistory] = useState<
     ConversationTurn[]
   >([]);
-  const [currentAutomationId, setCurrentAutomationId] = useState<string | null>(
-    null
-  );
-  const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(
-    null
-  );
+  const [currentAutomationId] = useState<string | null>(null);
+  const [, setCurrentWorkflowId] = useState<string | null>(null);
   const [welcomeShown, setWelcomeShown] = useState(false);
 
   const threadRef = useRef<HTMLDivElement>(null);

@@ -27,15 +27,20 @@ const APP_PILLS = [
   { emoji: "🗃️", label: "Airtable" },
 ];
 
-const SUPPORTED_APPS = [
-  { emoji: "📋", name: "Typeform" },
-  { emoji: "📧", name: "Gmail" },
-  { emoji: "📊", name: "Google Sheets" },
-  { emoji: "💬", name: "Slack" },
-  { emoji: "📝", name: "Notion" },
-  { emoji: "🗃️", name: "Airtable" },
+const CONNECTED_APPS = [
+  { emoji: "📧", name: "Gmail", desc: "Send & receive emails", color: "rgba(234,67,53,0.12)", glow: "#ea4335", status: "live" as const },
+  { emoji: "💬", name: "Slack", desc: "Notify your team", color: "rgba(74,21,75,0.2)", glow: "#4a154b", status: "live" as const },
+  { emoji: "📊", name: "Google Sheets", desc: "Log & track data", color: "rgba(52,168,83,0.12)", glow: "#34a853", status: "live" as const },
+  { emoji: "📋", name: "Typeform", desc: "Trigger on form submit", color: "rgba(38,46,173,0.15)", glow: "#262ead", status: "live" as const },
+  { emoji: "📝", name: "Notion", desc: "Create & update pages", color: "rgba(255,255,255,0.06)", glow: "#000000", status: "live" as const },
+  { emoji: "🗃️", name: "Airtable", desc: "Manage your database", color: "rgba(247,201,72,0.12)", glow: "#f7c948", status: "live" as const },
+  { emoji: "💳", name: "Stripe", desc: "Payment triggers", color: "rgba(99,91,255,0.12)", glow: "#635bff", status: "soon" as const },
+  { emoji: "📅", name: "Calendly", desc: "Booking triggers", color: "rgba(0,107,255,0.12)", glow: "#006bff", status: "soon" as const },
+  { emoji: "💬", name: "WhatsApp", desc: "Send messages", color: "rgba(37,211,102,0.12)", glow: "#25d366", status: "soon" as const },
 ];
 
+/** Preserved for reuse — not rendered in current mockup layout. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const STEPS = [
   {
     icon: "💬",
@@ -54,6 +59,126 @@ const STEPS = [
   },
 ];
 
+/** Preserved for reuse — pricing is inlined in Home(). */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const PRICING_PLANS = [
+  {
+    name: "Free",
+    price: "$0",
+    period: "forever",
+    description: "Perfect for trying it out",
+    features: [
+      "3 active automations",
+      "100 runs per month",
+      "Gmail, Sheets, Slack",
+      "Community support",
+    ],
+    cta: "Get started free",
+    ctaHref: "/signup",
+    highlighted: false,
+  },
+  {
+    name: "Pro",
+    price: "$19",
+    period: "per month",
+    description: "For individuals and solopreneurs",
+    features: [
+      "Unlimited automations",
+      "5,000 runs per month",
+      "All available apps",
+      "Priority support",
+      "Advanced scheduling",
+    ],
+    cta: "Start Pro trial",
+    ctaHref: "/signup?plan=pro",
+    highlighted: true,
+  },
+  {
+    name: "Business",
+    price: "$49",
+    period: "per month",
+    description: "For small teams",
+    features: [
+      "Unlimited automations",
+      "50,000 runs per month",
+      "All apps + custom",
+      "Team members",
+      "Dedicated support",
+      "Custom integrations",
+    ],
+    cta: "Contact us",
+    ctaHref: "mailto:hello@flowchat.now",
+    highlighted: false,
+  },
+];
+
+/** Preserved for reuse — templates section not in current mockup layout. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const TEMPLATES = [
+  {
+    trigger: { emoji: "📋", name: "Typeform" },
+    action: { emoji: "📊", name: "Google Sheets" },
+    title: "Save form responses to a spreadsheet",
+    category: "Lead Capture",
+    prompt:
+      "When someone fills my Typeform, add their response to my Google Sheet",
+  },
+  {
+    trigger: { emoji: "💳", name: "Stripe" },
+    action: { emoji: "📧", name: "Gmail" },
+    title: "Send welcome email on new payment",
+    category: "Sales",
+    prompt:
+      "When I get a new Stripe payment, send a welcome email to the customer",
+  },
+  {
+    trigger: { emoji: "📋", name: "Typeform" },
+    action: { emoji: "💬", name: "Slack" },
+    title: "Notify team when someone fills a form",
+    category: "Lead Capture",
+    prompt:
+      "When someone fills my Typeform, send a Slack notification to my team",
+  },
+  {
+    trigger: { emoji: "⏰", name: "Schedule" },
+    action: { emoji: "💬", name: "Slack" },
+    title: "Weekly team standup reminder",
+    category: "Team",
+    prompt: "Every Monday at 9am, send a standup reminder to my Slack channel",
+  },
+  {
+    trigger: { emoji: "📊", name: "Google Sheets" },
+    action: { emoji: "💬", name: "Slack" },
+    title: "Alert team when spreadsheet updates",
+    category: "Operations",
+    prompt:
+      "When a new row is added to my Google Sheet, send a Slack message",
+  },
+  {
+    trigger: { emoji: "⏰", name: "Schedule" },
+    action: { emoji: "📧", name: "Gmail" },
+    title: "Send weekly summary email",
+    category: "Reporting",
+    prompt: "Every Friday at 5pm, send me a weekly summary email",
+  },
+  {
+    trigger: { emoji: "📧", name: "Gmail" },
+    action: { emoji: "📊", name: "Google Sheets" },
+    title: "Log new emails to spreadsheet",
+    category: "Operations",
+    prompt:
+      "When I receive a new email, log the sender and subject to my Google Sheet",
+  },
+  {
+    trigger: { emoji: "💳", name: "Stripe" },
+    action: { emoji: "📊", name: "Google Sheets" },
+    title: "Track payments in a spreadsheet",
+    category: "Finance",
+    prompt:
+      "When I get a new Stripe payment, add it to my payments Google Sheet",
+  },
+];
+
 const PREVIEW_FLOW = [
   { label: "Typeform", sub: "New form response", borderColor: "border-l-[#262ead]" },
   { label: "Google Sheets", sub: "Add row to Contacts", borderColor: "border-l-[#0f9d58]" },
@@ -62,6 +187,16 @@ const PREVIEW_FLOW = [
 
 function scrollToSection(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+}
+
+/** Preserved for template cards — used when templates section is restored. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function handleTemplateClick(prompt: string) {
+  localStorage.setItem(
+    PENDING_AUTOMATION_KEY,
+    JSON.stringify({ description: prompt }),
+  );
+  window.location.href = "/signup";
 }
 
 function BuildingDots() {
@@ -172,6 +307,8 @@ function HeroPreviewCard() {
   );
 }
 
+/** Preserved for reuse — templates section replaced the inline demo section. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function InteractiveDemo() {
   const [inputValue, setInputValue] = useState("");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
@@ -219,8 +356,8 @@ function InteractiveDemo() {
 
   return (
     <div id="try-it" className="w-full">
-      <div className="overflow-hidden rounded-2xl border border-[#e5e5ea] bg-white p-4 shadow-sm md:p-5">
-        <p className="mb-3 text-sm font-medium text-[#0f0f1a]">
+      <div className="overflow-hidden rounded-2xl border border-[#333333] bg-[#242424] p-4 md:p-5">
+        <p className="mb-3 text-sm font-medium text-white">
           Try it now — describe your automation
         </p>
 
@@ -236,11 +373,11 @@ function InteractiveDemo() {
               }
             }}
             disabled={isLoading}
-            className="w-full resize-none rounded-xl border border-[#e5e5ea] bg-white p-3 text-sm leading-relaxed text-[#0f0f1a] outline-none transition-shadow focus:ring-2 focus:ring-[#00c49a] disabled:opacity-60"
+            className="w-full resize-none rounded-xl border border-[#333333] bg-[#1a1a1a] p-3 text-sm leading-relaxed text-white outline-none transition-shadow focus:ring-2 focus:ring-[#00d4aa] disabled:opacity-60"
           />
           {!inputValue && (
             <div
-              className={`pointer-events-none absolute inset-0 p-3 text-sm leading-relaxed text-[#6e6e80] transition-opacity duration-300 ${
+              className={`pointer-events-none absolute inset-0 p-3 text-sm leading-relaxed text-[#71717a] transition-opacity duration-300 ${
                 placeholderVisible ? "opacity-100" : "opacity-0"
               }`}
               aria-hidden
@@ -250,12 +387,12 @@ function InteractiveDemo() {
           )}
         </div>
 
-        <div className="mt-3 flex flex-col gap-3 border-t border-[#e5e5ea] pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-3 flex flex-col gap-3 border-t border-[#333333] pt-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-1.5">
             {APP_PILLS.map((app) => (
               <span
                 key={app.label}
-                className="inline-flex items-center gap-1 rounded-full border border-[#e5e5ea] bg-white px-2.5 py-1 text-xs text-[#6e6e80]"
+                className="inline-flex items-center gap-1 rounded-full border border-[#333333] bg-[#1a1a1a] px-2.5 py-1 text-xs text-[#a1a1aa]"
               >
                 <span>{app.emoji}</span>
                 <span>{app.label}</span>
@@ -266,7 +403,7 @@ function InteractiveDemo() {
             type="button"
             onClick={handleAutomate}
             disabled={isLoading || !inputValue.trim()}
-            className="shrink-0 rounded-full bg-[#00c49a] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#00a882] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0 rounded-full bg-[#00d4aa] px-6 py-2.5 text-sm font-semibold text-[#0f0f0f] transition-colors hover:bg-[#00b894] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isLoading ? "Building..." : "Automate →"}
           </button>
@@ -274,35 +411,35 @@ function InteractiveDemo() {
       </div>
 
       {result && (
-        <div className="mt-6 rounded-2xl border border-[#e5e5ea] border-l-4 border-l-[#00c49a] bg-white p-6 shadow-sm">
+        <div className="mt-6 rounded-2xl border border-[#333333] border-l-4 border-l-[#00d4aa] bg-[#242424] p-6">
           <div className="mb-4 flex items-center gap-2">
             <span className="text-xl">✅</span>
-            <span className="text-lg font-semibold text-[#0f0f1a]">
+            <span className="text-lg font-semibold text-white">
               Your automation is ready
             </span>
           </div>
 
-          <div className="mb-2 rounded-xl border border-[#e5e5ea] bg-[#f5f5f7] px-4 py-3">
-            <div className="mb-1 text-xs uppercase tracking-wider text-[#00c49a]">
+          <div className="mb-2 rounded-xl border border-[#333333] bg-[#1a1a1a] px-4 py-3">
+            <div className="mb-1 text-xs uppercase tracking-wider text-[#00d4aa]">
               Trigger
             </div>
-            <div className="font-medium capitalize text-[#0f0f1a]">
+            <div className="font-medium capitalize text-white">
               {result.trigger?.app?.replace("_", " ")}
             </div>
-            <div className="text-sm text-[#6e6e80]">{result.trigger?.description}</div>
+            <div className="text-sm text-[#a1a1aa]">{result.trigger?.description}</div>
           </div>
 
           {result.actions?.map((action, idx) => (
             <div key={idx}>
-              <div className="my-2 text-center text-[#00c49a]">↓</div>
-              <div className="rounded-xl border border-[#e5e5ea] bg-[#f5f5f7] px-4 py-3">
-                <div className="mb-1 text-xs uppercase tracking-wider text-[#00c49a]">
+              <div className="my-2 text-center text-[#00d4aa]">↓</div>
+              <div className="rounded-xl border border-[#333333] bg-[#1a1a1a] px-4 py-3">
+                <div className="mb-1 text-xs uppercase tracking-wider text-[#00d4aa]">
                   Action {idx + 1}
                 </div>
-                <div className="font-medium capitalize text-[#0f0f1a]">
+                <div className="font-medium capitalize text-white">
                   {action.app?.replace("_", " ")}
                 </div>
-                <div className="text-sm text-[#6e6e80]">{action.description}</div>
+                <div className="text-sm text-[#a1a1aa]">{action.description}</div>
               </div>
             </div>
           ))}
@@ -316,11 +453,11 @@ function InteractiveDemo() {
               );
               window.location.href = "/signup";
             }}
-            className="mt-6 w-full rounded-xl bg-[#00c49a] py-4 text-lg font-bold text-white transition-colors hover:bg-[#00a882]"
+            className="mt-6 w-full rounded-xl bg-[#00d4aa] py-4 text-lg font-bold text-[#0f0f0f] transition-colors hover:bg-[#00b894]"
           >
             Activate this automation →
           </button>
-          <p className="mt-2 text-center text-sm text-[#6e6e80]">
+          <p className="mt-2 text-center text-sm text-[#71717a]">
             Free 3-day trial · No credit card required
           </p>
         </div>
@@ -337,171 +474,342 @@ function InteractiveDemo() {
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white">
-      {/* NAV */}
-      <div className="sticky top-3 z-50 px-4 pt-3">
-        <nav className="relative mx-auto flex max-w-7xl items-center justify-between rounded-2xl border border-[#e5e5ea] border-b border-[#e5e5ea] bg-white px-6 py-3 shadow-sm">
-          <Link
-            href="/"
-            className="font-bold text-xl tracking-tight text-[#0f0f1a]"
-            style={{ fontFamily: "var(--font-plus-jakarta)" }}
-          >
-            flowchat
-          </Link>
-
-          <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-6">
+    <div className="min-h-screen bg-[#0a0f1e]">
+      {/* FLOATING NAVBAR */}
+      <div className="fixed top-4 left-0 right-0 z-50 px-2">
+        <div className="mx-auto max-w-[1400px]">
+          <nav className="flex items-center justify-between rounded-2xl border border-[rgba(255,255,255,0.1)] bg-[#0f1525] px-6 py-3 shadow-xl">
             <Link
-              href="/examples"
-              className="text-sm text-[#6e6e80] transition-colors hover:text-[#0f0f1a]"
+              href="/"
+              className="text-xl font-bold tracking-tight text-white"
+              style={{ letterSpacing: "-0.03em" }}
             >
-              Examples
+              Flowchat
             </Link>
-            <button
-              type="button"
-              onClick={() => scrollToSection("pricing")}
-              className="text-sm text-[#6e6e80] transition-colors hover:text-[#0f0f1a]"
-            >
-              Pricing
-            </button>
-          </div>
-
-          <div className="flex items-center gap-4 md:gap-6">
-            <Link
-              href="/login"
-              className="text-sm text-[#6e6e80] transition-colors hover:text-[#0f0f1a]"
-            >
-              Sign in
-            </Link>
-            <button
-              type="button"
-              onClick={() => scrollToSection("try-it")}
-              className="rounded-full bg-[#00c49a] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#00a882] active:scale-[0.98]"
-            >
-              Get started free
-            </button>
-          </div>
-        </nav>
-      </div>
-
-      {/* HERO */}
-      <section
-        className="px-4 pt-20 pb-20"
-        style={{ background: "linear-gradient(to bottom, #ffffff, #f0f0f5)" }}
-      >
-        <div className="mx-auto max-w-7xl">
-          <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-[45fr_55fr] lg:gap-8">
-            <div className="flex flex-col justify-center">
-              <div className="mb-4 inline-flex w-fit items-center gap-2 rounded-full border border-[#e5e5ea] bg-[#f5f5f7] px-4 py-2 text-sm">
-                <span className="h-2 w-2 rounded-full bg-[#00c49a] animate-pulse" />
-                <span className="text-[#0f0f1a]">247 automations created today</span>
-              </div>
-
-              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                <span className="block text-[#0f0f1a]">Automate anything.</span>
-                <span className="block text-[#00c49a] italic">Just say it.</span>
-              </h1>
-
-              <p className="mt-4 max-w-md text-base text-[#6e6e80] sm:text-lg">
-                Connect your apps and automate your work by describing what you
-                want. No technical knowledge needed.
-              </p>
-
+            <div className="hidden items-center gap-8 sm:flex">
+              <Link
+                href="/examples"
+                className="text-sm text-[rgba(255,255,255,0.45)] transition-colors hover:text-white"
+              >
+                Examples
+              </Link>
               <button
                 type="button"
-                onClick={() => scrollToSection("try-it")}
-                className="mt-6 w-fit rounded-full bg-[#00c49a] px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#00a882] active:scale-[0.98] sm:text-base"
+                onClick={() => scrollToSection("pricing")}
+                className="text-sm text-[rgba(255,255,255,0.45)] transition-colors hover:text-white"
               >
-                Start automating free →
+                Pricing
               </button>
-              <p className="mt-2 text-sm text-[#6e6e80]">
-                No credit card · 3-day free trial
-              </p>
             </div>
-
-            <div className="w-full">
-              <HeroPreviewCard />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* INTERACTIVE DEMO */}
-      <section className="bg-[#f5f5f7] px-4 py-16">
-        <div className="mx-auto max-w-7xl">
-          <InteractiveDemo />
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section id="how-it-works" className="bg-[#0f0f1a] px-4 py-24">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="mb-12 text-center text-2xl font-bold tracking-tight text-[#e8e8f0] md:text-3xl">
-            How it works
-          </h2>
-          <div className="grid gap-6 md:grid-cols-3">
-            {STEPS.map((step, index) => (
-              <div
-                key={step.title}
-                className="relative overflow-hidden rounded-2xl border border-[#2a2a4a] bg-[#1a1a2e] p-8"
+            <div className="flex items-center gap-4">
+              <Link
+                href="/login"
+                className="text-sm text-[rgba(255,255,255,0.4)] transition-colors hover:text-white"
               >
-                <span className="absolute right-6 top-4 text-7xl font-bold text-[#2a2a4a]">
-                  {index + 1}
-                </span>
-                <span className="text-2xl text-[#00c49a]">{step.icon}</span>
-                <h3 className="mt-4 text-xl font-semibold text-[#e8e8f0]">
-                  {step.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-[#8888aa]">
-                  {step.description}
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-full bg-[#e9b872] px-4 py-2 text-sm font-bold text-[#0a0a0a] transition-colors hover:bg-[#d4a05a]"
+              >
+                Get started free
+              </Link>
+            </div>
+          </nav>
+        </div>
+      </div>
+
+      {/* HERO SECTION */}
+      <section className="px-2 pb-4 pt-28">
+        <div className="mx-auto max-w-[1400px]">
+          <div className="overflow-hidden rounded-3xl bg-[#141929]">
+            <div className="grid grid-cols-1 items-center gap-8 p-10 lg:grid-cols-2">
+              <div>
+                <div
+                  className="mb-6 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs"
+                  style={{ background: "rgba(233,184,114,0.1)", color: "#e9b872" }}
+                >
+                  ✦ Automation for everyone
+                </div>
+                <h1
+                  className="mb-6 text-5xl font-extrabold leading-[1.1] tracking-tight text-white lg:text-6xl"
+                  style={{ letterSpacing: "-0.03em" }}
+                >
+                  Stop doing it
+                  <br />
+                  manually.
+                  <br />
+                  <span className="italic" style={{ color: "#e9b872" }}>
+                    Just describe it.
+                  </span>
+                </h1>
+                <p className="mb-8 max-w-md text-base leading-relaxed text-[rgba(255,255,255,0.45)]">
+                  Just describe what you want. Flowchat builds and activates it
+                  instantly — then runs it 24/7.
+                </p>
+                <div className="mb-6 flex items-center gap-4">
+                  <Link
+                    href="/signup"
+                    className="rounded-full bg-[#e9b872] px-7 py-3.5 text-sm font-bold text-[#0a0a0a] transition-colors hover:bg-[#d4a05a] active:scale-[0.98]"
+                  >
+                    Start for free →
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => scrollToSection("templates")}
+                    className="rounded-full border border-[rgba(255,255,255,0.15)] px-7 py-3.5 text-sm font-medium text-[rgba(255,255,255,0.6)] transition-colors hover:bg-[rgba(255,255,255,0.05)]"
+                  >
+                    See examples
+                  </button>
+                </div>
+                <p className="text-xs text-[rgba(255,255,255,0.25)]">
+                  No credit card · 3-day free trial
                 </p>
               </div>
-            ))}
+              <div>
+                <HeroPreviewCard />
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* SUPPORTED APPS */}
-      <section className="bg-white px-4 py-24">
-        <div className="mx-auto max-w-4xl text-center">
-          <h2 className="mb-8 text-center text-2xl font-bold text-[#0f0f1a]">
-            Works with your favourite tools
-          </h2>
-          <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10">
-            {SUPPORTED_APPS.map((app) => (
-              <div
-                key={app.name}
-                className="flex flex-col items-center gap-2 transition-transform hover:scale-105"
+      {/* CONNECTED APPS SECTION */}
+      <section className="px-2 py-4">
+        <div className="mx-auto max-w-[1400px]">
+          <div className="overflow-hidden rounded-3xl bg-[#1a2540] p-10">
+            <h2
+              className="mb-2 text-center text-2xl font-bold text-white"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              Works with your favourite tools
+            </h2>
+            <p className="mb-10 text-center text-sm text-[rgba(255,255,255,0.35)]">
+              Connect once. Automate everything.
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {CONNECTED_APPS.map((app) => (
+                <div
+                  key={app.name}
+                  className="relative flex items-center gap-3 overflow-hidden rounded-2xl border px-5 py-4"
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    borderColor:
+                      app.status === "soon"
+                        ? "rgba(233,184,114,0.15)"
+                        : "rgba(255,255,255,0.09)",
+                    minWidth: "160px",
+                  }}
+                >
+                  <div
+                    className="absolute left-[-16px] top-[-16px] h-[60px] w-[60px] rounded-full opacity-20"
+                    style={{ background: app.glow, filter: "blur(16px)" }}
+                  />
+                  {app.status === "live" && (
+                    <div
+                      className="absolute right-3 top-3 h-[6px] w-[6px] rounded-full bg-[#00d4aa]"
+                      style={{ boxShadow: "0 0 6px #00d4aa" }}
+                    />
+                  )}
+                  {app.status === "soon" && (
+                    <div
+                      className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[7px] font-bold"
+                      style={{
+                        background: "rgba(233,184,114,0.12)",
+                        color: "#e9b872",
+                      }}
+                    >
+                      Soon
+                    </div>
+                  )}
+                  <div
+                    className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-xl"
+                    style={{ background: app.color }}
+                  >
+                    {app.emoji}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-white">{app.name}</div>
+                    <div className="text-[10px] text-[rgba(255,255,255,0.35)]">
+                      {app.desc}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-8 text-center text-xs text-[rgba(255,255,255,0.2)]">
+              More apps added every week ·{" "}
+              <a
+                href="mailto:hello@flowchat.now"
+                className="cursor-pointer text-[#e9b872] hover:underline"
               >
-                <span className="text-3xl">{app.emoji}</span>
-                <span className="text-xs text-[#6e6e80]">{app.name}</span>
-              </div>
-            ))}
+                Request an app →
+              </a>
+            </p>
           </div>
-          <p className="mt-8 text-sm text-[#6e6e80]">
-            Works with the tools you already use
-          </p>
+        </div>
+      </section>
+
+      {/* PRICING SECTION */}
+      <section id="pricing" className="px-2 py-4">
+        <div className="mx-auto max-w-[1400px]">
+          <div className="overflow-hidden rounded-3xl bg-[#0f1525] p-10">
+            <h2
+              className="mb-2 text-center text-2xl font-bold text-white"
+              style={{ letterSpacing: "-0.02em" }}
+            >
+              Simple, honest pricing
+            </h2>
+            <p className="mb-10 text-center text-sm text-[rgba(255,255,255,0.35)]">
+              Start free. Upgrade when you&apos;re ready.
+            </p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {[
+                {
+                  name: "Free",
+                  price: "$0",
+                  period: "forever",
+                  features: [
+                    "3 active automations",
+                    "100 runs per month",
+                    "Gmail, Sheets, Slack",
+                    "Community support",
+                  ],
+                  cta: "Get started free",
+                  href: "/signup",
+                  featured: false,
+                },
+                {
+                  name: "Pro",
+                  price: "$19",
+                  period: "per month",
+                  features: [
+                    "Unlimited automations",
+                    "5,000 runs per month",
+                    "All available apps",
+                    "Priority support",
+                    "Advanced scheduling",
+                  ],
+                  cta: "Start Pro trial",
+                  href: "/signup?plan=pro",
+                  featured: true,
+                },
+                {
+                  name: "Business",
+                  price: "$49",
+                  period: "per month",
+                  features: [
+                    "Unlimited automations",
+                    "50,000 runs per month",
+                    "Team members",
+                    "Custom integrations",
+                    "Dedicated support",
+                  ],
+                  cta: "Contact us",
+                  href: "mailto:hello@flowchat.now",
+                  featured: false,
+                },
+              ].map((plan) => (
+                <div
+                  key={plan.name}
+                  className="rounded-2xl p-6"
+                  style={{
+                    background: plan.featured
+                      ? "rgba(233,184,114,0.05)"
+                      : "rgba(255,255,255,0.04)",
+                    border: plan.featured
+                      ? "1.5px solid #e9b872"
+                      : "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  {plan.featured && (
+                    <div
+                      className="mb-3 inline-block rounded-full px-3 py-1 text-[7px] font-bold"
+                      style={{ background: "#e9b872", color: "#0a0a0a" }}
+                    >
+                      Most popular
+                    </div>
+                  )}
+                  <div className="mb-2 text-xs font-bold uppercase tracking-widest text-[rgba(255,255,255,0.4)]">
+                    {plan.name}
+                  </div>
+                  <div
+                    className="mb-1 text-4xl font-extrabold text-white"
+                    style={{ letterSpacing: "-0.03em" }}
+                  >
+                    {plan.price}
+                  </div>
+                  <div className="mb-6 text-xs text-[rgba(255,255,255,0.3)]">
+                    {plan.period}
+                  </div>
+                  <div className="mb-6 border-t border-[rgba(255,255,255,0.08)]" />
+                  <div className="mb-8 space-y-3">
+                    {plan.features.map((f) => (
+                      <div
+                        key={f}
+                        className="flex items-center gap-2 text-sm text-[rgba(255,255,255,0.5)]"
+                      >
+                        <span style={{ color: "#e9b872" }}>✓</span>
+                        {f}
+                      </div>
+                    ))}
+                  </div>
+                  <Link
+                    href={plan.href}
+                    className="block w-full rounded-full py-3 text-center text-sm font-bold transition-colors"
+                    style={
+                      plan.featured
+                        ? { background: "#e9b872", color: "#0a0a0a" }
+                        : {
+                            border: "1px solid rgba(255,255,255,0.15)",
+                            color: "rgba(255,255,255,0.6)",
+                          }
+                    }
+                  >
+                    {plan.cta}
+                  </Link>
+                </div>
+              ))}
+            </div>
+            <p className="mt-8 text-center text-xs text-[rgba(255,255,255,0.2)]">
+              All plans include a 3-day free trial · Cancel anytime · No credit
+              card required
+            </p>
+          </div>
         </div>
       </section>
 
       {/* FOOTER */}
-      <footer className="border-t border-[#2a2a4a] bg-[#0f0f1a] px-4 py-8">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-sm sm:flex-row">
-          <span className="font-medium text-[#e8e8f0]">flowchat.now</span>
-          <div className="flex items-center gap-6 text-[#8888aa]">
-            <Link
-              href="/login"
-              className="transition-colors hover:text-[#e8e8f0]"
-            >
-              Sign in
-            </Link>
-            <button
-              type="button"
-              onClick={() => scrollToSection("try-it")}
-              className="transition-colors hover:text-[#e8e8f0]"
-            >
-              Get started
-            </button>
-            <span>© 2026</span>
+      <footer className="mt-4 px-2 py-4">
+        <div className="mx-auto max-w-[1400px]">
+          <div className="overflow-hidden rounded-3xl bg-[#060b15] px-10 py-8">
+            <div className="mb-6 flex flex-col items-center justify-between gap-4 border-b border-[rgba(255,255,255,0.06)] pb-6 sm:flex-row">
+              <span
+                className="text-lg font-bold text-white"
+                style={{ letterSpacing: "-0.03em" }}
+              >
+                Flowchat
+              </span>
+              <div className="flex items-center gap-6 text-sm text-[rgba(255,255,255,0.35)]">
+                <Link href="/examples" className="transition-colors hover:text-white">
+                  Examples
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection("pricing")}
+                  className="transition-colors hover:text-white"
+                >
+                  Pricing
+                </button>
+                <Link href="/login" className="transition-colors hover:text-white">
+                  Sign in
+                </Link>
+              </div>
+            </div>
+            <div className="flex flex-col items-center justify-between gap-2 text-xs text-[rgba(255,255,255,0.2)] sm:flex-row">
+              <span>© 2026 flowchat.now · All rights reserved</span>
+              <span>Made for people who hate doing things manually</span>
+            </div>
           </div>
         </div>
       </footer>
