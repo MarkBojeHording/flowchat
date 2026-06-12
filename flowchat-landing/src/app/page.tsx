@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
 
 const PENDING_AUTOMATION_KEY = "pending_automation";
 
@@ -473,6 +475,38 @@ function InteractiveDemo() {
 }
 
 export default function Home() {
+  const [user, setUser] = useState<User | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    setUser(null);
+    setDropdownOpen(false);
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0f1e]">
       {/* FLOATING NAVBAR */}
@@ -502,18 +536,98 @@ export default function Home() {
               </button>
             </div>
             <div className="flex items-center gap-4">
-              <Link
-                href="/login"
-                className="text-sm text-[rgba(255,255,255,0.4)] transition-colors hover:text-white"
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/signup"
-                className="rounded-full bg-[#e9b872] px-4 py-2 text-sm font-bold text-[#0a0a0a] transition-colors hover:bg-[#d4a05a]"
-              >
-                Get started free
-              </Link>
+              {user ? (
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.15)] px-3 py-1.5 transition-colors hover:bg-[rgba(255,255,255,0.05)]"
+                  >
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e9b872] text-xs font-bold text-[#0a0a0a]">
+                      {user.user_metadata?.full_name?.[0]?.toUpperCase() ||
+                        user.email?.[0]?.toUpperCase() ||
+                        "U"}
+                    </div>
+                    <span className="hidden text-sm text-white sm:block">
+                      {user.user_metadata?.full_name ||
+                        user.email?.split("@")[0]}
+                    </span>
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      className="text-[rgba(255,255,255,0.4)]"
+                    >
+                      <path
+                        d="M2 4l4 4 4-4"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+
+                  {dropdownOpen && (
+                    <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.1)] bg-[#141929] shadow-2xl">
+                      <div className="border-b border-[rgba(255,255,255,0.08)] px-4 py-3">
+                        <div className="text-sm font-semibold text-white">
+                          {user.user_metadata?.full_name || "My Account"}
+                        </div>
+                        <div className="mt-0.5 truncate text-xs text-[rgba(255,255,255,0.4)]">
+                          {user.email}
+                        </div>
+                      </div>
+
+                      <div className="py-1">
+                        <Link
+                          href="/automations"
+                          onClick={() => setDropdownOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
+                        >
+                          <span>⚡</span>
+                          My Automations
+                        </Link>
+                        <Link
+                          href="/settings"
+                          onClick={() => setDropdownOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
+                        >
+                          <span>⚙️</span>
+                          Settings
+                        </Link>
+                      </div>
+
+                      <div className="border-t border-[rgba(255,255,255,0.08)] py-1">
+                        <button
+                          type="button"
+                          onClick={handleSignOut}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
+                        >
+                          <span>→</span>
+                          Sign out
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    className="text-sm text-[rgba(255,255,255,0.4)] transition-colors hover:text-white"
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="rounded-full bg-[#e9b872] px-4 py-2 text-sm font-bold text-[#0a0a0a] transition-colors hover:bg-[#d4a05a]"
+                  >
+                    Get started free
+                  </Link>
+                </>
+              )}
             </div>
           </nav>
         </div>
