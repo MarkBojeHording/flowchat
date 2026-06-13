@@ -23,7 +23,7 @@ function getOAuthClient() {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    'http://localhost:3456/api/auth/callback/google'
+    process.env.GOOGLE_REDIRECT_URI
   )
 }
 
@@ -112,7 +112,7 @@ router.get('/callback/google', async (req, res) => {
       console.log('✅ Tokens saved to Supabase for:', userInfo.email)
     }
 
-    res.redirect('http://localhost:3000/connect?google=connected')
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?connected=google`)
 
   } catch (err) {
     console.error('OAuth error:', err.message)
@@ -184,7 +184,7 @@ router.get('/callback/slack', async (req, res) => {
       console.log('✅ Slack tokens saved to Supabase')
     }
 
-    res.redirect('http://localhost:3000/connect?slack=connected')
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?connected=slack`)
 
   } catch (err) {
     console.error('Slack OAuth error:', err.message)
