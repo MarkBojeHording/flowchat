@@ -89,11 +89,6 @@ type ChatMessage =
   | { type: "live"; summary: string }
   | { type: "error"; text: string };
 
-type ConversationTurn = {
-  role: string;
-  content: string;
-};
-
 function getDisplayName(automation: Automation): string {
   return automation.auto_name || automation.name || "New automation";
 }
@@ -162,15 +157,6 @@ function formatAppName(app: string): string {
   return app.charAt(0).toUpperCase() + app.slice(1).replace(/_/g, " ");
 }
 
-function conversationToMessages(conversation: ConversationTurn[]): ChatMessage[] {
-  return conversation.map((turn) => {
-    if (turn.role === "user") {
-      return { type: "user", text: turn.content };
-    }
-    return { type: "assistant", text: turn.content };
-  });
-}
-
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [automations, setAutomations] = useState<Automation[]>([]);
@@ -201,10 +187,42 @@ export default function DashboardPage() {
         return;
       }
 
-      const conversation = data.automation?.conversation;
-      setMessages(
-        Array.isArray(conversation) ? conversationToMessages(conversation) : []
-      );
+      const automation = data.automation;
+      const rawMessages: ChatMessage[] = [];
+
+      for (const turn of automation?.conversation || []) {
+        if (turn.role === "user") {
+          rawMessages.push({ type: "user", text: turn.content });
+        } else {
+          const connectMatch = turn.content.match(
+            /https?:\/\/[^\s]+\/api\/auth\/(slack|google|typeform|airtable|notion)/
+          );
+          if (connectMatch) {
+            const app = connectMatch[1];
+            const url = connectMatch[0];
+            const cleanMessage = turn.content
+              .replace(
+                /Click here to connect your \w+:?\s*https?:\/\/[^\s]+/gi,
+                ""
+              )
+              .replace(/https?:\/\/[^\s]+\/api\/auth\/\w+/g, "")
+              .trim();
+            if (cleanMessage) {
+              rawMessages.push({ type: "assistant", text: cleanMessage });
+            }
+            rawMessages.push({
+              type: "connect",
+              app,
+              url,
+              message: `I need access to your ${app.charAt(0).toUpperCase() + app.slice(1)} to continue setting up your automation.`,
+            });
+          } else {
+            rawMessages.push({ type: "assistant", text: turn.content });
+          }
+        }
+      }
+
+      setMessages(rawMessages);
       setSelectedId(id);
       setActiveTab("chat");
     } catch (err) {
@@ -241,13 +259,36 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    const checkUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        return;
+      }
+
+      const { data } = await supabase.auth.getUser();
       if (!data.user) {
         window.location.href = "/login";
         return;
       }
       setUser(data.user);
+    };
+
+    checkUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+      } else if (!session) {
+        window.location.href = "/login";
+      }
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
