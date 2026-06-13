@@ -128,10 +128,54 @@ const TOOLS = [
   },
 ]
 
-async function executeTool(name, input) {
+function appToPlatform(app) {
+  const value = (app || '').toLowerCase()
+  if (value.includes('google') || value === 'gmail' || value.includes('sheet')) {
+    return 'google'
+  }
+  if (value.includes('slack')) return 'slack'
+  if (value.includes('typeform')) return 'typeform'
+  if (value.includes('airtable')) return 'airtable'
+  if (value.includes('notion')) return 'notion'
+  return value
+}
+
+async function getConnectedPlatforms(userId) {
+  try {
+    const { data: userData, error: userError } =
+      await supabase.auth.admin.getUserById(userId)
+
+    if (userError) {
+      console.error('getUserById error:', userError.message)
+      return []
+    }
+
+    const userEmail = userData?.user?.email
+    if (!userEmail) return []
+
+    const { data, error } = await supabase
+      .from('platform_accounts')
+      .select('platform')
+      .eq('email', userEmail)
+
+    if (error) {
+      console.error('platform_accounts query error:', error.message)
+      return []
+    }
+
+    return data?.map((row) => row.platform) || []
+  } catch (err) {
+    console.error('getConnectedPlatforms failed:', err.message)
+    return []
+  }
+}
+
+async function executeTool(name, input, userId) {
   switch (name) {
-    case 'check_connected_apps':
-      return { connected: ['google', 'slack'] }
+    case 'check_connected_apps': {
+      const connected = await getConnectedPlatforms(userId)
+      return { connected }
+    }
 
     case 'get_user_resources':
       return {
@@ -143,21 +187,43 @@ async function executeTool(name, input) {
     case 'request_app_connection':
       return {
         app: input.app,
-        url: 'https://flowchat.now/connect?app=' + input.app,
-        message: 'Click below to connect ' + input.app,
+        url: `${process.env.BACKEND_URL}/api/auth/${input.app}`,
+        message: `Click below to connect ${input.app}`,
       }
 
-    case 'build_workflow':
+    case 'build_workflow': {
+      const connected = await getConnectedPlatforms(userId)
+      const requiredApps = [
+        appToPlatform(input.trigger_app),
+        appToPlatform(input.action_app),
+      ]
+      const missingApps = [...new Set(requiredApps)].filter(
+        (platform) =>
+          !connected.some(
+            (entry) => entry.toLowerCase() === platform.toLowerCase()
+          )
+      )
+
+      if (missingApps.length > 0) {
+        return {
+          success: false,
+          summary:
+            'Cannot build automation — required apps are not connected yet.',
+        }
+      }
+
       return {
         success: true,
         workflowId: 'stub-' + Date.now(),
         summary: 'Automation built successfully',
       }
+    }
 
     case 'test_workflow':
       return {
-        success: true,
-        summary: 'Test completed. A test row was added to your sheet.',
+        success: false,
+        summary:
+          'I cannot run a real test until all required apps are connected and the automation is fully built. Please connect your apps first.',
       }
 
     case 'activate_workflow':
@@ -243,16 +309,7 @@ async function loadUserContext(userId) {
   let automationNames = []
 
   try {
-    const { data: accounts, error: accountsError } = await supabase
-      .from('platform_accounts')
-      .select('platform')
-      .eq('user_id', userId)
-
-    if (accountsError) {
-      console.error('platform_accounts query error:', accountsError.message)
-    } else if (accounts?.length) {
-      connectedPlatforms = accounts.map((row) => row.platform)
-    }
+    connectedPlatforms = await getConnectedPlatforms(userId)
   } catch (err) {
     console.error('platform_accounts query failed:', err.message)
   }
@@ -389,7 +446,7 @@ router.post('/message', async (req, res) => {
         for (const block of response.content) {
           if (block.type !== 'tool_use') continue
 
-          const result = await executeTool(block.name, block.input)
+          const result = await executeTool(block.name, block.input, userId)
 
           if (block.name === 'request_app_connection') {
             action = 'request_connection'
