@@ -259,10 +259,17 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
-    const checkUser = async () => {
+    let mounted = true;
+
+    const checkAuth = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      if (!mounted) return;
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
       if (session?.user) {
         setUser(session.user);
         return;
@@ -271,24 +278,32 @@ export default function DashboardPage() {
       const { data } = await supabase.auth.getUser();
       if (!data.user) {
         window.location.href = "/login";
-        return;
+      } else {
+        setUser(data.user);
       }
-      setUser(data.user);
     };
 
-    checkUser();
+    checkAuth();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+
+      if (event === "SIGNED_OUT") {
+        window.location.href = "/login";
+        return;
+      }
+
       if (session?.user) {
         setUser(session.user);
-      } else if (!session) {
-        window.location.href = "/login";
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
