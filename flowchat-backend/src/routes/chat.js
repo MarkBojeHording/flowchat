@@ -194,7 +194,18 @@ function sanitizeConnectionReply(reply, actionData) {
   return cleaned.replace(/\s{2,}/g, ' ').trim()
 }
 
-function buildChatResponse(replyText, { action, actionData, connectedApps, currentWorkflowId }) {
+function generateAutoName(message, nameFromState) {
+  if (nameFromState) return nameFromState
+
+  const cleaned = message.trim().replace(/\s+/g, ' ')
+  if (cleaned.length <= 50) return cleaned
+  return `${cleaned.slice(0, 47)}...`
+}
+
+function buildChatResponse(
+  replyText,
+  { action, actionData, connectedApps, currentWorkflowId, automationId, autoName }
+) {
   console.log('Final reply text:', JSON.stringify(replyText))
 
   let reply = replyText
@@ -203,6 +214,8 @@ function buildChatResponse(replyText, { action, actionData, connectedApps, curre
     reply = sanitizeConnectionReply(reply, actionData)
   }
 
+  const stage = determineStage(action, currentWorkflowId)
+
   return {
     reply,
     action,
@@ -210,7 +223,9 @@ function buildChatResponse(replyText, { action, actionData, connectedApps, curre
     updatedState: {
       connectedApps,
       currentWorkflowId,
-      stage: determineStage(action, currentWorkflowId),
+      stage,
+      automationId: automationId || null,
+      autoName: autoName || null,
     },
   }
 }
@@ -280,13 +295,38 @@ function populateSystemPrompt(template, { connectedPlatforms, automationNames })
 }
 
 router.post('/message', async (req, res) => {
-  const { userId, message, conversationHistory } = req.body
+  const { userId, automationId: requestAutomationId, message, conversationHistory: requestHistory } =
+    req.body
 
   if (!userId || !message) {
     return res.status(400).json({ error: 'userId and message required' })
   }
 
   try {
+    let automationId = requestAutomationId || null
+    let conversationHistory = Array.isArray(requestHistory) ? requestHistory : []
+    let autoName = null
+    let n8nWorkflowId = null
+
+    if (automationId) {
+      const { data: workflow, error: workflowError } = await supabase
+        .from('workflows')
+        .select('*')
+        .eq('id', automationId)
+        .eq('user_id', userId)
+        .single()
+
+      if (workflowError) {
+        console.error('Workflow load error:', workflowError.message)
+      } else if (workflow) {
+        if (workflow.conversation) {
+          conversationHistory = workflow.conversation
+        }
+        autoName = workflow.auto_name
+        n8nWorkflowId = workflow.n8n_workflow_id
+      }
+    }
+
     const systemTemplate = fs.readFileSync(AGENT_PROMPT_PATH, 'utf8')
     const { connectedPlatforms, automationNames } = await loadUserContext(userId)
     const systemPrompt = populateSystemPrompt(systemTemplate, {
@@ -295,13 +335,13 @@ router.post('/message', async (req, res) => {
     })
 
     const messages = [
-      ...(Array.isArray(conversationHistory) ? conversationHistory : []),
+      ...conversationHistory,
       { role: 'user', content: message },
     ]
 
     let action = null
     let actionData = null
-    let currentWorkflowId = null
+    let currentWorkflowId = n8nWorkflowId
     let connectedApps = [...connectedPlatforms]
     let response = null
     let iterations = 0
@@ -393,16 +433,118 @@ router.post('/message', async (req, res) => {
       return res.status(500).json({ error: 'Agent exceeded maximum iterations' })
     }
 
+    const updatedConversation = [
+      ...conversationHistory,
+      { role: 'user', content: message },
+      { role: 'assistant', content: replyText },
+    ]
+
+    const updatedStage = determineStage(action, currentWorkflowId)
+    let savedAutomationId = automationId
+    let savedAutoName = autoName
+
+    if (automationId) {
+      const { error: updateError } = await supabase
+        .from('workflows')
+        .update({
+          conversation: updatedConversation,
+          last_message_at: new Date().toISOString(),
+          stage: updatedStage || 'gathering_info',
+        })
+        .eq('id', automationId)
+        .eq('user_id', userId)
+
+      if (updateError) {
+        console.error('Workflow update error:', updateError.message)
+      }
+    } else {
+      savedAutoName = generateAutoName(message)
+
+      const { data: newWorkflow, error: insertError } = await supabase
+        .from('workflows')
+        .insert({
+          user_id: userId,
+          auto_name: savedAutoName,
+          conversation: updatedConversation,
+          status: 'draft',
+          stage: 'gathering_info',
+          last_message_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error('Workflow insert error:', insertError.message)
+      } else if (newWorkflow) {
+        savedAutomationId = newWorkflow.id
+        savedAutoName = newWorkflow.auto_name
+      }
+    }
+
     return res.json(
       buildChatResponse(replyText, {
         action,
         actionData,
         connectedApps,
         currentWorkflowId,
+        automationId: savedAutomationId,
+        autoName: savedAutoName,
       })
     )
   } catch (err) {
     console.error('Chat error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.get('/automations', async (req, res) => {
+  const { userId } = req.query
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' })
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('workflows')
+      .select(
+        'id, auto_name, name, status, stage, last_message_at, n8n_workflow_id, trigger_app, action_apps'
+      )
+      .eq('user_id', userId)
+      .order('last_message_at', { ascending: false })
+
+    if (error) throw error
+
+    res.json({ automations: data || [] })
+  } catch (err) {
+    console.error('Get automations error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.get('/automations/:id', async (req, res) => {
+  const { id } = req.params
+  const { userId } = req.query
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' })
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('workflows')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single()
+
+    if (error || !data) {
+      return res.status(404).json({ error: 'Automation not found' })
+    }
+
+    res.json({ automation: data })
+  } catch (err) {
+    console.error('Get automation error:', err)
     res.status(500).json({ error: err.message })
   }
 })
