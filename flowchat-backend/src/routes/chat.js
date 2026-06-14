@@ -167,12 +167,85 @@ async function executeTool(name, input, userId, automationId = null) {
       return { connected }
     }
 
-    case 'get_user_resources':
-      return {
-        google_sheets: ['Client Leads', 'New Signups'],
-        slack_channels: ['#general', '#team'],
-        typeform_forms: ['Contact Us 2026', 'New Client Intake'],
+    case 'get_user_resources': {
+      const { app } = input
+
+      try {
+        if (app === 'slack') {
+          const { data: slackAccount } = await supabase
+            .from('platform_accounts')
+            .select('access_token')
+            .eq('platform', 'slack')
+            .eq('user_id', userId)
+            .single()
+
+          if (!slackAccount?.access_token) {
+            return { error: 'Slack not connected' }
+          }
+
+          const response = await axios.get(
+            'https://slack.com/api/conversations.list',
+            {
+              headers: {
+                Authorization: `Bearer ${slackAccount.access_token}`,
+              },
+              params: {
+                limit: 50,
+                types: 'public_channel,private_channel',
+              },
+            }
+          )
+
+          if (response.data.ok) {
+            const channels = response.data.channels
+              .filter((c) => !c.is_archived)
+              .map((c) => `#${c.name}`)
+            return { slack_channels: channels }
+          }
+
+          return { slack_channels: [], error: response.data.error }
+        }
+
+        if (app === 'google_sheets') {
+          const { data: googleAccount } = await supabase
+            .from('platform_accounts')
+            .select('access_token')
+            .eq('platform', 'google')
+            .eq('user_id', userId)
+            .single()
+
+          if (!googleAccount?.access_token) {
+            return { error: 'Google not connected' }
+          }
+
+          const response = await axios.get(
+            'https://www.googleapis.com/drive/v3/files',
+            {
+              headers: {
+                Authorization: `Bearer ${googleAccount.access_token}`,
+              },
+              params: {
+                q: "mimeType='application/vnd.google-apps.spreadsheet'",
+                fields: 'files(id,name)',
+                pageSize: 20,
+              },
+            }
+          )
+
+          const sheets = response.data.files?.map((f) => f.name) || []
+          return { google_sheets: sheets }
+        }
+
+        return {
+          google_sheets: ['Client Leads', 'New Signups'],
+          slack_channels: ['#general', '#team'],
+          typeform_forms: ['Contact Us', 'New Client Intake'],
+        }
+      } catch (err) {
+        console.error('get_user_resources error:', err)
+        return { error: err.message }
       }
+    }
 
     case 'request_app_connection':
       return {
