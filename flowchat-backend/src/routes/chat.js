@@ -255,16 +255,33 @@ async function executeTool(name, input, userId, automationId = null) {
       }
 
     case 'build_workflow': {
-      const { trigger_app, trigger_event, action_app, action_event, details } =
-        input
-
       try {
+        if (automationId) {
+          const { data: existingWorkflow } = await supabase
+            .from('workflows')
+            .select('n8n_workflow_id, id')
+            .eq('id', automationId)
+            .single()
+
+          if (existingWorkflow?.n8n_workflow_id) {
+            return {
+              success: true,
+              workflowId: existingWorkflow.n8n_workflow_id,
+              summary: 'Automation is already built and active.',
+            }
+          }
+        }
+
+        const { trigger_app, trigger_event, action_app, action_event, details } =
+          input
+
         const detailsObj =
           typeof details === 'string'
             ? JSON.parse(details || '{}')
             : details || {}
 
         const { buildWorkflow } = require('../services/workflowBuilder')
+        const { createWorkflow, activateWorkflow } = require('../services/n8n')
 
         const { data: userData } = await supabase.auth.admin.getUserById(userId)
         const userEmail = userData?.user?.email || userId
@@ -277,7 +294,6 @@ async function executeTool(name, input, userId, automationId = null) {
           details: detailsObj,
         })
 
-        const { createWorkflow, activateWorkflow } = require('../services/n8n')
         const created = await createWorkflow(workflowData)
         await activateWorkflow(created.id)
 
@@ -299,13 +315,13 @@ async function executeTool(name, input, userId, automationId = null) {
         return {
           success: true,
           workflowId: created.id,
-          summary: 'Your automation is live and will run as scheduled.',
+          summary: 'Automation built and activated successfully.',
         }
       } catch (err) {
         console.error('build_workflow error:', err)
         return {
           success: false,
-          summary: `Failed to build workflow: ${err.message}`,
+          summary: `Failed to build: ${err.message}`,
         }
       }
     }
@@ -314,8 +330,33 @@ async function executeTool(name, input, userId, automationId = null) {
       try {
         const { workflowId } = input
 
-        const { data: userData } = await supabase.auth.admin.getUserById(userId)
-        const userEmail = userData?.user?.email
+        const { data: workflow } = automationId
+          ? await supabase
+              .from('workflows')
+              .select('*')
+              .eq('id', automationId)
+              .single()
+          : { data: null }
+
+        const n8nWorkflowId = workflow?.n8n_workflow_id || workflowId
+        const isSchedule = workflow?.trigger_app === 'schedule'
+
+        if (isSchedule && n8nWorkflowId) {
+          try {
+            const { n8nClient } = require('../services/n8n')
+            const execRes = await n8nClient.post(
+              `/api/v1/workflows/${n8nWorkflowId}/run`
+            )
+            console.log('n8n execution triggered:', execRes.data)
+            return {
+              success: true,
+              summary:
+                'Test run triggered successfully. Check Slack for the message from your automation.',
+            }
+          } catch (err) {
+            console.error('n8n run error:', err.message)
+          }
+        }
 
         const { data: slackAccount } = await supabase
           .from('platform_accounts')
@@ -331,14 +372,6 @@ async function executeTool(name, input, userId, automationId = null) {
               'Could not find your Slack connection. Please reconnect Slack and try again.',
           }
         }
-
-        const { data: workflow } = automationId
-          ? await supabase
-              .from('workflows')
-              .select('*')
-              .eq('id', automationId)
-              .single()
-          : { data: null }
 
         const testMessage =
           '🧪 Flowchat test message — your automation is working correctly!'
@@ -493,7 +526,20 @@ async function loadUserContext(userId) {
   return { connectedPlatforms, automationNames }
 }
 
-function populateSystemPrompt(template, { connectedPlatforms, automationNames }) {
+function populateSystemPrompt(
+  template,
+  { connectedPlatforms, automationNames, workflow, automationId }
+) {
+  const currentState = workflow
+    ? `
+Automation ID: ${automationId}
+Status: ${workflow.status || 'draft'}
+Stage: ${workflow.stage || 'gathering_info'}
+N8N Workflow: ${workflow.n8n_workflow_id ? 'Already built - ID: ' + workflow.n8n_workflow_id : 'Not built yet'}
+Name: ${workflow.auto_name || 'Untitled'}
+`
+    : 'None. User is starting fresh.'
+
   return template
     .replace(
       '{{USER_CONTEXT}}',
@@ -503,7 +549,7 @@ function populateSystemPrompt(template, { connectedPlatforms, automationNames })
       '{{USER_AUTOMATIONS}}',
       automationNames.length ? automationNames.join(', ') : 'None yet.'
     )
-    .replace('{{CURRENT_STATE}}', 'None. User is starting fresh.')
+    .replace('{{CURRENT_STATE}}', currentState)
     .replace(
       '{{CONNECTED_APPS}}',
       connectedPlatforms.length
@@ -525,9 +571,10 @@ router.post('/message', async (req, res) => {
     let conversationHistory = Array.isArray(requestHistory) ? requestHistory : []
     let autoName = null
     let n8nWorkflowId = null
+    let workflow = null
 
     if (automationId) {
-      const { data: workflow, error: workflowError } = await supabase
+      const { data: loadedWorkflow, error: workflowError } = await supabase
         .from('workflows')
         .select('*')
         .eq('id', automationId)
@@ -536,7 +583,8 @@ router.post('/message', async (req, res) => {
 
       if (workflowError) {
         console.error('Workflow load error:', workflowError.message)
-      } else if (workflow) {
+      } else if (loadedWorkflow) {
+        workflow = loadedWorkflow
         if (workflow.conversation) {
           conversationHistory = workflow.conversation
         }
@@ -550,6 +598,8 @@ router.post('/message', async (req, res) => {
     const systemPrompt = populateSystemPrompt(systemTemplate, {
       connectedPlatforms,
       automationNames,
+      workflow,
+      automationId,
     })
 
     const messages = [
