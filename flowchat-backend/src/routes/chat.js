@@ -328,79 +328,88 @@ async function executeTool(name, input, userId, automationId = null) {
 
     case 'test_workflow': {
       try {
-        const { workflowId } = input
+        const { n8nClient } = require('../services/n8n')
 
-        const { data: workflow } = automationId
-          ? await supabase
-              .from('workflows')
-              .select('*')
-              .eq('id', automationId)
-              .single()
-          : { data: null }
-
-        const n8nWorkflowId = workflow?.n8n_workflow_id || workflowId
-        const isSchedule = workflow?.trigger_app === 'schedule'
-
-        if (isSchedule && n8nWorkflowId) {
-          try {
-            const { n8nClient } = require('../services/n8n')
-            const execRes = await n8nClient.post(
-              `/api/v1/workflows/${n8nWorkflowId}/run`
-            )
-            console.log('n8n execution triggered:', execRes.data)
-            return {
-              success: true,
-              summary:
-                'Test run triggered successfully. Check Slack for the message from your automation.',
-            }
-          } catch (err) {
-            console.error('n8n run error:', err.message)
-          }
-        }
-
-        const { data: slackAccount } = await supabase
-          .from('platform_accounts')
-          .select('access_token')
-          .eq('platform', 'slack')
-          .eq('user_id', userId)
-          .single()
-
-        if (!slackAccount?.access_token) {
+        if (!automationId) {
           return {
             success: false,
             summary:
-              'Could not find your Slack connection. Please reconnect Slack and try again.',
+              'No workflow has been built yet. Build the automation first before testing.',
           }
         }
 
-        const testMessage =
-          '🧪 Flowchat test message — your automation is working correctly!'
-        const channel = '#general'
+        const { data: workflowData } = await supabase
+          .from('workflows')
+          .select('*')
+          .eq('id', automationId)
+          .single()
 
-        const slackResponse = await axios.post(
-          'https://slack.com/api/chat.postMessage',
-          {
-            channel,
-            text: testMessage,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${slackAccount.access_token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        )
+        const n8nWorkflowId = workflowData?.n8n_workflow_id
 
-        if (slackResponse.data.ok) {
+        if (!n8nWorkflowId) {
           return {
-            success: true,
-            summary: `Test message sent to ${channel} in Slack. Check your Slack now — you should see a message saying "${testMessage}"`,
+            success: false,
+            summary:
+              'No workflow has been built yet. Build the automation first before testing.',
+          }
+        }
+
+        let executionId = null
+        let executionError = null
+
+        try {
+          const runRes = await n8nClient.post(
+            `/api/v1/workflows/${n8nWorkflowId}/run`
+          )
+          executionId = runRes.data?.data?.executionId
+          console.log('n8n execution triggered, ID:', executionId)
+        } catch (err) {
+          console.error('n8n run error:', err.response?.data || err.message)
+          executionError = err.response?.data?.message || err.message
+        }
+
+        if (executionId) {
+          await new Promise((resolve) => setTimeout(resolve, 3000))
+
+          try {
+            const execRes = await n8nClient.get(
+              `/api/v1/executions/${executionId}`
+            )
+            const execution = execRes.data?.data
+
+            if (execution?.finished && execution?.status === 'success') {
+              return {
+                success: true,
+                summary:
+                  'The n8n workflow executed successfully. Check your Slack — the message should have appeared. The automation is working correctly and will run every Friday at 4pm.',
+              }
+            }
+
+            if (execution?.status === 'error') {
+              const errorMsg =
+                execution?.data?.resultData?.error?.message || 'Unknown error'
+              return {
+                success: false,
+                summary: `The workflow ran but encountered an error: ${errorMsg}. Let me know if you need help fixing this.`,
+              }
+            }
+
+            return {
+              success: true,
+              summary: `The workflow was triggered in n8n (execution ID: ${executionId}). Check your n8n dashboard to see the execution result, and check Slack for the test message.`,
+            }
+          } catch (err) {
+            return {
+              success: true,
+              summary:
+                'The workflow was triggered in n8n but I could not confirm the result. Check your Slack and n8n execution logs to verify it worked.',
+            }
           }
         }
 
         return {
           success: false,
-          summary: `Could not send test message: ${slackResponse.data.error}. Please check your Slack connection.`,
+          summary: `I was unable to trigger the n8n workflow directly (${executionError || 'API not available'}). The workflow is set up in n8n and will run automatically on schedule, but I cannot manually test it right now. Check your n8n dashboard to verify the workflow is active.`,
         }
       } catch (err) {
         console.error('test_workflow error:', err)

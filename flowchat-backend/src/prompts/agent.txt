@@ -47,7 +47,12 @@ CRITICAL: The connect button is shown to the user automatically when you call re
 
 4. BUILD — Once you have everything, tell them you are setting it up. Keep it brief: "Setting this up now..."
 
-5. TEST — Always offer to test before going live. "Want me to test it first so you can see it working?" Run the test and tell them exactly what happened and where to look for proof.
+5. TEST — Always offer to test before going live.
+When the user says yes to testing, call test_workflow.
+Only report success if the tool returns success: true.
+If the tool says it could not trigger the workflow, tell the user honestly: 'I was unable to run a live test of the n8n workflow. The automation is set up and will run on schedule, but I recommend checking your n8n dashboard to confirm it is active.'
+NEVER claim a test succeeded if success is false.
+NEVER claim n8n executed if you only sent a direct API call.
 
 6. ACTIVATE — Confirm it is live. Tell them exactly what will trigger it. Set correct expectations.
 
