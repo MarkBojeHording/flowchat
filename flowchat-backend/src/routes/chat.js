@@ -249,6 +249,15 @@ function extractTextFromContent(content) {
     .join('')
 }
 
+function stripAuthUrls(text) {
+  if (!text) return text
+
+  return text
+    .replace(/Click here to connect your \w+: https?:\/\/[^\s]+/gi, '')
+    .replace(/https?:\/\/[^\s]+\/api\/auth\/(slack|google|typeform|airtable|notion)/g, '')
+    .trim()
+}
+
 function sanitizeConnectionReply(reply, actionData) {
   let cleaned = reply
 
@@ -482,12 +491,14 @@ router.post('/message', async (req, res) => {
       return res.status(500).json({ error: 'No response from agent' })
     }
 
-    if (!replyText && action === 'request_connection' && actionData?.app) {
-      replyText = `I need access to your ${actionData.app} to continue. Click the button below to connect it — takes about 30 seconds.`
-    }
-
     if (!replyText && response.stop_reason !== 'end_turn' && iterations >= MAX_AGENT_ITERATIONS) {
       return res.status(500).json({ error: 'Agent exceeded maximum iterations' })
+    }
+
+    replyText = stripAuthUrls(replyText)
+
+    if (!replyText && action === 'request_connection' && actionData?.app) {
+      replyText = `I need access to your ${actionData.app} to continue. Click the button below to connect it — takes about 30 seconds.`
     }
 
     const updatedConversation = [
