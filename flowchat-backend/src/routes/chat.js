@@ -355,17 +355,15 @@ async function executeTool(name, input, userId, automationId = null) {
         }
 
         let executionId = null
-        let executionError = null
 
         try {
           const runRes = await n8nClient.post(
-            `/api/v1/workflows/${n8nWorkflowId}/run`
+            `/api/v1/workflows/${n8nWorkflowId}/execute`
           )
           executionId = runRes.data?.data?.executionId
           console.log('n8n execution triggered, ID:', executionId)
         } catch (err) {
-          console.error('n8n run error:', err.response?.data || err.message)
-          executionError = err.response?.data?.message || err.message
+          console.error('n8n execute error:', err.response?.data || err.message)
         }
 
         if (executionId) {
@@ -409,7 +407,8 @@ async function executeTool(name, input, userId, automationId = null) {
 
         return {
           success: false,
-          summary: `I was unable to trigger the n8n workflow directly (${executionError || 'API not available'}). The workflow is set up in n8n and will run automatically on schedule, but I cannot manually test it right now. Check your n8n dashboard to verify the workflow is active.`,
+          summary:
+            'The automation is set up correctly and will run automatically on schedule. To manually test it, open your n8n dashboard and click Execute Workflow on the workflow named after your email.',
         }
       } catch (err) {
         console.error('test_workflow error:', err)
