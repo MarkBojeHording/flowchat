@@ -53,6 +53,7 @@ router.get('/google/debug', (req, res) => {
 
 // Step 1: Redirect user to Google OAuth
 router.get('/google', (req, res) => {
+  const { userId } = req.query
   const oauth2Client = getOAuthClient()
 
   const scopes = [
@@ -67,7 +68,8 @@ router.get('/google', (req, res) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: scopes,
-    prompt: 'consent'
+    prompt: 'consent',
+    state: userId || ''
   })
 
   res.redirect(url)
@@ -75,7 +77,7 @@ router.get('/google', (req, res) => {
 
 // Step 2: Handle Google OAuth callback
 router.get('/callback/google', async (req, res) => {
-  const { code, error } = req.query
+  const { code, error, state: supabaseUserId } = req.query
 
   if (error) {
     return res.status(400).json({ error })
@@ -91,6 +93,7 @@ router.get('/callback/google', async (req, res) => {
 
     console.log('✅ Google OAuth successful')
     console.log('User:', userInfo.email)
+    console.log('Supabase user ID:', supabaseUserId)
     console.log('Access token:', tokens.access_token?.substring(0, 20) + '...')
     console.log('Refresh token:', tokens.refresh_token ? 'present' : 'MISSING')
 
@@ -98,7 +101,7 @@ router.get('/callback/google', async (req, res) => {
     const { error: dbError } = await supabase
       .from('platform_accounts')
       .upsert({
-        user_id: userInfo.id,
+        user_id: supabaseUserId,
         platform: 'google',
         email: userInfo.email,
         access_token: tokens.access_token,
@@ -122,11 +125,14 @@ router.get('/callback/google', async (req, res) => {
 
 // Slack OAuth - Step 1: Redirect to Slack
 router.get('/slack', (req, res) => {
+  const { userId } = req.query
+
   const params = new URLSearchParams({
     client_id: process.env.SLACK_CLIENT_ID,
     scope: 'chat:write,channels:read,users:read',
     redirect_uri: process.env.SLACK_REDIRECT_URI,
-    response_type: 'code'
+    response_type: 'code',
+    state: userId || ''
   })
 
   res.redirect(`https://slack.com/oauth/v2/authorize?${params.toString()}`)
@@ -134,7 +140,7 @@ router.get('/slack', (req, res) => {
 
 // Slack OAuth - Step 2: Handle callback
 router.get('/callback/slack', async (req, res) => {
-  const { code, error } = req.query
+  const { code, error, state: supabaseUserId } = req.query
 
   if (error) {
     return res.status(400).json({ error })
@@ -159,18 +165,18 @@ router.get('/callback/slack', async (req, res) => {
 
     const accessToken = data.access_token
     const teamName = data.team?.name
-    const userId = data.authed_user?.id
-    const botUserId = data.bot_user_id
+    const slackUserId = data.authed_user?.id
 
     console.log('✅ Slack OAuth successful')
     console.log('Team:', teamName)
-    console.log('User ID:', userId)
+    console.log('Slack user ID:', slackUserId)
+    console.log('Supabase user ID:', supabaseUserId)
 
     // Save to Supabase
     const { error: dbError } = await supabase
       .from('platform_accounts')
       .upsert({
-        user_id: userId,
+        user_id: supabaseUserId,
         platform: 'slack',
         email: teamName,
         access_token: accessToken,

@@ -142,21 +142,10 @@ function appToPlatform(app) {
 
 async function getConnectedPlatforms(userId) {
   try {
-    const { data: userData, error: userError } =
-      await supabase.auth.admin.getUserById(userId)
-
-    if (userError) {
-      console.error('getUserById error:', userError.message)
-      return []
-    }
-
-    const userEmail = userData?.user?.email
-    if (!userEmail) return []
-
     const { data, error } = await supabase
       .from('platform_accounts')
       .select('platform')
-      .eq('email', userEmail)
+      .eq('user_id', userId)
 
     if (error) {
       console.error('platform_accounts query error:', error.message)
