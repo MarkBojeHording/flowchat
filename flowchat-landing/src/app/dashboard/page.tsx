@@ -148,6 +148,7 @@ function getChatStatusPillClass(status: string): string {
 
 function renderMarkdown(text: string): string {
   return text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
     .replace(/\n/g, "<br/>");
@@ -272,6 +273,55 @@ export default function DashboardPage() {
 
       if (session?.user) {
         setUser(session.user);
+
+        const params = new URLSearchParams(window.location.search);
+        const connectedApp = params.get("connected");
+        if (connectedApp) {
+          window.history.replaceState({}, "", "/dashboard");
+
+          setTimeout(async () => {
+            if (!mounted) return;
+
+            const confirmMessage = `I just connected ${connectedApp}`;
+
+            const {
+              data: { session: currentSession },
+            } = await supabase.auth.getSession();
+            if (!currentSession?.user) return;
+
+            const res = await fetch(
+              `${BACKEND_URL}/api/chat/automations?userId=${currentSession.user.id}`
+            );
+            const { automations: userAutomations } = await res.json();
+
+            if (userAutomations && userAutomations.length > 0) {
+              const mostRecent = userAutomations[0];
+              setSelectedId(mostRecent.id);
+              setAutomations(userAutomations);
+
+              const autoRes = await fetch(
+                `${BACKEND_URL}/api/chat/automations/${mostRecent.id}?userId=${currentSession.user.id}`
+              );
+              const { automation } = await autoRes.json();
+
+              const rawMessages: ChatMessage[] = [];
+              for (const turn of automation?.conversation || []) {
+                if (turn.role === "user") {
+                  rawMessages.push({ type: "user", text: turn.content });
+                } else {
+                  rawMessages.push({ type: "assistant", text: turn.content });
+                }
+              }
+              setMessages(rawMessages);
+
+              setInput(confirmMessage);
+              setTimeout(() => {
+                document.dispatchEvent(new Event("autosubmit"));
+              }, 500);
+            }
+          }, 1000);
+        }
+
         return;
       }
 
@@ -433,6 +483,16 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const handleAutoSubmit = () => {
+      if (input.trim()) {
+        handleSubmit();
+      }
+    };
+    document.addEventListener("autosubmit", handleAutoSubmit);
+    return () => document.removeEventListener("autosubmit", handleAutoSubmit);
+  }, [input]);
 
   function handleTemplateSelect(prompt: string) {
     setInput(prompt);
