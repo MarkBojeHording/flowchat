@@ -1,6 +1,7 @@
 const express = require('express')
 const fs = require('fs')
 const path = require('path')
+const axios = require('axios')
 const Anthropic = require('@anthropic-ai/sdk')
 const { createClient } = require('@supabase/supabase-js')
 const ws = require('ws')
@@ -236,12 +237,73 @@ async function executeTool(name, input, userId, automationId = null) {
       }
     }
 
-    case 'test_workflow':
-      return {
-        success: false,
-        summary:
-          'I cannot run a real test until all required apps are connected and the automation is fully built. Please connect your apps first.',
+    case 'test_workflow': {
+      try {
+        const { workflowId } = input
+
+        const { data: userData } = await supabase.auth.admin.getUserById(userId)
+        const userEmail = userData?.user?.email
+
+        const { data: slackAccount } = await supabase
+          .from('platform_accounts')
+          .select('access_token')
+          .eq('platform', 'slack')
+          .eq('user_id', userId)
+          .single()
+
+        if (!slackAccount?.access_token) {
+          return {
+            success: false,
+            summary:
+              'Could not find your Slack connection. Please reconnect Slack and try again.',
+          }
+        }
+
+        const { data: workflow } = automationId
+          ? await supabase
+              .from('workflows')
+              .select('*')
+              .eq('id', automationId)
+              .single()
+          : { data: null }
+
+        const testMessage =
+          '🧪 Flowchat test message — your automation is working correctly!'
+        const channel = '#general'
+
+        const slackResponse = await axios.post(
+          'https://slack.com/api/chat.postMessage',
+          {
+            channel,
+            text: testMessage,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${slackAccount.access_token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+
+        if (slackResponse.data.ok) {
+          return {
+            success: true,
+            summary: `Test message sent to ${channel} in Slack. Check your Slack now — you should see a message saying "${testMessage}"`,
+          }
+        }
+
+        return {
+          success: false,
+          summary: `Could not send test message: ${slackResponse.data.error}. Please check your Slack connection.`,
+        }
+      } catch (err) {
+        console.error('test_workflow error:', err)
+        return {
+          success: false,
+          summary: `Test failed: ${err.message}`,
+        }
       }
+    }
 
     case 'activate_workflow':
       return { success: true, summary: 'Automation is now live' }
