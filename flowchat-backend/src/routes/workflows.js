@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { createWorkflow, activateWorkflow } = require('../services/n8n')
-const { buildWorkflow, getWebhookUrl } = require('../services/workflowBuilder')
+const { buildWorkflow } = require('../services/workflowBuilder')
 const { createClient } = require('@supabase/supabase-js')
 const ws = require('ws')
 
@@ -22,18 +22,22 @@ router.post('/create', async (req, res) => {
     console.log('Creating automation for user:', userId)
     console.log('Automation:', JSON.stringify(automation))
 
-    const workflowData = buildWorkflow(userId, userEmail, {
-      trigger_app: automation.trigger_app,
-      trigger_event: automation.trigger_event,
-      action_app: automation.action_app,
-      action_event: automation.action_event,
-      details: automation.details || {},
-    })
+    const { workflow: workflowData, testWebhookPath } = buildWorkflow(
+      userId,
+      userEmail,
+      {
+        trigger_app: automation.trigger_app,
+        trigger_event: automation.trigger_event,
+        action_app: automation.action_app,
+        action_event: automation.action_event,
+        details: automation.details || {},
+      }
+    )
 
     const created = await createWorkflow(workflowData)
     await activateWorkflow(created.id)
 
-    const webhookUrl = getWebhookUrl(created)
+    const webhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${testWebhookPath}`
 
     const { error: dbError } = await supabase.from('workflows').insert({
       user_id: userId,

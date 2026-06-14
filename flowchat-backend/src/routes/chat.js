@@ -286,22 +286,29 @@ async function executeTool(name, input, userId, automationId = null) {
         const { data: userData } = await supabase.auth.admin.getUserById(userId)
         const userEmail = userData?.user?.email || userId
 
-        const workflowData = buildWorkflow(userId, userEmail, {
-          trigger_app,
-          trigger_event,
-          action_app,
-          action_event,
-          details: detailsObj,
-        })
+        const { workflow: workflowData, testWebhookPath } = buildWorkflow(
+          userId,
+          userEmail,
+          {
+            trigger_app,
+            trigger_event,
+            action_app,
+            action_event,
+            details: detailsObj,
+          }
+        )
 
         const created = await createWorkflow(workflowData)
         await activateWorkflow(created.id)
+
+        const testWebhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${testWebhookPath}`
 
         if (automationId) {
           await supabase
             .from('workflows')
             .update({
               n8n_workflow_id: created.id,
+              webhook_url: testWebhookUrl,
               name: `${userEmail} — ${trigger_app} → ${action_app}`,
               status: 'live',
               stage: 'live',
@@ -328,93 +335,39 @@ async function executeTool(name, input, userId, automationId = null) {
 
     case 'test_workflow': {
       try {
-        const { n8nClient } = require('../services/n8n')
-
-        if (!automationId) {
-          return {
-            success: false,
-            summary:
-              'No workflow has been built yet. Build the automation first before testing.',
-          }
-        }
-
-        const { data: workflowData } = await supabase
+        const { data: workflow } = await supabase
           .from('workflows')
-          .select('*')
+          .select('webhook_url, n8n_workflow_id')
           .eq('id', automationId)
           .single()
 
-        const n8nWorkflowId = workflowData?.n8n_workflow_id
-
-        if (!n8nWorkflowId) {
+        if (!workflow?.webhook_url) {
           return {
             success: false,
-            summary:
-              'No workflow has been built yet. Build the automation first before testing.',
+            summary: 'No test webhook found. Please rebuild this automation.',
           }
         }
 
-        let executionId = null
-
-        try {
-          const runRes = await n8nClient.post(
-            `/api/v1/workflows/${n8nWorkflowId}/execute`
-          )
-          executionId = runRes.data?.data?.executionId
-          console.log('n8n execution triggered, ID:', executionId)
-        } catch (err) {
-          console.error('n8n execute error:', err.response?.data || err.message)
-        }
-
-        if (executionId) {
-          await new Promise((resolve) => setTimeout(resolve, 3000))
-
-          try {
-            const execRes = await n8nClient.get(
-              `/api/v1/executions/${executionId}`
-            )
-            const execution = execRes.data?.data
-
-            if (execution?.finished && execution?.status === 'success') {
-              return {
-                success: true,
-                summary:
-                  'The n8n workflow executed successfully. Check your Slack — the message should have appeared. The automation is working correctly and will run every Friday at 4pm.',
-              }
-            }
-
-            if (execution?.status === 'error') {
-              const errorMsg =
-                execution?.data?.resultData?.error?.message || 'Unknown error'
-              return {
-                success: false,
-                summary: `The workflow ran but encountered an error: ${errorMsg}. Let me know if you need help fixing this.`,
-              }
-            }
-
-            return {
-              success: true,
-              summary: `The workflow was triggered in n8n (execution ID: ${executionId}). Check your n8n dashboard to see the execution result, and check Slack for the test message.`,
-            }
-          } catch (err) {
-            return {
-              success: true,
-              summary:
-                'The workflow was triggered in n8n but I could not confirm the result. Check your Slack and n8n execution logs to verify it worked.',
-            }
-          }
-        }
+        await axios.post(
+          workflow.webhook_url,
+          {
+            test: true,
+            source: 'flowchat',
+            timestamp: new Date().toISOString(),
+          },
+          { timeout: 10000 }
+        )
 
         return {
-          success: false,
+          success: true,
           summary:
-            'The automation is set up correctly and will run automatically on schedule. To manually test it, open your n8n dashboard and click Execute Workflow on the workflow named after your email.',
+            'The n8n workflow just executed successfully. Check your apps now — you should see the result of the automation running for real.',
         }
       } catch (err) {
-        console.error('test_workflow error:', err)
+        console.error('test_workflow error:', err.message)
         return {
           success: false,
-          summary: `Test failed: ${err.message}`,
+          summary: `The test failed: ${err.message}. Check your n8n dashboard for details.`,
         }
       }
     }

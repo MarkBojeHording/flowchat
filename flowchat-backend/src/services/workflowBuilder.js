@@ -5,6 +5,25 @@ function credentialsUrl(userId, platform) {
   return `${BACKEND_URL}/api/auth/credentials/${userId}/${platform}`
 }
 
+function createTestWebhookPath(userId) {
+  return `flowchat-test-${userId}-${Date.now()}`
+}
+
+function testWebhookNode(testWebhookPath) {
+  return {
+    id: 'test-webhook',
+    name: 'Test Webhook',
+    type: 'n8n-nodes-base.webhook',
+    typeVersion: 1,
+    position: [250, 500],
+    parameters: {
+      path: testWebhookPath,
+      responseMode: 'onReceived',
+      responseData: 'firstEntryJson',
+    },
+  }
+}
+
 function fetchCredentialsNode(id, name, userId, platform, position) {
   return {
     id,
@@ -26,6 +45,8 @@ function fetchCredentialsNode(id, name, userId, platform, position) {
 }
 
 function buildScheduleSlackWorkflow(userId, details) {
+  const testWebhookPath = createTestWebhookPath(userId)
+
   const nodes = [
     {
       id: 'schedule-trigger',
@@ -44,6 +65,7 @@ function buildScheduleSlackWorkflow(userId, details) {
         },
       },
     },
+    testWebhookNode(testWebhookPath),
     fetchCredentialsNode(
       'fetch-slack-creds',
       'Fetch Slack Credentials',
@@ -91,6 +113,9 @@ function buildScheduleSlackWorkflow(userId, details) {
     'Schedule Trigger': {
       main: [[{ node: 'Fetch Slack Credentials', type: 'main', index: 0 }]],
     },
+    'Test Webhook': {
+      main: [[{ node: 'Fetch Slack Credentials', type: 'main', index: 0 }]],
+    },
     'Fetch Slack Credentials': {
       main: [[{ node: 'Send Slack Message', type: 'main', index: 0 }]],
     },
@@ -100,11 +125,13 @@ function buildScheduleSlackWorkflow(userId, details) {
     humanName: 'Schedule → Slack',
     nodes,
     connections,
+    testWebhookPath,
   }
 }
 
 function buildTypeformSheetsWorkflow(userId, details) {
   const webhookPath = `flowchat-${userId}-${Date.now()}`
+  const testWebhookPath = createTestWebhookPath(userId)
 
   const nodes = [
     {
@@ -119,6 +146,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
         responseData: 'firstEntryJson',
       },
     },
+    testWebhookNode(testWebhookPath),
     fetchCredentialsNode(
       'fetch-google-creds',
       'Fetch Google Credentials',
@@ -164,6 +192,9 @@ function buildTypeformSheetsWorkflow(userId, details) {
     'Typeform Trigger': {
       main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
     },
+    'Test Webhook': {
+      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
+    },
     'Fetch Google Credentials': {
       main: [[{ node: 'Append to Google Sheets', type: 'main', index: 0 }]],
     },
@@ -174,10 +205,12 @@ function buildTypeformSheetsWorkflow(userId, details) {
     nodes,
     connections,
     webhookPath,
+    testWebhookPath,
   }
 }
 
 function buildScheduleGmailWorkflow(userId, details) {
+  const testWebhookPath = createTestWebhookPath(userId)
   const toEmail = details.to_email || 'user@example.com'
   const subject = details.subject || 'Automated message'
   const messageText =
@@ -201,6 +234,7 @@ function buildScheduleGmailWorkflow(userId, details) {
         },
       },
     },
+    testWebhookNode(testWebhookPath),
     fetchCredentialsNode(
       'fetch-google-creds',
       'Fetch Google Credentials',
@@ -246,6 +280,9 @@ function buildScheduleGmailWorkflow(userId, details) {
     'Schedule Trigger': {
       main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
     },
+    'Test Webhook': {
+      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
+    },
     'Fetch Google Credentials': {
       main: [[{ node: 'Send Gmail', type: 'main', index: 0 }]],
     },
@@ -255,6 +292,7 @@ function buildScheduleGmailWorkflow(userId, details) {
     humanName: 'Schedule → Gmail',
     nodes,
     connections,
+    testWebhookPath,
   }
 }
 
@@ -294,20 +332,25 @@ function buildWorkflow(userId, userEmail, spec) {
   }
 
   return {
-    name: `${userEmail} — ${workflow.humanName}`,
-    nodes: workflow.nodes,
-    connections: workflow.connections,
-    settings: { executionOrder: 'v1' },
+    workflow: {
+      name: `${userEmail} — ${workflow.humanName}`,
+      nodes: workflow.nodes,
+      connections: workflow.connections,
+      settings: { executionOrder: 'v1' },
+    },
+    testWebhookPath: workflow.testWebhookPath,
   }
 }
 
 function getWebhookUrl(workflow) {
   const nodes = workflow?.nodes || []
-  const webhookNode = nodes.find(
-    (node) =>
-      node.type === 'n8n-nodes-base.webhook' ||
-      node.name === 'Typeform Trigger'
-  )
+  const webhookNode =
+    nodes.find((node) => node.name === 'Test Webhook') ||
+    nodes.find(
+      (node) =>
+        node.type === 'n8n-nodes-base.webhook' ||
+        node.name === 'Typeform Trigger'
+    )
 
   if (!webhookNode) return null
 
