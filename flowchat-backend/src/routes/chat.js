@@ -159,7 +159,7 @@ async function getConnectedPlatforms(userId) {
   }
 }
 
-async function executeTool(name, input, userId) {
+async function executeTool(name, input, userId, automationId = null) {
   switch (name) {
     case 'check_connected_apps': {
       const connected = await getConnectedPlatforms(userId)
@@ -181,30 +181,58 @@ async function executeTool(name, input, userId) {
       }
 
     case 'build_workflow': {
-      const connected = await getConnectedPlatforms(userId)
-      const requiredApps = [
-        appToPlatform(input.trigger_app),
-        appToPlatform(input.action_app),
-      ]
-      const missingApps = [...new Set(requiredApps)].filter(
-        (platform) =>
-          !connected.some(
-            (entry) => entry.toLowerCase() === platform.toLowerCase()
-          )
-      )
+      const { trigger_app, trigger_event, action_app, action_event, details } =
+        input
 
-      if (missingApps.length > 0) {
+      try {
+        const detailsObj =
+          typeof details === 'string'
+            ? JSON.parse(details || '{}')
+            : details || {}
+
+        const { buildWorkflow } = require('../services/workflowBuilder')
+
+        const { data: userData } = await supabase.auth.admin.getUserById(userId)
+        const userEmail = userData?.user?.email || userId
+
+        const workflowData = buildWorkflow(userId, userEmail, {
+          trigger_app,
+          trigger_event,
+          action_app,
+          action_event,
+          details: detailsObj,
+        })
+
+        const { createWorkflow, activateWorkflow } = require('../services/n8n')
+        const created = await createWorkflow(workflowData)
+        await activateWorkflow(created.id)
+
+        if (automationId) {
+          await supabase
+            .from('workflows')
+            .update({
+              n8n_workflow_id: created.id,
+              name: `${userEmail} — ${trigger_app} → ${action_app}`,
+              status: 'live',
+              stage: 'live',
+              trigger_app,
+              action_apps: [action_app],
+            })
+            .eq('id', automationId)
+            .eq('user_id', userId)
+        }
+
+        return {
+          success: true,
+          workflowId: created.id,
+          summary: 'Your automation is live and will run as scheduled.',
+        }
+      } catch (err) {
+        console.error('build_workflow error:', err)
         return {
           success: false,
-          summary:
-            'Cannot build automation — required apps are not connected yet.',
+          summary: `Failed to build workflow: ${err.message}`,
         }
-      }
-
-      return {
-        success: true,
-        workflowId: 'stub-' + Date.now(),
-        summary: 'Automation built successfully',
       }
     }
 
@@ -444,7 +472,12 @@ router.post('/message', async (req, res) => {
         for (const block of response.content) {
           if (block.type !== 'tool_use') continue
 
-          const result = await executeTool(block.name, block.input, userId)
+          const result = await executeTool(
+            block.name,
+            block.input,
+            userId,
+            automationId
+          )
 
           if (block.name === 'request_app_connection') {
             action = 'request_connection'
