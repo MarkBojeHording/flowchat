@@ -214,7 +214,7 @@ export default function DashboardPage() {
             rawMessages.push({
               type: "connect",
               app,
-              url,
+              url: `${url.split("?")[0]}?userId=${userId}`,
               message: `I need access to your ${app.charAt(0).toUpperCase() + app.slice(1)} to continue setting up your automation.`,
             });
           } else {
@@ -446,7 +446,7 @@ export default function DashboardPage() {
         newMessages.push({
           type: "connect",
           app: data.actionData.app,
-          url: data.actionData.url,
+          url: `${data.actionData.url}?userId=${user.id}`,
           message: data.actionData.message,
         });
       }
