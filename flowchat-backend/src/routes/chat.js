@@ -172,12 +172,15 @@ async function executeTool(name, input, userId, automationId = null) {
 
       try {
         if (app === 'slack') {
+          console.log('Fetching Slack channels for userId:', userId)
           const { data: slackAccount } = await supabase
             .from('platform_accounts')
             .select('access_token')
             .eq('platform', 'slack')
             .eq('user_id', userId)
             .single()
+
+          console.log('Slack account found:', !!slackAccount)
 
           if (!slackAccount?.access_token) {
             return { error: 'Slack not connected' }
@@ -196,6 +199,8 @@ async function executeTool(name, input, userId, automationId = null) {
             }
           )
 
+          console.log('Slack API response:', response.data.ok, response.data.error)
+
           if (response.data.ok) {
             const channels = response.data.channels
               .filter((c) => !c.is_archived)
@@ -203,7 +208,12 @@ async function executeTool(name, input, userId, automationId = null) {
             return { slack_channels: channels }
           }
 
-          return { slack_channels: [], error: response.data.error }
+          if (!response.data.ok) {
+            return {
+              slack_channels: [],
+              note: 'Could not fetch channels automatically. Ask the user to type their channel name manually.',
+            }
+          }
         }
 
         if (app === 'google_sheets') {
@@ -505,9 +515,9 @@ Name: ${workflow.auto_name || 'Untitled'}
     .replace('{{CURRENT_STATE}}', currentState)
     .replace(
       '{{CONNECTED_APPS}}',
-      connectedPlatforms.length
+      connectedPlatforms.length > 0
         ? connectedPlatforms.join(', ')
-        : 'None connected yet.'
+        : 'None connected yet'
     )
 }
 
@@ -616,6 +626,10 @@ router.post('/message', async (req, res) => {
             userId,
             automationId
           )
+
+          console.log(`Tool called: ${block.name}`)
+          console.log(`Tool input: ${JSON.stringify(block.input)}`)
+          console.log(`Tool result: ${JSON.stringify(result)}`)
 
           if (block.name === 'request_app_connection') {
             action = 'request_connection'

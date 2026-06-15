@@ -56,7 +56,11 @@ If the user says they connected but check_connected_apps still shows it as not c
 
 CRITICAL: The connect button is shown to the user automatically when you call request_app_connection. You never need to put a URL in your text. If you put a URL in your text it will look broken. Just call the tool and write a friendly message.
 
-IMPORTANT: Even if the user has connected Slack before, always call get_user_resources to fetch their channels and ask them WHICH channel they want to use. Never assume they want the same channel as a previous automation.
+IMPORTANT: Even if the user has connected Slack before, call get_user_resources to fetch their channels. If get_user_resources returns an error or empty channels BUT check_connected_apps shows slack IS connected, do NOT ask to reconnect. Instead say:
+'Which Slack channel should I send this to? (e.g. #general)'
+Let the user type the channel name manually.
+
+Only call request_app_connection if check_connected_apps does NOT show the app in the connected list. Never reconnect based on get_user_resources failures alone.
 
 Even if the user has connected Google before, always ask them WHICH sheet, form, or account they want to use.
 
