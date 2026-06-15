@@ -463,6 +463,7 @@ export default function DashboardPage() {
           type: "live",
           summary: data.actionData.summary || "Your automation is now live.",
         });
+        await fetchAutomations(user.id, false);
       }
 
       if (newMessages.length > 0) {
@@ -500,15 +501,53 @@ export default function DashboardPage() {
     inputRef.current?.focus();
   }
 
-  function handlePause(id: string) {
-    void id;
-    alert("Pause functionality coming soon");
+  async function handleDelete(id: string) {
+    if (!user) return;
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this automation? This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(
+        `${BACKEND_URL}/api/chat/automations/${id}?userId=${user.id}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+      if (data.success) {
+        setAutomations((prev) => prev.filter((a) => a.id !== id));
+        if (selectedId === id) {
+          setSelectedId(null);
+          setMessages([]);
+        }
+      } else {
+        alert("Failed to delete: " + data.error);
+      }
+    } catch {
+      alert("Failed to delete automation");
+    }
   }
 
-  function handleDelete(id: string) {
-    void id;
-    if (confirm("Are you sure you want to delete this automation?")) {
-      alert("Delete functionality coming soon");
+  async function handlePause(id: string) {
+    if (!user) return;
+
+    try {
+      const res = await fetch(
+        `${BACKEND_URL}/api/chat/automations/${id}/pause?userId=${user.id}`,
+        { method: "PATCH" }
+      );
+      const data = await res.json();
+      if (data.success) {
+        setAutomations((prev) =>
+          prev.map((a) =>
+            a.id === id ? { ...a, status: data.status } : a
+          )
+        );
+      } else {
+        alert("Failed to pause: " + data.error);
+      }
+    } catch {
+      alert("Failed to pause automation");
     }
   }
 
