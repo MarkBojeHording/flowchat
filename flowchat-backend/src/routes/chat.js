@@ -348,15 +348,7 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         }
 
-        await axios.post(
-          workflow.webhook_url,
-          {
-            test: true,
-            source: 'flowchat',
-            timestamp: new Date().toISOString(),
-          },
-          { timeout: 10000 }
-        )
+        await axios.get(workflow.webhook_url, { timeout: 10000 })
 
         return {
           success: true,

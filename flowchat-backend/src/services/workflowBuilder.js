@@ -18,6 +18,7 @@ function testWebhookNode(testWebhookPath) {
     position: [250, 500],
     parameters: {
       path: testWebhookPath,
+      httpMethod: 'GET',
       responseMode: 'onReceived',
       responseData: 'firstEntryJson',
     },
