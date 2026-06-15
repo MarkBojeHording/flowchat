@@ -791,4 +791,94 @@ router.get('/automations/:id', async (req, res) => {
   }
 })
 
+router.delete('/automations/:id', async (req, res) => {
+  const { id } = req.params
+  const { userId } = req.query
+
+  if (!userId) return res.status(400).json({ error: 'userId required' })
+
+  try {
+    const { data: workflow } = await supabase
+      .from('workflows')
+      .select('n8n_workflow_id')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single()
+
+    if (!workflow) {
+      return res.status(404).json({ error: 'Automation not found' })
+    }
+
+    if (workflow.n8n_workflow_id) {
+      try {
+        const { n8nClient } = require('../services/n8n')
+        await n8nClient.delete(`/api/v1/workflows/${workflow.n8n_workflow_id}`)
+        console.log('✅ Deleted from n8n:', workflow.n8n_workflow_id)
+      } catch (err) {
+        console.error('n8n delete error (continuing):', err.message)
+      }
+    }
+
+    const { error } = await supabase
+      .from('workflows')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId)
+
+    if (error) throw error
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Delete automation error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.patch('/automations/:id/pause', async (req, res) => {
+  const { id } = req.params
+  const { userId } = req.query
+
+  if (!userId) return res.status(400).json({ error: 'userId required' })
+
+  try {
+    const { data: workflow } = await supabase
+      .from('workflows')
+      .select('n8n_workflow_id, status')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single()
+
+    if (!workflow) {
+      return res.status(404).json({ error: 'Automation not found' })
+    }
+
+    const isPaused = workflow.status === 'paused'
+    const newStatus = isPaused ? 'live' : 'paused'
+
+    if (workflow.n8n_workflow_id) {
+      try {
+        const { n8nClient } = require('../services/n8n')
+        if (isPaused) {
+          await n8nClient.post(`/api/v1/workflows/${workflow.n8n_workflow_id}/activate`)
+        } else {
+          await n8nClient.post(`/api/v1/workflows/${workflow.n8n_workflow_id}/deactivate`)
+        }
+      } catch (err) {
+        console.error('n8n pause/resume error:', err.message)
+      }
+    }
+
+    await supabase
+      .from('workflows')
+      .update({ status: newStatus })
+      .eq('id', id)
+      .eq('user_id', userId)
+
+    res.json({ success: true, status: newStatus })
+  } catch (err) {
+    console.error('Pause automation error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 module.exports = router
