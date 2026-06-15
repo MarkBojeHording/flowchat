@@ -77,7 +77,7 @@ router.get('/google', (req, res) => {
 
 // Step 2: Handle Google OAuth callback
 router.get('/callback/google', async (req, res) => {
-  const { code, error, state: supabaseUserId } = req.query
+  const { code, error, state: userId } = req.query
 
   if (error) {
     return res.status(400).json({ error })
@@ -86,22 +86,17 @@ router.get('/callback/google', async (req, res) => {
   try {
     const oauth2Client = getOAuthClient()
     const { tokens } = await oauth2Client.getToken(code)
-
     oauth2Client.setCredentials(tokens)
+
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
     const { data: userInfo } = await oauth2.userinfo.get()
 
-    console.log('✅ Google OAuth successful')
-    console.log('User:', userInfo.email)
-    console.log('Supabase user ID:', supabaseUserId)
-    console.log('Access token:', tokens.access_token?.substring(0, 20) + '...')
-    console.log('Refresh token:', tokens.refresh_token ? 'present' : 'MISSING')
+    console.log('✅ Google OAuth successful for user:', userId)
 
-    // Save tokens to Supabase
     const { error: dbError } = await supabase
       .from('platform_accounts')
       .upsert({
-        user_id: supabaseUserId,
+        user_id: userId,
         platform: 'google',
         email: userInfo.email,
         access_token: tokens.access_token,
@@ -112,10 +107,11 @@ router.get('/callback/google', async (req, res) => {
     if (dbError) {
       console.error('❌ Supabase save error:', dbError)
     } else {
-      console.log('✅ Tokens saved to Supabase for:', userInfo.email)
+      console.log('✅ Google tokens saved for Supabase user:', userId)
     }
 
-    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?connected=google`)
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+    res.redirect(`${frontendUrl}/dashboard?connected=google`)
 
   } catch (err) {
     console.error('OAuth error:', err.message)
