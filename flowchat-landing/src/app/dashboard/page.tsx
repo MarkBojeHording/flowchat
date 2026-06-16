@@ -116,7 +116,7 @@ function getStatusPillClass(status: string): string {
     return "bg-[rgba(255,80,80,0.1)] text-[rgba(255,100,100,0.8)]";
   if (status === "building") return "bg-[rgba(233,184,114,0.1)] text-[#e9b872]";
   if (status === "paused")
-    return "bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.3)]";
+    return "bg-[#f3f4f6] text-[#6b7280] border border-[#e5e7eb]";
   return "bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.3)]";
 }
 
@@ -142,7 +142,7 @@ function getChatStatusPillClass(status: string): string {
   if (status === "building")
     return "rounded-full bg-[#fef3c7] px-2 py-0.5 text-[9px] text-[#92400e]";
   if (status === "paused")
-    return "rounded-full bg-[#f3f4f6] px-2 py-0.5 text-[9px] text-[#6b7280]";
+    return "rounded-full bg-[#f3f4f6] px-2 py-0.5 text-[9px] text-[#6b7280] border border-[#e5e7eb]";
   return "rounded-full bg-[#f3f4f6] px-2 py-0.5 text-[9px] text-[#6b7280]";
 }
 
@@ -854,13 +854,21 @@ export default function DashboardPage() {
                       History
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handlePause(selectedId)}
-                    className="rounded-md border border-[#e5e7eb] px-2.5 py-1 text-xs text-[#6b7280] transition-colors hover:text-[#111]"
-                  >
-                    Pause
-                  </button>
+                  {(() => {
+                    const currentAuto = automations.find(
+                      (a) => a.id === selectedId
+                    );
+                    const isPaused = currentAuto?.status === "paused";
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => handlePause(selectedId!)}
+                        className="rounded-md border border-[#e5e7eb] px-2.5 py-1 text-xs text-[#6b7280] transition-colors hover:text-[#111]"
+                      >
+                        {isPaused ? "Resume" : "Pause"}
+                      </button>
+                    );
+                  })()}
                   <button
                     type="button"
                     onClick={() => handleDelete(selectedId)}
