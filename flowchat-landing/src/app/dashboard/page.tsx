@@ -562,8 +562,22 @@ export default function DashboardPage() {
         );
         if (data.status === "paused") {
           showToast("Automation paused");
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "assistant",
+              text: "Your automation is paused and will not run until you resume it. Click Resume whenever you are ready to turn it back on.",
+            },
+          ]);
         } else {
           showToast("Automation resumed");
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "assistant",
+              text: "Your automation is back on and will run as scheduled.",
+            },
+          ]);
         }
       } else {
         showToast("Failed to update automation", "error");
