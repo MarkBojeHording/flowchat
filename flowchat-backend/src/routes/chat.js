@@ -265,6 +265,7 @@ async function executeTool(name, input, userId, automationId = null) {
       }
 
     case 'build_workflow': {
+      console.log('build_workflow called with:', JSON.stringify(input, null, 2))
       try {
         if (automationId) {
           const { data: existingWorkflow } = await supabase

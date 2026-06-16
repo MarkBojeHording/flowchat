@@ -98,10 +98,20 @@ function buildScheduleSlackWorkflow(userId, details) {
         contentType: 'json',
         bodyParameters: {
           parameters: [
-            { name: 'channel', value: details.slack_channel || '#general' },
+            {
+              name: 'channel',
+              value:
+                details.channel ||
+                details.slack_channel ||
+                '#general',
+            },
             {
               name: 'text',
-              value: details.message_text || 'Automation triggered',
+              value:
+                details.message ||
+                details.reminder_message ||
+                details.message_text ||
+                'Reminder from Flowchat',
             },
           ],
         },
