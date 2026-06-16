@@ -872,12 +872,18 @@ router.patch('/automations/:id/pause', async (req, res) => {
       try {
         const { n8nClient } = require('../services/n8n')
         if (isPaused) {
-          await n8nClient.post(`/api/v1/workflows/${workflow.n8n_workflow_id}/activate`)
+          await n8nClient.post(
+            `/api/v1/workflows/${workflow.n8n_workflow_id}/activate`
+          )
+          console.log('✅ n8n workflow activated:', workflow.n8n_workflow_id)
         } else {
-          await n8nClient.post(`/api/v1/workflows/${workflow.n8n_workflow_id}/deactivate`)
+          await n8nClient.post(
+            `/api/v1/workflows/${workflow.n8n_workflow_id}/deactivate`
+          )
+          console.log('✅ n8n workflow deactivated:', workflow.n8n_workflow_id)
         }
       } catch (err) {
-        console.error('n8n pause/resume error:', err.message)
+        console.error('n8n pause/resume error:', err.response?.data || err.message)
       }
     }
 
