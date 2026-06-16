@@ -795,25 +795,31 @@ router.delete('/automations/:id', async (req, res) => {
   const { id } = req.params
   const { userId } = req.query
 
+  console.log('Delete request for automation:', id, 'user:', userId)
+
   if (!userId) return res.status(400).json({ error: 'userId required' })
 
   try {
-    const { data: workflow } = await supabase
+    const { data: workflow, error: fetchError } = await supabase
       .from('workflows')
       .select('n8n_workflow_id')
       .eq('id', id)
       .eq('user_id', userId)
       .single()
 
-    if (!workflow) {
+    console.log('Workflow found:', workflow)
+
+    if (fetchError || !workflow) {
       return res.status(404).json({ error: 'Automation not found' })
     }
 
     if (workflow.n8n_workflow_id) {
       try {
         const { n8nClient } = require('../services/n8n')
-        await n8nClient.delete(`/api/v1/workflows/${workflow.n8n_workflow_id}`)
-        console.log('✅ Deleted from n8n:', workflow.n8n_workflow_id)
+        const result = await n8nClient.delete(
+          `/api/v1/workflows/${workflow.n8n_workflow_id}`
+        )
+        console.log('n8n delete result:', result.data)
       } catch (err) {
         console.error('n8n delete error (continuing):', err.message)
       }
@@ -825,8 +831,12 @@ router.delete('/automations/:id', async (req, res) => {
       .eq('id', id)
       .eq('user_id', userId)
 
-    if (error) throw error
+    if (error) {
+      console.error('Supabase delete error:', error)
+      throw error
+    }
 
+    console.log('Supabase delete complete')
     res.json({ success: true })
   } catch (err) {
     console.error('Delete automation error:', err)
@@ -852,8 +862,11 @@ router.patch('/automations/:id/pause', async (req, res) => {
       return res.status(404).json({ error: 'Automation not found' })
     }
 
-    const isPaused = workflow.status === 'paused'
+    const currentStatus = workflow.status
+    const isPaused = currentStatus === 'paused'
     const newStatus = isPaused ? 'live' : 'paused'
+
+    console.log('Pause toggle:', { currentStatus, isPaused, newStatus })
 
     if (workflow.n8n_workflow_id) {
       try {
@@ -868,11 +881,16 @@ router.patch('/automations/:id/pause', async (req, res) => {
       }
     }
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('workflows')
       .update({ status: newStatus })
       .eq('id', id)
       .eq('user_id', userId)
+
+    if (updateError) {
+      console.error('Supabase pause update error:', updateError)
+      throw updateError
+    }
 
     res.json({ success: true, status: newStatus })
   } catch (err) {

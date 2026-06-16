@@ -509,19 +509,21 @@ export default function DashboardPage() {
     if (!confirmed) return;
 
     try {
+      console.log("Deleting automation:", id, "for user:", user.id);
       const res = await fetch(
         `${BACKEND_URL}/api/chat/automations/${id}?userId=${user.id}`,
         { method: "DELETE" }
       );
       const data = await res.json();
-      if (data.success) {
-        setAutomations((prev) => prev.filter((a) => a.id !== id));
-        if (selectedId === id) {
-          setSelectedId(null);
-          setMessages([]);
-        }
-      } else {
-        alert("Failed to delete: " + data.error);
+      console.log("Delete response:", data);
+      if (!res.ok || !data.success) {
+        alert("Failed to delete: " + (data.error || "Unknown error"));
+        return;
+      }
+      setAutomations((prev) => prev.filter((a) => a.id !== id));
+      if (selectedId === id) {
+        setSelectedId(null);
+        setMessages([]);
       }
     } catch {
       alert("Failed to delete automation");
