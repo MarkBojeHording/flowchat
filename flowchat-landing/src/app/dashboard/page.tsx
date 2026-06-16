@@ -170,11 +170,24 @@ export default function DashboardPage() {
   const [templateCategory, setTemplateCategory] = useState("All");
   const [activeTab, setActiveTab] = useState<"chat" | "history">("chat");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error" | "warning";
+  } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const templatesRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  function showToast(
+    message: string,
+    type: "success" | "error" | "warning" = "success"
+  ) {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  }
 
   const loadAutomation = useCallback(async (id: string, userId: string) => {
     try {
@@ -501,32 +514,34 @@ export default function DashboardPage() {
     inputRef.current?.focus();
   }
 
-  async function handleDelete(id: string) {
+  function handleDelete(id: string) {
     if (!user) return;
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this automation? This cannot be undone."
-    );
-    if (!confirmed) return;
+    setConfirmDelete(id);
+  }
+
+  async function confirmDeleteAutomation() {
+    if (!confirmDelete || !user) return;
+    const id = confirmDelete;
+    setConfirmDelete(null);
 
     try {
-      console.log("Deleting automation:", id, "for user:", user.id);
       const res = await fetch(
         `${BACKEND_URL}/api/chat/automations/${id}?userId=${user.id}`,
         { method: "DELETE" }
       );
       const data = await res.json();
-      console.log("Delete response:", data);
-      if (!res.ok || !data.success) {
-        alert("Failed to delete: " + (data.error || "Unknown error"));
-        return;
-      }
-      setAutomations((prev) => prev.filter((a) => a.id !== id));
-      if (selectedId === id) {
-        setSelectedId(null);
-        setMessages([]);
+      if (data.success) {
+        setAutomations((prev) => prev.filter((a) => a.id !== id));
+        if (selectedId === id) {
+          setSelectedId(null);
+          setMessages([]);
+        }
+        showToast("Automation deleted successfully");
+      } else {
+        showToast("Failed to delete automation", "error");
       }
     } catch {
-      alert("Failed to delete automation");
+      showToast("Failed to delete automation", "error");
     }
   }
 
@@ -545,11 +560,16 @@ export default function DashboardPage() {
             a.id === id ? { ...a, status: data.status } : a
           )
         );
+        if (data.status === "paused") {
+          showToast("Automation paused");
+        } else {
+          showToast("Automation resumed");
+        }
       } else {
-        alert("Failed to pause: " + data.error);
+        showToast("Failed to update automation", "error");
       }
     } catch {
-      alert("Failed to pause automation");
+      showToast("Failed to update automation", "error");
     }
   }
 
@@ -1124,6 +1144,57 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-2 text-base font-semibold text-[#111]">
+              Delete this automation?
+            </div>
+            <div className="mb-6 text-sm text-[#6b7280]">
+              This will permanently remove the automation and stop it from
+              running. This cannot be undone.
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 rounded-xl border border-[#e5e7eb] py-2.5 text-sm font-medium text-[#6b7280] transition-colors hover:bg-[#f9fafb]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteAutomation}
+                className="flex-1 rounded-xl bg-[#dc2626] py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#b91c1c]"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          className={`fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-5 py-3 text-sm font-medium shadow-xl transition-all ${
+            toast.type === "success"
+              ? "bg-[#0d1420] text-white"
+              : toast.type === "error"
+                ? "border border-[#fecaca] bg-[#fef2f2] text-[#dc2626]"
+                : "border border-[#fde68a] bg-[#fffbeb] text-[#92400e]"
+          }`}
+        >
+          <span>
+            {toast.type === "success"
+              ? "✅"
+              : toast.type === "error"
+                ? "❌"
+                : "⚠️"}
+          </span>
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }
