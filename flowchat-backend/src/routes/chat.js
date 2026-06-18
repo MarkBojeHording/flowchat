@@ -5,6 +5,7 @@ const axios = require('axios')
 const Anthropic = require('@anthropic-ai/sdk')
 const { createClient } = require('@supabase/supabase-js')
 const ws = require('ws')
+const { getMetadataForAgent } = require('../services/integrations')
 
 const router = express.Router()
 
@@ -504,22 +505,24 @@ Name: ${workflow.auto_name || 'Untitled'}
 `
     : 'None. User is starting fresh.'
 
+  const integrationMetadata = getMetadataForAgent([
+    'schedule',
+    'typeform',
+    'stripe',
+    'calendly',
+    'google_sheets',
+    'gmail',
+    'slack',
+    'airtable',
+    'notion',
+  ])
+
   return template
-    .replace(
-      '{{USER_CONTEXT}}',
-      'New user. No previous automations. Name unknown.'
-    )
-    .replace(
-      '{{USER_AUTOMATIONS}}',
-      automationNames.length ? automationNames.join(', ') : 'None yet.'
-    )
+    .replace('{{USER_CONTEXT}}', 'New user. No previous automations. Name unknown.')
+    .replace('{{USER_AUTOMATIONS}}', automationNames.length ? automationNames.join(', ') : 'None yet.')
     .replace('{{CURRENT_STATE}}', currentState)
-    .replace(
-      '{{CONNECTED_APPS}}',
-      connectedPlatforms.length > 0
-        ? connectedPlatforms.join(', ')
-        : 'None connected yet'
-    )
+    .replace('{{CONNECTED_APPS}}', connectedPlatforms.length > 0 ? connectedPlatforms.join(', ') : 'None connected yet')
+    .replace('{{INTEGRATION_METADATA}}', integrationMetadata)
 }
 
 router.post('/message', async (req, res) => {
@@ -583,7 +586,7 @@ router.post('/message', async (req, res) => {
     for (let i = 0; i < MAX_AGENT_ITERATIONS; i++) {
       iterations = i + 1
       response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         max_tokens: 4096,
         system: systemPrompt,
         messages,
