@@ -1,4 +1,7 @@
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3456'
+const BACKEND_URL =
+  process.env.N8N_BACKEND_URL ||
+  process.env.BACKEND_URL ||
+  'http://localhost:3456'
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || ''
 
 function credentialsUrl(userId, platform) {
