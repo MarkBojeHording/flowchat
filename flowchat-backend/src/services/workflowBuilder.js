@@ -307,7 +307,7 @@ function buildScheduleGmailWorkflow(userId, details) {
   }
 }
 
-function buildWorkflow(userId, userEmail, spec) {
+async function buildWorkflow(userId, userEmail, spec) {
   const {
     trigger_app,
     trigger_event,
@@ -316,41 +316,48 @@ function buildWorkflow(userId, userEmail, spec) {
     details = {},
   } = spec
 
-  let workflow
+  const hasTemplate =
+    (trigger_app === 'schedule' &&
+      action_app === 'slack' &&
+      action_event === 'send_message') ||
+    (trigger_app === 'typeform' &&
+      action_app === 'google_sheets' &&
+      action_event === 'append_row') ||
+    (trigger_app === 'schedule' &&
+      action_app === 'gmail' &&
+      action_event === 'send_email')
 
-  if (
-    trigger_app === 'schedule' &&
-    action_app === 'slack' &&
-    action_event === 'send_message'
-  ) {
-    workflow = buildScheduleSlackWorkflow(userId, details)
-  } else if (
-    trigger_app === 'typeform' &&
-    action_app === 'google_sheets' &&
-    action_event === 'append_row'
-  ) {
-    workflow = buildTypeformSheetsWorkflow(userId, details)
-  } else if (
-    trigger_app === 'schedule' &&
-    action_app === 'gmail' &&
-    action_event === 'send_email'
-  ) {
-    workflow = buildScheduleGmailWorkflow(userId, details)
-  } else {
-    throw new Error(
-      `Unsupported automation: ${trigger_app}/${trigger_event} → ${action_app}/${action_event}`
-    )
+  if (hasTemplate) {
+    let workflow
+
+    if (trigger_app === 'schedule' && action_app === 'slack') {
+      workflow = buildScheduleSlackWorkflow(userId, details)
+    } else if (trigger_app === 'typeform' && action_app === 'google_sheets') {
+      workflow = buildTypeformSheetsWorkflow(userId, details)
+    } else if (trigger_app === 'schedule' && action_app === 'gmail') {
+      workflow = buildScheduleGmailWorkflow(userId, details)
+    }
+
+    return {
+      workflow: {
+        name: `${userEmail} — ${workflow.humanName}`,
+        nodes: workflow.nodes,
+        connections: workflow.connections,
+        settings: { executionOrder: 'v1' },
+      },
+      testWebhookPath: workflow.testWebhookPath,
+    }
   }
 
-  return {
-    workflow: {
-      name: `${userEmail} — ${workflow.humanName}`,
-      nodes: workflow.nodes,
-      connections: workflow.connections,
-      settings: { executionOrder: 'v1' },
-    },
-    testWebhookPath: workflow.testWebhookPath,
-  }
+  console.log(
+    'No template found for:',
+    trigger_app,
+    '→',
+    action_app,
+    '— using Builder Agent'
+  )
+  const { buildWorkflowWithAI } = require('./builderAgent')
+  return await buildWorkflowWithAI(userId, userEmail, spec)
 }
 
 function getWebhookUrl(workflow) {

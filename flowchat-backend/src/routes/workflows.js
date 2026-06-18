@@ -22,7 +22,7 @@ router.post('/create', async (req, res) => {
     console.log('Creating automation for user:', userId)
     console.log('Automation:', JSON.stringify(automation))
 
-    const { workflow: workflowData, testWebhookPath } = buildWorkflow(
+    const { workflow: workflowData, testWebhookPath } = await buildWorkflow(
       userId,
       userEmail,
       {

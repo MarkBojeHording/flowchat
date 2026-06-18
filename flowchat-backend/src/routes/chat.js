@@ -297,7 +297,7 @@ async function executeTool(name, input, userId, automationId = null) {
         const { data: userData } = await supabase.auth.admin.getUserById(userId)
         const userEmail = userData?.user?.email || userId
 
-        const { workflow: workflowData, testWebhookPath } = buildWorkflow(
+        const { workflow: workflowData, testWebhookPath } = await buildWorkflow(
           userId,
           userEmail,
           {
