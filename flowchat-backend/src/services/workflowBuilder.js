@@ -335,25 +335,29 @@ async function buildWorkflow(userId, userEmail, spec) {
     details = {},
   } = spec
 
+  const triggerApp = trigger_app?.toLowerCase()
+  const actionApp = action_app?.toLowerCase()
+  const actionEvent = action_event?.toLowerCase()
+
   const hasTemplate =
-    (trigger_app === 'schedule' &&
-      action_app === 'slack' &&
-      action_event === 'send_message') ||
-    (trigger_app === 'typeform' &&
-      action_app === 'google_sheets' &&
-      action_event === 'append_row') ||
-    (trigger_app === 'schedule' &&
-      action_app === 'gmail' &&
-      action_event === 'send_email')
+    (triggerApp === 'schedule' &&
+      actionApp === 'slack' &&
+      actionEvent === 'send_message') ||
+    (triggerApp === 'typeform' &&
+      actionApp === 'google_sheets' &&
+      actionEvent === 'append_row') ||
+    (triggerApp === 'schedule' &&
+      actionApp === 'gmail' &&
+      actionEvent === 'send_email')
 
   if (hasTemplate) {
     let workflow
 
-    if (trigger_app === 'schedule' && action_app === 'slack') {
+    if (triggerApp === 'schedule' && actionApp === 'slack') {
       workflow = buildScheduleSlackWorkflow(userId, details)
-    } else if (trigger_app === 'typeform' && action_app === 'google_sheets') {
+    } else if (triggerApp === 'typeform' && actionApp === 'google_sheets') {
       workflow = buildTypeformSheetsWorkflow(userId, details)
-    } else if (trigger_app === 'schedule' && action_app === 'gmail') {
+    } else if (triggerApp === 'schedule' && actionApp === 'gmail') {
       workflow = buildScheduleGmailWorkflow(userId, details)
     }
 
