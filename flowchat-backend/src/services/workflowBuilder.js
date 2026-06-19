@@ -39,6 +39,26 @@ function patchCredentialUrlsInWorkflow(workflow, userId) {
   return patched
 }
 
+async function ensureWorkflowCredentialUrls(userId, n8nWorkflowId) {
+  if (!n8nWorkflowId) return false
+
+  const { getWorkflow, updateWorkflow } = require('./n8n')
+
+  try {
+    const n8nWorkflow = await getWorkflow(n8nWorkflowId)
+    if (!patchCredentialUrlsInWorkflow(n8nWorkflow, userId)) {
+      return false
+    }
+
+    await updateWorkflow(n8nWorkflowId, n8nWorkflow)
+    console.log('Patched localhost credential URLs in workflow:', n8nWorkflowId)
+    return true
+  } catch (err) {
+    console.error('ensureWorkflowCredentialUrls failed:', err.message)
+    return false
+  }
+}
+
 function createTestWebhookPath(userId) {
   return `flowchat-test-${userId}-${Date.now()}`
 }
@@ -431,5 +451,6 @@ module.exports = {
   buildWorkflow,
   getWebhookUrl,
   patchCredentialUrlsInWorkflow,
+  ensureWorkflowCredentialUrls,
   N8N_BACKEND_URL,
 }

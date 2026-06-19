@@ -268,8 +268,8 @@ async function executeTool(name, input, userId, automationId = null) {
     case 'build_workflow': {
       console.log('build_workflow called with:', JSON.stringify(input, null, 2))
       try {
-        const { buildWorkflow, patchCredentialUrlsInWorkflow } = require('../services/workflowBuilder')
-        const { createWorkflow, activateWorkflow, getWorkflow, updateWorkflow, deleteWorkflow } =
+        const { buildWorkflow, ensureWorkflowCredentialUrls } = require('../services/workflowBuilder')
+        const { createWorkflow, activateWorkflow, getWorkflow, deleteWorkflow } =
           require('../services/n8n')
 
         if (automationId) {
@@ -280,28 +280,28 @@ async function executeTool(name, input, userId, automationId = null) {
             .single()
 
           if (existingWorkflow?.n8n_workflow_id) {
-            try {
-              const n8nWorkflow = await getWorkflow(existingWorkflow.n8n_workflow_id)
-              if (patchCredentialUrlsInWorkflow(n8nWorkflow, userId)) {
-                await updateWorkflow(existingWorkflow.n8n_workflow_id, n8nWorkflow)
-                console.log(
-                  'Patched localhost credential URLs in workflow:',
-                  existingWorkflow.n8n_workflow_id
-                )
-                return {
-                  success: true,
-                  workflowId: existingWorkflow.n8n_workflow_id,
-                  summary: 'Automation updated with correct credential URLs.',
-                }
-              }
+            const patched = await ensureWorkflowCredentialUrls(
+              userId,
+              existingWorkflow.n8n_workflow_id
+            )
 
+            if (patched) {
+              return {
+                success: true,
+                workflowId: existingWorkflow.n8n_workflow_id,
+                summary: 'Automation updated with correct credential URLs.',
+              }
+            }
+
+            try {
+              await getWorkflow(existingWorkflow.n8n_workflow_id)
               return {
                 success: true,
                 workflowId: existingWorkflow.n8n_workflow_id,
                 summary: 'Automation is already built and active.',
               }
             } catch (err) {
-              console.error('Could not patch existing workflow, rebuilding:', err.message)
+              console.error('Could not fetch existing workflow, rebuilding:', err.message)
               try {
                 await deleteWorkflow(existingWorkflow.n8n_workflow_id)
               } catch (deleteErr) {
@@ -371,8 +371,7 @@ async function executeTool(name, input, userId, automationId = null) {
 
     case 'test_workflow': {
       try {
-        const { patchCredentialUrlsInWorkflow } = require('../services/workflowBuilder')
-        const { getWorkflow, updateWorkflow } = require('../services/n8n')
+        const { ensureWorkflowCredentialUrls } = require('../services/workflowBuilder')
 
         const { data: workflow } = await supabase
           .from('workflows')
@@ -388,18 +387,7 @@ async function executeTool(name, input, userId, automationId = null) {
         }
 
         if (workflow.n8n_workflow_id) {
-          try {
-            const n8nWorkflow = await getWorkflow(workflow.n8n_workflow_id)
-            if (patchCredentialUrlsInWorkflow(n8nWorkflow, userId)) {
-              await updateWorkflow(workflow.n8n_workflow_id, n8nWorkflow)
-              console.log(
-                'Patched localhost credential URLs before test:',
-                workflow.n8n_workflow_id
-              )
-            }
-          } catch (err) {
-            console.error('Could not patch workflow before test:', err.message)
-          }
+          await ensureWorkflowCredentialUrls(userId, workflow.n8n_workflow_id)
         }
 
         await axios.get(workflow.webhook_url, { timeout: 10000 })
@@ -803,6 +791,13 @@ router.get('/automations', async (req, res) => {
 
     if (error) throw error
 
+    const { ensureWorkflowCredentialUrls } = require('../services/workflowBuilder')
+    for (const row of data || []) {
+      if (row.n8n_workflow_id) {
+        ensureWorkflowCredentialUrls(userId, row.n8n_workflow_id).catch(() => {})
+      }
+    }
+
     res.json({ automations: data || [] })
   } catch (err) {
     console.error('Get automations error:', err)
@@ -828,6 +823,11 @@ router.get('/automations/:id', async (req, res) => {
 
     if (error || !data) {
       return res.status(404).json({ error: 'Automation not found' })
+    }
+
+    if (data.n8n_workflow_id) {
+      const { ensureWorkflowCredentialUrls } = require('../services/workflowBuilder')
+      await ensureWorkflowCredentialUrls(userId, data.n8n_workflow_id)
     }
 
     res.json({ automation: data })
