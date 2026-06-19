@@ -316,9 +316,9 @@ async function buildWorkflow(userId, userEmail, spec) {
     details = {},
   } = spec
 
-  const triggerApp = trigger_app?.toLowerCase()
-  const actionApp = action_app?.toLowerCase()
-  const actionEvent = action_event?.toLowerCase()
+  const triggerApp = trigger_app?.toLowerCase().replace(/\s+/g, '_')
+  const actionApp = action_app?.toLowerCase().replace(/\s+/g, '_')
+  const actionEvent = action_event?.toLowerCase().replace(/\s+/g, '_')
 
   const hasTemplate =
     (triggerApp === 'schedule' &&

@@ -7,7 +7,7 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3456'
+const N8N_BACKEND_URL = 'https://flowchat-production-376f.up.railway.app'
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || ''
 const N8N_BASE_URL = (process.env.N8N_BASE_URL || '').replace(/\/$/, '')
 
@@ -117,7 +117,7 @@ async function buildWorkflowWithAI(userId, userEmail, spec) {
   const integrationMetadata = getMetadataForAgent(relevantApps)
 
   const testWebhookPath = `flowchat-test-${userId}-${Date.now()}`
-  const credentialsBaseUrl = `${BACKEND_URL}/api/auth/credentials/${userId}`
+  const credentialsBaseUrl = `${N8N_BACKEND_URL}/api/auth/credentials/${userId}`
 
   const specDescription = `
 Automation spec:
