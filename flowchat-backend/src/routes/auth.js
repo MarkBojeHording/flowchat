@@ -16,10 +16,6 @@ const supabase = createClient(
 )
 
 function getOAuthClient() {
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI
-  console.log('Redirect URI from env:', redirectUri)
-  console.log('Raw env:', JSON.stringify(process.env.GOOGLE_REDIRECT_URI))
-
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
