@@ -198,7 +198,6 @@ router.get('/credentials/:userId/:platform', async (req, res) => {
   const { userId, platform } = req.params
   const apiKey = req.headers['x-api-key']
 
-  // Verify the request is from n8n using a shared secret
   if (apiKey !== process.env.INTERNAL_API_KEY) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
@@ -213,6 +212,44 @@ router.get('/credentials/:userId/:platform', async (req, res) => {
 
     if (error || !data) {
       return res.status(404).json({ error: 'Credentials not found' })
+    }
+
+    // For Google: automatically refresh the token
+    if (platform === 'google' && data.refresh_token) {
+      try {
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET,
+          process.env.GOOGLE_REDIRECT_URI
+        )
+        oauth2Client.setCredentials({
+          refresh_token: data.refresh_token
+        })
+
+        const { credentials } = await oauth2Client.refreshAccessToken()
+        const newAccessToken = credentials.access_token
+
+        // Save the new token to Supabase
+        await supabase
+          .from('platform_accounts')
+          .update({
+            access_token: newAccessToken,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId)
+          .eq('platform', platform)
+
+        console.log('✅ Google token refreshed for user:', userId)
+
+        return res.json({
+          access_token: newAccessToken,
+          refresh_token: data.refresh_token,
+          email: data.email
+        })
+      } catch (refreshErr) {
+        console.error('❌ Google token refresh failed:', refreshErr.message)
+        // Fall through to return existing token
+      }
     }
 
     res.json({
