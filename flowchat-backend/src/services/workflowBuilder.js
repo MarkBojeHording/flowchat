@@ -1,11 +1,17 @@
-const BACKEND_URL =
-  process.env.N8N_BACKEND_URL ||
-  process.env.BACKEND_URL ||
-  'http://localhost:3456'
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || ''
+function getBackendUrl() {
+  return (
+    process.env.N8N_BACKEND_URL ||
+    process.env.BACKEND_URL ||
+    'http://localhost:3456'
+  )
+}
+
+function getInternalApiKey() {
+  return process.env.INTERNAL_API_KEY || ''
+}
 
 function credentialsUrl(userId, platform) {
-  return `${BACKEND_URL}/api/auth/credentials/${userId}/${platform}`
+  return `${getBackendUrl()}/api/auth/credentials/${userId}/${platform}`
 }
 
 function createTestWebhookPath(userId) {
@@ -41,7 +47,7 @@ function fetchCredentialsNode(id, name, userId, platform, position) {
       authentication: 'none',
       sendHeaders: true,
       headerParameters: {
-        parameters: [{ name: 'x-api-key', value: INTERNAL_API_KEY }],
+        parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
       },
       options: {},
     },
