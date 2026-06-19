@@ -319,6 +319,8 @@ async function executeTool(name, input, userId, automationId = null) {
             ? JSON.parse(details || '{}')
             : details || {}
 
+        console.log('build_workflow details object:', JSON.stringify(detailsObj))
+
         const { data: userData } = await supabase.auth.admin.getUserById(userId)
         const userEmail = userData?.user?.email || userId
 

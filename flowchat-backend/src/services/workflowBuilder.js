@@ -302,11 +302,16 @@ function buildTypeformSheetsWorkflow(userId, details) {
 }
 
 function buildScheduleGmailWorkflow(userId, details) {
+  console.log('buildScheduleGmailWorkflow details:', JSON.stringify(details))
+
   const testWebhookPath = createTestWebhookPath(userId)
-  const toEmail = details.to_email || 'user@example.com'
+  const toEmail = details.to_email || details.to || details.email || 'user@example.com'
   const subject = details.subject || 'Automated message'
-  const messageText = details.message_text || 'This is an automated message from Flowchat'
-  const emailRaw = Buffer.from(
+  const messageText = details.message_text || details.message || details.body || 'Automated message from Flowchat'
+  const cronExpression = details.cron_expression || '0 9 * * 1'
+
+  // Pre-encode email at build time — no n8n expressions needed
+  const rawEmail = Buffer.from(
     `To: ${toEmail}\r\nSubject: ${subject}\r\nContent-Type: text/plain\r\n\r\n${messageText}`
   ).toString('base64url')
 
@@ -319,7 +324,7 @@ function buildScheduleGmailWorkflow(userId, details) {
       position: [256, 304],
       parameters: {
         rule: {
-          interval: [{ field: 'cronExpression', expression: details.cron_expression || '0 9 * * 1' }]
+          interval: [{ field: 'cronExpression', expression: cronExpression }]
         }
       }
     },
@@ -368,7 +373,7 @@ function buildScheduleGmailWorkflow(userId, details) {
         },
         sendBody: true,
         specifyBody: 'json',
-        jsonBody: JSON.stringify({ raw: emailRaw }),
+        jsonBody: JSON.stringify({ raw: rawEmail }),
         options: {}
       }
     },
