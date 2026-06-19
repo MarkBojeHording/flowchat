@@ -1,9 +1,19 @@
 function getBackendUrl() {
-  return (
+  const url =
     process.env.N8N_BACKEND_URL ||
     process.env.BACKEND_URL ||
     'http://localhost:3456'
-  )
+
+  // Safety check — never use localhost for credential URLs
+  // since these run inside n8n on DigitalOcean, not locally
+  if (url.includes('localhost') || url.includes('127.0.0.1')) {
+    console.warn(
+      'WARNING: credential URL is localhost — n8n cannot reach this. Check N8N_BACKEND_URL env var.'
+    )
+  }
+
+  console.log('Building workflow with backend URL:', url)
+  return url
 }
 
 function getInternalApiKey() {
