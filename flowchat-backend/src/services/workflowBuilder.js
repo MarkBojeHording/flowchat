@@ -1,27 +1,8 @@
-function getBackendUrl() {
-  const url =
-    process.env.N8N_BACKEND_URL ||
-    process.env.BACKEND_URL ||
-    'http://localhost:3456'
-
-  // Safety check — never use localhost for credential URLs
-  // since these run inside n8n on DigitalOcean, not locally
-  if (url.includes('localhost') || url.includes('127.0.0.1')) {
-    console.warn(
-      'WARNING: credential URL is localhost — n8n cannot reach this. Check N8N_BACKEND_URL env var.'
-    )
-  }
-
-  console.log('Building workflow with backend URL:', url)
-  return url
-}
-
-function getInternalApiKey() {
-  return process.env.INTERNAL_API_KEY || ''
-}
+const N8N_BACKEND_URL = 'https://flowchat-production-376f.up.railway.app'
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || ''
 
 function credentialsUrl(userId, platform) {
-  return `${getBackendUrl()}/api/auth/credentials/${userId}/${platform}`
+  return `${N8N_BACKEND_URL}/api/auth/credentials/${userId}/${platform}`
 }
 
 function createTestWebhookPath(userId) {
@@ -57,7 +38,7 @@ function fetchCredentialsNode(id, name, userId, platform, position) {
       authentication: 'none',
       sendHeaders: true,
       headerParameters: {
-        parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        parameters: [{ name: 'x-api-key', value: INTERNAL_API_KEY }],
       },
       options: {},
     },
