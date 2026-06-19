@@ -98,6 +98,20 @@ Return a JSON object with this exact structure:
 }
 `
 
+function sanitizeCredentialUrls(nodes, userId) {
+  if (!Array.isArray(nodes)) return
+
+  for (const node of nodes) {
+    const url = node.parameters?.url
+    if (typeof url !== 'string' || !url.includes('/api/auth/credentials/')) continue
+
+    const match = url.match(/\/api\/auth\/credentials\/[^/]+\/([^/?]+)/)
+    const platform = match?.[1] || 'slack'
+    node.parameters.url = `${N8N_BACKEND_URL}/api/auth/credentials/${userId}/${platform}`
+    console.log('Builder Agent credential URL sanitized:', node.parameters.url)
+  }
+}
+
 async function buildWorkflowWithAI(userId, userEmail, spec) {
   const {
     trigger_app,
@@ -169,6 +183,8 @@ ${integrationMetadata}
   if (!workflowJson.nodes || !workflowJson.connections) {
     throw new Error('Builder Agent returned incomplete workflow JSON')
   }
+
+  sanitizeCredentialUrls(workflowJson.nodes, userId)
 
   // Ensure testWebhookPath is set
   const finalTestWebhookPath = workflowJson.testWebhookPath || testWebhookPath

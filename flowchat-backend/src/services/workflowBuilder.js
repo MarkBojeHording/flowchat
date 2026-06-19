@@ -1,6 +1,17 @@
 const N8N_BACKEND_URL = 'https://flowchat-production-376f.up.railway.app'
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || ''
 
+function normalizeActionEvent(event) {
+  const normalized = event?.toLowerCase().replace(/\s+/g, '_') || ''
+  const compact = normalized.replace(/_/g, '')
+  const aliases = {
+    sendmessage: 'send_message',
+    appendrow: 'append_row',
+    sendemail: 'send_email',
+  }
+  return aliases[compact] || normalized
+}
+
 function credentialsUrl(userId, platform) {
   return `${N8N_BACKEND_URL}/api/auth/credentials/${userId}/${platform}`
 }
@@ -318,7 +329,14 @@ async function buildWorkflow(userId, userEmail, spec) {
 
   const triggerApp = trigger_app?.toLowerCase().replace(/\s+/g, '_')
   const actionApp = action_app?.toLowerCase().replace(/\s+/g, '_')
-  const actionEvent = action_event?.toLowerCase().replace(/\s+/g, '_')
+  const actionEvent = normalizeActionEvent(action_event)
+
+  console.log('buildWorkflow template check:', {
+    triggerApp,
+    actionApp,
+    actionEvent,
+    rawActionEvent: action_event,
+  })
 
   const hasTemplate =
     (triggerApp === 'schedule' &&
@@ -332,6 +350,7 @@ async function buildWorkflow(userId, userEmail, spec) {
       actionEvent === 'send_email')
 
   if (hasTemplate) {
+    console.log('Using hardcoded template for:', triggerApp, '→', actionApp)
     let workflow
 
     if (triggerApp === 'schedule' && actionApp === 'slack') {
