@@ -1,4 +1,9 @@
 const N8N_BACKEND_URL = 'https://flowchat-production-376f.up.railway.app'
+
+function getInternalApiKey() {
+  return process.env.INTERNAL_API_KEY || ''
+}
+
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || ''
 
 function normalizeActionEvent(event) {
@@ -101,97 +106,94 @@ function fetchCredentialsNode(id, name, userId, platform, position) {
 
 function buildScheduleSlackWorkflow(userId, details) {
   const testWebhookPath = createTestWebhookPath(userId)
+  const channel = details.channel || details.slack_channel || '#general'
+  const message = details.message || details.reminder_message || details.message_text || 'Reminder from Flowchat'
 
   const nodes = [
     {
       id: 'schedule-trigger',
       name: 'Schedule Trigger',
       type: 'n8n-nodes-base.scheduleTrigger',
-      typeVersion: 1,
-      position: [250, 300],
+      typeVersion: 1.2,
+      position: [256, 304],
       parameters: {
         rule: {
-          interval: [
-            {
-              field: 'cronExpression',
-              expression: details.cron_expression || '0 9 * * 1',
-            },
-          ],
-        },
-      },
+          interval: [{ field: 'cronExpression', expression: details.cron_expression || '0 16 * * 5' }]
+        }
+      }
     },
-    testWebhookNode(testWebhookPath),
-    fetchCredentialsNode(
-      'fetch-slack-creds',
-      'Fetch Slack Credentials',
-      userId,
-      'slack',
-      [500, 300]
-    ),
+    {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 512],
+      webhookId: testWebhookPath,
+      parameters: {
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {}
+      }
+    },
+    {
+      id: 'fetch-slack-creds',
+      name: 'Fetch Slack Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [512, 304],
+      parameters: {
+        url: credentialsUrl(userId, 'slack'),
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }]
+        },
+        options: {}
+      }
+    },
     {
       id: 'send-slack-message',
       name: 'Send Slack Message',
       type: 'n8n-nodes-base.httpRequest',
-      typeVersion: 3,
-      position: [750, 300],
+      typeVersion: 4.2,
+      position: [752, 304],
       parameters: {
         method: 'POST',
         url: 'https://slack.com/api/chat.postMessage',
-        authentication: 'none',
         sendHeaders: true,
         headerParameters: {
           parameters: [
-            {
-              name: 'Authorization',
-              value: '=Bearer {{ $json.access_token }}',
-            },
-            { name: 'Content-Type', value: 'application/json' },
-          ],
+            { name: 'Authorization', value: '=Bearer {{ $json.access_token }}' },
+            { name: 'Content-Type', value: 'application/json' }
+          ]
         },
         sendBody: true,
-        contentType: 'json',
-        bodyParameters: {
-          parameters: [
-            {
-              name: 'channel',
-              value:
-                details.channel ||
-                details.slack_channel ||
-                '#general',
-            },
-            {
-              name: 'text',
-              value:
-                details.message ||
-                details.reminder_message ||
-                details.message_text ||
-                'Reminder from Flowchat',
-            },
-          ],
-        },
-        options: {},
-      },
+        specifyBody: 'json',
+        jsonBody: JSON.stringify({ channel, text: message }),
+        options: {}
+      }
     },
+    {
+      id: 'respond-webhook',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1008, 304],
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify({ success: true }) }}',
+        options: {}
+      }
+    }
   ]
 
   const connections = {
-    'Schedule Trigger': {
-      main: [[{ node: 'Fetch Slack Credentials', type: 'main', index: 0 }]],
-    },
-    'Test Webhook': {
-      main: [[{ node: 'Fetch Slack Credentials', type: 'main', index: 0 }]],
-    },
-    'Fetch Slack Credentials': {
-      main: [[{ node: 'Send Slack Message', type: 'main', index: 0 }]],
-    },
+    'Schedule Trigger': { main: [[{ node: 'Fetch Slack Credentials', type: 'main', index: 0 }]] },
+    'Test Webhook': { main: [[{ node: 'Fetch Slack Credentials', type: 'main', index: 0 }]] },
+    'Fetch Slack Credentials': { main: [[{ node: 'Send Slack Message', type: 'main', index: 0 }]] },
+    'Send Slack Message': { main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]] }
   }
 
-  return {
-    humanName: 'Schedule → Slack',
-    nodes,
-    connections,
-    testWebhookPath,
-  }
+  return { humanName: 'Schedule → Slack', nodes, connections, testWebhookPath }
 }
 
 function buildTypeformSheetsWorkflow(userId, details) {
