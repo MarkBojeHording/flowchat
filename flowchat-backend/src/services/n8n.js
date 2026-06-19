@@ -35,6 +35,22 @@ async function activateWorkflow(workflowId) {
   return res.data
 }
 
+async function getWorkflow(workflowId) {
+  const res = await n8nClient.get(`/api/v1/workflows/${workflowId}`)
+  return res.data
+}
+
+async function updateWorkflow(workflowId, workflowData) {
+  const payload = {
+    name: workflowData.name,
+    nodes: workflowData.nodes,
+    connections: workflowData.connections,
+    settings: workflowData.settings || { executionOrder: 'v1' },
+  }
+  const res = await n8nClient.put(`/api/v1/workflows/${workflowId}`, payload)
+  return res.data
+}
+
 async function deleteWorkflow(workflowId) {
   const res = await n8nClient.delete(`/api/v1/workflows/${workflowId}`)
   return res.data
@@ -46,5 +62,7 @@ module.exports = {
   testConnection,
   createWorkflow,
   activateWorkflow,
+  getWorkflow,
+  updateWorkflow,
   deleteWorkflow,
 }

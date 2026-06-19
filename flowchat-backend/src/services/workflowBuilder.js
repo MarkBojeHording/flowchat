@@ -16,6 +16,29 @@ function credentialsUrl(userId, platform) {
   return `${N8N_BACKEND_URL}/api/auth/credentials/${userId}/${platform}`
 }
 
+function patchCredentialUrlsInWorkflow(workflow, userId) {
+  let patched = false
+
+  for (const node of workflow?.nodes || []) {
+    const url = node.parameters?.url
+    if (
+      typeof url !== 'string' ||
+      !url.includes('/api/auth/credentials/') ||
+      (!url.includes('localhost') && !url.includes('127.0.0.1'))
+    ) {
+      continue
+    }
+
+    const match = url.match(/\/api\/auth\/credentials\/[^/]+\/([^/?]+)/)
+    const platform = match?.[1] || 'slack'
+    node.parameters.url = credentialsUrl(userId, platform)
+    patched = true
+    console.log('Patched credential URL in node:', node.name, '→', node.parameters.url)
+  }
+
+  return patched
+}
+
 function createTestWebhookPath(userId) {
   return `flowchat-test-${userId}-${Date.now()}`
 }
@@ -407,4 +430,6 @@ function getWebhookUrl(workflow) {
 module.exports = {
   buildWorkflow,
   getWebhookUrl,
+  patchCredentialUrlsInWorkflow,
+  N8N_BACKEND_URL,
 }

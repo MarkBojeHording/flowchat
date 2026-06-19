@@ -268,6 +268,10 @@ async function executeTool(name, input, userId, automationId = null) {
     case 'build_workflow': {
       console.log('build_workflow called with:', JSON.stringify(input, null, 2))
       try {
+        const { buildWorkflow, patchCredentialUrlsInWorkflow } = require('../services/workflowBuilder')
+        const { createWorkflow, activateWorkflow, getWorkflow, updateWorkflow, deleteWorkflow } =
+          require('../services/n8n')
+
         if (automationId) {
           const { data: existingWorkflow } = await supabase
             .from('workflows')
@@ -276,10 +280,33 @@ async function executeTool(name, input, userId, automationId = null) {
             .single()
 
           if (existingWorkflow?.n8n_workflow_id) {
-            return {
-              success: true,
-              workflowId: existingWorkflow.n8n_workflow_id,
-              summary: 'Automation is already built and active.',
+            try {
+              const n8nWorkflow = await getWorkflow(existingWorkflow.n8n_workflow_id)
+              if (patchCredentialUrlsInWorkflow(n8nWorkflow, userId)) {
+                await updateWorkflow(existingWorkflow.n8n_workflow_id, n8nWorkflow)
+                console.log(
+                  'Patched localhost credential URLs in workflow:',
+                  existingWorkflow.n8n_workflow_id
+                )
+                return {
+                  success: true,
+                  workflowId: existingWorkflow.n8n_workflow_id,
+                  summary: 'Automation updated with correct credential URLs.',
+                }
+              }
+
+              return {
+                success: true,
+                workflowId: existingWorkflow.n8n_workflow_id,
+                summary: 'Automation is already built and active.',
+              }
+            } catch (err) {
+              console.error('Could not patch existing workflow, rebuilding:', err.message)
+              try {
+                await deleteWorkflow(existingWorkflow.n8n_workflow_id)
+              } catch (deleteErr) {
+                console.error('n8n delete before rebuild failed:', deleteErr.message)
+              }
             }
           }
         }
@@ -291,9 +318,6 @@ async function executeTool(name, input, userId, automationId = null) {
           typeof details === 'string'
             ? JSON.parse(details || '{}')
             : details || {}
-
-        const { buildWorkflow } = require('../services/workflowBuilder')
-        const { createWorkflow, activateWorkflow } = require('../services/n8n')
 
         const { data: userData } = await supabase.auth.admin.getUserById(userId)
         const userEmail = userData?.user?.email || userId
@@ -347,6 +371,9 @@ async function executeTool(name, input, userId, automationId = null) {
 
     case 'test_workflow': {
       try {
+        const { patchCredentialUrlsInWorkflow } = require('../services/workflowBuilder')
+        const { getWorkflow, updateWorkflow } = require('../services/n8n')
+
         const { data: workflow } = await supabase
           .from('workflows')
           .select('webhook_url, n8n_workflow_id')
@@ -357,6 +384,21 @@ async function executeTool(name, input, userId, automationId = null) {
           return {
             success: false,
             summary: 'No test webhook found. Please rebuild this automation.',
+          }
+        }
+
+        if (workflow.n8n_workflow_id) {
+          try {
+            const n8nWorkflow = await getWorkflow(workflow.n8n_workflow_id)
+            if (patchCredentialUrlsInWorkflow(n8nWorkflow, userId)) {
+              await updateWorkflow(workflow.n8n_workflow_id, n8nWorkflow)
+              console.log(
+                'Patched localhost credential URLs before test:',
+                workflow.n8n_workflow_id
+              )
+            }
+          } catch (err) {
+            console.error('Could not patch workflow before test:', err.message)
           }
         }
 
