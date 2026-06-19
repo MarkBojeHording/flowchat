@@ -199,72 +199,97 @@ function buildScheduleSlackWorkflow(userId, details) {
 function buildTypeformSheetsWorkflow(userId, details) {
   const webhookPath = `flowchat-${userId}-${Date.now()}`
   const testWebhookPath = createTestWebhookPath(userId)
+  const sheetName = details.sheet_name || 'Sheet1'
 
   const nodes = [
     {
       id: 'typeform-trigger',
       name: 'Typeform Trigger',
       type: 'n8n-nodes-base.webhook',
-      typeVersion: 1,
-      position: [250, 300],
+      typeVersion: 2,
+      position: [256, 304],
+      webhookId: webhookPath,
       parameters: {
         path: webhookPath,
-        responseMode: 'onReceived',
-        responseData: 'firstEntryJson',
-      },
+        responseMode: 'responseNode',
+        options: {}
+      }
     },
-    testWebhookNode(testWebhookPath),
-    fetchCredentialsNode(
-      'fetch-google-creds',
-      'Fetch Google Credentials',
-      userId,
-      'google',
-      [500, 300]
-    ),
+    {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 512],
+      webhookId: testWebhookPath,
+      parameters: {
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {}
+      }
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [512, 304],
+      parameters: {
+        url: credentialsUrl(userId, 'google'),
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }]
+        },
+        options: {}
+      }
+    },
     {
       id: 'append-to-sheets',
       name: 'Append to Google Sheets',
       type: 'n8n-nodes-base.httpRequest',
-      typeVersion: 3,
-      position: [750, 300],
+      typeVersion: 4.2,
+      position: [752, 304],
       parameters: {
         method: 'POST',
-        url: `https://sheets.googleapis.com/v4/spreadsheets/{{ $json.sheet_id }}/values/${encodeURIComponent(details.sheet_name || 'Sheet1')}:append?valueInputOption=USER_ENTERED`,
-        authentication: 'none',
+        url: `https://sheets.googleapis.com/v4/spreadsheets/{{ $json.sheet_id }}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED`,
         sendHeaders: true,
         headerParameters: {
           parameters: [
-            {
-              name: 'Authorization',
-              value: '=Bearer {{ $json.access_token }}',
-            },
-          ],
+            { name: 'Authorization', value: '=Bearer {{ $json.access_token }}' }
+          ]
         },
         sendBody: true,
-        contentType: 'json',
-        body: {
+        specifyBody: 'json',
+        jsonBody: JSON.stringify({
           values: [
             [
               "={{ $('Typeform Trigger').item.json.form_response.answers[0].text }}",
               '={{ new Date().toISOString() }}',
             ],
           ],
-        },
-        options: {},
-      },
+        }),
+        options: {}
+      }
     },
+    {
+      id: 'respond-webhook',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1008, 304],
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify({ success: true }) }}',
+        options: {}
+      }
+    }
   ]
 
   const connections = {
-    'Typeform Trigger': {
-      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
-    },
-    'Test Webhook': {
-      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
-    },
-    'Fetch Google Credentials': {
-      main: [[{ node: 'Append to Google Sheets', type: 'main', index: 0 }]],
-    },
+    'Typeform Trigger': { main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]] },
+    'Test Webhook': { main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]] },
+    'Fetch Google Credentials': { main: [[{ node: 'Append to Google Sheets', type: 'main', index: 0 }]] },
+    'Append to Google Sheets': { main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]] }
   }
 
   return {
@@ -280,87 +305,95 @@ function buildScheduleGmailWorkflow(userId, details) {
   const testWebhookPath = createTestWebhookPath(userId)
   const toEmail = details.to_email || 'user@example.com'
   const subject = details.subject || 'Automated message'
-  const messageText =
-    details.message_text || 'This is an automated message from Flowchat'
+  const messageText = details.message_text || 'This is an automated message from Flowchat'
+  const emailRaw = Buffer.from(
+    `To: ${toEmail}\r\nSubject: ${subject}\r\nContent-Type: text/plain\r\n\r\n${messageText}`
+  ).toString('base64url')
 
   const nodes = [
     {
       id: 'schedule-trigger',
       name: 'Schedule Trigger',
       type: 'n8n-nodes-base.scheduleTrigger',
-      typeVersion: 1,
-      position: [250, 300],
+      typeVersion: 1.2,
+      position: [256, 304],
       parameters: {
         rule: {
-          interval: [
-            {
-              field: 'cronExpression',
-              expression: details.cron_expression || '0 9 * * 1',
-            },
-          ],
-        },
-      },
+          interval: [{ field: 'cronExpression', expression: details.cron_expression || '0 9 * * 1' }]
+        }
+      }
     },
-    testWebhookNode(testWebhookPath),
-    fetchCredentialsNode(
-      'fetch-google-creds',
-      'Fetch Google Credentials',
-      userId,
-      'google',
-      [500, 300]
-    ),
+    {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 512],
+      webhookId: testWebhookPath,
+      parameters: {
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {}
+      }
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [512, 304],
+      parameters: {
+        url: credentialsUrl(userId, 'google'),
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }]
+        },
+        options: {}
+      }
+    },
     {
       id: 'send-gmail',
       name: 'Send Gmail',
       type: 'n8n-nodes-base.httpRequest',
-      typeVersion: 3,
-      position: [750, 300],
+      typeVersion: 4.2,
+      position: [752, 304],
       parameters: {
         method: 'POST',
         url: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
-        authentication: 'none',
         sendHeaders: true,
         headerParameters: {
           parameters: [
-            {
-              name: 'Authorization',
-              value: '=Bearer {{ $json.access_token }}',
-            },
-          ],
+            { name: 'Authorization', value: '=Bearer {{ $json.access_token }}' }
+          ]
         },
         sendBody: true,
-        contentType: 'json',
-        bodyParameters: {
-          parameters: [
-            {
-              name: 'raw',
-              value: `={{ Buffer.from('To: ${toEmail}\\r\\nSubject: ${subject}\\r\\nContent-Type: text/plain\\r\\n\\r\\n${messageText}').toString('base64url') }}`,
-            },
-          ],
-        },
-        options: {},
-      },
+        specifyBody: 'json',
+        jsonBody: JSON.stringify({ raw: emailRaw }),
+        options: {}
+      }
     },
+    {
+      id: 'respond-webhook',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1008, 304],
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify({ success: true }) }}',
+        options: {}
+      }
+    }
   ]
 
   const connections = {
-    'Schedule Trigger': {
-      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
-    },
-    'Test Webhook': {
-      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
-    },
-    'Fetch Google Credentials': {
-      main: [[{ node: 'Send Gmail', type: 'main', index: 0 }]],
-    },
+    'Schedule Trigger': { main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]] },
+    'Test Webhook': { main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]] },
+    'Fetch Google Credentials': { main: [[{ node: 'Send Gmail', type: 'main', index: 0 }]] },
+    'Send Gmail': { main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]] }
   }
 
-  return {
-    humanName: 'Schedule → Gmail',
-    nodes,
-    connections,
-    testWebhookPath,
-  }
+  return { humanName: 'Schedule → Gmail', nodes, connections, testWebhookPath }
 }
 
 async function buildWorkflow(userId, userEmail, spec) {

@@ -8,7 +8,6 @@ const anthropic = new Anthropic({
 })
 
 const N8N_BACKEND_URL = 'https://flowchat-production-376f.up.railway.app'
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || ''
 const N8N_BASE_URL = (process.env.N8N_BASE_URL || '').replace(/\/$/, '')
 
 const BUILDER_SYSTEM_PROMPT = `You are an expert n8n workflow builder for Flowchat.
@@ -20,58 +19,72 @@ Your job is to generate valid n8n workflow JSON based on an automation specifica
 Every workflow you generate MUST follow this pattern:
 
 1. TRIGGER NODE — what starts the workflow
-   - Schedule: use n8n-nodes-base.scheduleTrigger
-   - Webhook (Typeform, Stripe, Calendly): use n8n-nodes-base.webhook
+   - Schedule: use n8n-nodes-base.scheduleTrigger, typeVersion: 1.2
+   - Webhook (Typeform, Stripe, Calendly): use n8n-nodes-base.webhook, typeVersion: 2
+     - responseMode: "responseNode"
+     - webhookId: same as path value
 
 2. TEST WEBHOOK NODE — always include alongside the main trigger
-   - type: n8n-nodes-base.webhook
+   - type: n8n-nodes-base.webhook, typeVersion: 2
    - name: "Test Webhook"
-   - httpMethod: GET
+   - webhookId: same as path value
+   - responseMode: "responseNode"
    - Both the main trigger AND Test Webhook connect to the next node
 
 3. CREDENTIAL FETCH NODE(S) — one per external app used
-   - type: n8n-nodes-base.httpRequest
+   - type: n8n-nodes-base.httpRequest, typeVersion: 4.2
    - Makes GET request to: CREDENTIALS_BASE_URL/userId/platform
    - Sends header: x-api-key: INTERNAL_API_KEY
    - The response contains access_token
 
 4. ACTION NODE(S) — what the workflow does
-   - type: n8n-nodes-base.httpRequest
+   - type: n8n-nodes-base.httpRequest, typeVersion: 4.2
    - Uses the access_token from the credential fetch node
-   - Authorization header: Bearer {{ $json.access_token }}
+   - Authorization header value MUST be: =Bearer {{ $json.access_token }}
+   - For POST requests with JSON bodies use:
+     sendBody: true, specifyBody: "json", jsonBody: JSON.stringify({ ... })
+   - Do NOT use contentType, bodyParameters, or body — always use specifyBody + jsonBody
+
+5. RESPOND TO WEBHOOK — always required after the last action node
+   - type: n8n-nodes-base.respondToWebhook, typeVersion: 1.1
+   - name: "Respond to Webhook"
+   - respondWith: "json"
+   - responseBody: "={{ JSON.stringify({ success: true }) }}"
+   - Connect the last action node to Respond to Webhook
 
 ## Node positioning
-- Trigger nodes: position [250, 300]
-- Test webhook: position [250, 500]  
-- First credential fetch: position [500, 300]
-- First action: position [750, 300]
+- Trigger nodes: position [256, 304]
+- Test webhook: position [256, 512]
+- First credential fetch: position [512, 304]
+- First action: position [752, 304]
+- Respond to Webhook: position [1008, 304]
 - Additional parallel actions: increment Y by 200 each
 
 ## API endpoints for each app
 
 Slack — send message:
   POST https://slack.com/api/chat.postMessage
-  Body: { channel: "#channelname", text: "message" }
+  typeVersion: 4.2, specifyBody: "json", jsonBody: JSON.stringify({ channel, text })
   Platform key: slack
 
 Gmail — send email:
   POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send
-  Body: { raw: base64url encoded email }
+  typeVersion: 4.2, specifyBody: "json", jsonBody: JSON.stringify({ raw: base64urlEncodedEmail })
   Platform key: google
 
 Google Sheets — append row:
   POST https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}/values/{range}:append?valueInputOption=USER_ENTERED
-  Body: { values: [[col1, col2, ...]] }
+  typeVersion: 4.2, specifyBody: "json", jsonBody: JSON.stringify({ values: [[col1, col2, ...]] })
   Platform key: google
 
 Airtable — create record:
   POST https://api.airtable.com/v0/{baseId}/{tableId}
-  Body: { fields: { field1: value1 } }
+  typeVersion: 4.2, specifyBody: "json", jsonBody: JSON.stringify({ fields: { field1: value1 } })
   Platform key: airtable
 
 Notion — create page:
   POST https://api.notion.com/v1/pages
-  Body: { parent: { database_id: "..." }, properties: {} }
+  typeVersion: 4.2, specifyBody: "json", jsonBody: JSON.stringify({ parent: { database_id: "..." }, properties: {} })
   Platform key: notion
 
 ## Schedule cron expressions
@@ -84,6 +97,7 @@ First of month at 9am: 0 9 1 * *
 ## Important rules
 - ALWAYS include a Test Webhook node
 - ALWAYS fetch credentials before calling any external API
+- ALWAYS add a Respond to Webhook node connected after the last action node
 - NEVER hardcode access tokens
 - Use n8n expressions like {{ $json.access_token }} to reference previous node output
 - For multiple actions, connect them in sequence after the credential fetch
@@ -141,7 +155,7 @@ Automation spec:
 
 User ID: ${userId}
 Credentials base URL: ${credentialsBaseUrl}
-Internal API key header value: ${INTERNAL_API_KEY}
+Internal API key header value: ${process.env.INTERNAL_API_KEY || ''}
 Test webhook path to use: ${testWebhookPath}
 N8N base URL: ${N8N_BASE_URL}
 
