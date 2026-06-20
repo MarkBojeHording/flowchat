@@ -94,6 +94,10 @@ function getDisplayName(automation: Automation): string {
   return automation.auto_name || automation.name || "New automation";
 }
 
+function isTempAutomationId(id: string | null | undefined): boolean {
+  return id?.startsWith("new-") ?? false;
+}
+
 function getStatusColor(status: string): string {
   if (status === "live") return "#00d4aa";
   if (status === "broken") return "rgba(255,100,100,0.8)";
@@ -155,6 +159,9 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [currentAutomationId, setCurrentAutomationId] = useState<string | null>(
+    null
+  );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -231,6 +238,7 @@ export default function DashboardPage() {
 
       setMessages(rawMessages);
       setSelectedId(id);
+      setCurrentAutomationId(id);
       setActiveTab("chat");
     } catch (err) {
       console.error("Load automation error:", err);
@@ -397,16 +405,40 @@ export default function DashboardPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showTemplates]);
 
-  function handleNewAutomation() {
-    setSelectedId(null);
+  const handleNewAutomation = () => {
+    const tempId = "new-" + Date.now();
+
+    setAutomations((prev) => [
+      {
+        id: tempId,
+        auto_name: "New automation",
+        name: null,
+        status: "draft",
+        stage: "gathering_info",
+        last_message_at: new Date().toISOString(),
+        n8n_workflow_id: null,
+        trigger_app: null,
+        action_apps: null,
+      },
+      ...prev,
+    ]);
+
+    setSelectedId(tempId);
     setMessages([]);
     setInput("");
+    setCurrentAutomationId(null);
     setActiveTab("chat");
     inputRef.current?.focus();
-  }
+  };
 
   function handleSelectAutomation(id: string) {
     if (!user) return;
+    if (isTempAutomationId(id)) {
+      setSelectedId(id);
+      setCurrentAutomationId(null);
+      setActiveTab("chat");
+      return;
+    }
     loadAutomation(id, user.id);
   }
 
@@ -414,7 +446,9 @@ export default function DashboardPage() {
     if (!input.trim() || loading || !user) return;
 
     const userMessage = input.trim();
-    const currentAutomationId = selectedId;
+    const automationIdForRequest = isTempAutomationId(selectedId)
+      ? null
+      : currentAutomationId ?? selectedId;
     setInput("");
     setLoading(true);
 
@@ -437,7 +471,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
-          automationId: currentAutomationId,
+          automationId: automationIdForRequest,
           message: userMessage,
           conversationHistory: [],
         }),
@@ -519,6 +553,8 @@ export default function DashboardPage() {
 
             if (event.type === "done") {
               const { action, actionData, updatedState } = event;
+              const savedAutomationId = updatedState?.automationId;
+              const savedAutoName = updatedState?.autoName;
 
               // Handle actions after streaming completes
               if (action === "request_connection" && actionData) {
@@ -555,12 +591,27 @@ export default function DashboardPage() {
               }
 
               // Update state
-              if (updatedState?.automationId) {
-                setSelectedId(updatedState.automationId);
+              if (savedAutomationId) {
+                setAutomations((prev) =>
+                  prev.map((a) =>
+                    a.id.startsWith("new-")
+                      ? {
+                          ...a,
+                          id: savedAutomationId,
+                          auto_name: savedAutoName || "New automation",
+                        }
+                      : a
+                  )
+                );
+                setSelectedId(savedAutomationId);
+                setCurrentAutomationId(savedAutomationId);
               }
 
-              if (updatedState?.autoName && updatedState?.automationId) {
-                // Refresh automations list
+              if (
+                savedAutoName &&
+                savedAutomationId &&
+                !selectedId?.startsWith("new-")
+              ) {
                 fetchAutomations(user.id, false);
               }
             }
@@ -592,7 +643,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, user, selectedId, fetchAutomations]);
+  }, [input, loading, user, selectedId, currentAutomationId, fetchAutomations]);
 
   useEffect(() => {
     const handleAutoSubmit = () => {
@@ -620,6 +671,17 @@ export default function DashboardPage() {
     const id = confirmDelete;
     setConfirmDelete(null);
 
+    if (isTempAutomationId(id)) {
+      setAutomations((prev) => prev.filter((a) => a.id !== id));
+      if (selectedId === id) {
+        setSelectedId(null);
+        setCurrentAutomationId(null);
+        setMessages([]);
+      }
+      showToast("Automation deleted successfully");
+      return;
+    }
+
     try {
       const res = await fetch(
         `${BACKEND_URL}/api/chat/automations/${id}?userId=${user.id}`,
@@ -630,6 +692,7 @@ export default function DashboardPage() {
         setAutomations((prev) => prev.filter((a) => a.id !== id));
         if (selectedId === id) {
           setSelectedId(null);
+          setCurrentAutomationId(null);
           setMessages([]);
         }
         showToast("Automation deleted successfully");
@@ -642,7 +705,7 @@ export default function DashboardPage() {
   }
 
   async function handlePause(id: string) {
-    if (!user) return;
+    if (!user || isTempAutomationId(id)) return;
 
     try {
       const res = await fetch(
