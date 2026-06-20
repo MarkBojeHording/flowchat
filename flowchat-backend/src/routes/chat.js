@@ -566,14 +566,19 @@ router.post('/message/stream', async (req, res) => {
 
   // Set up SSE headers
   res.setHeader('Content-Type', 'text/event-stream')
-  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Cache-Control', 'no-cache, no-transform')
   res.setHeader('Connection', 'keep-alive')
+  res.setHeader('X-Accel-Buffering', 'no')
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.flushHeaders()
 
   // Helper to send SSE events
   function sendEvent(type, data) {
     res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`)
+    // Force flush to prevent buffering on Railway/proxies
+    if (typeof res.flush === 'function') {
+      res.flush()
+    }
   }
 
   try {
