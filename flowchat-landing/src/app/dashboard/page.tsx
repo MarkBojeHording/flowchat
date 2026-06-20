@@ -1114,7 +1114,7 @@ export default function DashboardPage() {
                       <span className="max-w-xs truncate">
                         {selectedAutomation?.auto_name || "New automation"}
                       </span>
-                      <Pencil className="h-3 w-3 flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-50" />
+                      <Pencil className="h-3 w-3 flex-shrink-0 opacity-30 transition-opacity group-hover:opacity-70" />
                     </button>
                   )}
                   {selectedAutomation && (
