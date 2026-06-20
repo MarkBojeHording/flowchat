@@ -1033,7 +1033,10 @@ export default function DashboardPage() {
                         )}
                         {msg.type === "assistant" && (
                           <div className="flex justify-start">
-                            <div className="max-w-[85%] rounded-2xl border border-[#e5e7eb] border-l-4 border-l-[#00d4aa] bg-white px-4 py-3 text-sm text-[#374151] transition-all duration-150 sm:max-w-md">
+                            <div className="max-w-[85%] rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 shadow-sm sm:max-w-md">
+                              <div className="mb-1 text-xs font-medium text-[#00d4aa]">
+                                Flowchat
+                              </div>
                               {msg.thinking && !msg.text ? (
                                 <div className="flex gap-1 py-1">
                                   <span
@@ -1050,11 +1053,9 @@ export default function DashboardPage() {
                                   />
                                 </div>
                               ) : (
-                                <span
-                                  dangerouslySetInnerHTML={{
-                                    __html: renderMarkdown(msg.text),
-                                  }}
-                                />
+                                <p className="text-sm leading-relaxed text-[#374151]">
+                                  {msg.text}
+                                </p>
                               )}
                             </div>
                           </div>
