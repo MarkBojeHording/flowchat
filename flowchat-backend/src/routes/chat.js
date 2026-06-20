@@ -557,6 +557,228 @@ Name: ${workflow.auto_name || 'Untitled'}
     .replace('{{INTEGRATION_METADATA}}', integrationMetadata)
 }
 
+router.post('/message/stream', async (req, res) => {
+  const { userId, automationId: requestAutomationId, message, conversationHistory: requestHistory } = req.body
+
+  if (!userId || !message) {
+    return res.status(400).json({ error: 'userId and message required' })
+  }
+
+  // Set up SSE headers
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.flushHeaders()
+
+  // Helper to send SSE events
+  function sendEvent(type, data) {
+    res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`)
+  }
+
+  try {
+    let automationId = requestAutomationId || null
+    let conversationHistory = Array.isArray(requestHistory) ? requestHistory : []
+    let autoName = null
+    let n8nWorkflowId = null
+    let workflow = null
+
+    if (automationId) {
+      const { data: loadedWorkflow, error: workflowError } = await supabase
+        .from('workflows')
+        .select('*')
+        .eq('id', automationId)
+        .eq('user_id', userId)
+        .single()
+
+      if (!workflowError && loadedWorkflow) {
+        workflow = loadedWorkflow
+        if (workflow.conversation) {
+          conversationHistory = workflow.conversation
+        }
+        autoName = workflow.auto_name
+        n8nWorkflowId = workflow.n8n_workflow_id
+      }
+    }
+
+    const systemTemplate = fs.readFileSync(AGENT_PROMPT_PATH, 'utf8')
+    const { connectedPlatforms, automationNames } = await loadUserContext(userId)
+    const systemPrompt = populateSystemPrompt(systemTemplate, {
+      connectedPlatforms,
+      automationNames,
+      workflow,
+      automationId,
+    })
+
+    const messages = [
+      ...conversationHistory,
+      { role: 'user', content: message },
+    ]
+
+    let action = null
+    let actionData = null
+    let currentWorkflowId = n8nWorkflowId
+    let connectedApps = [...connectedPlatforms]
+    let replyText = ''
+    let savedAutomationId = automationId
+    let savedAutoName = autoName
+
+    // Agent loop with streaming
+    for (let i = 0; i < MAX_AGENT_ITERATIONS; i++) {
+      // Use streaming for the Claude API call
+      const stream = anthropic.messages.stream({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages,
+        tools: TOOLS,
+      })
+
+      let iterationText = ''
+      let streamedThisIteration = false
+
+      // Stream text chunks to client
+      stream.on('text', (text) => {
+        if (text) {
+          iterationText += text
+          replyText += text
+          streamedThisIteration = true
+          sendEvent('text', { text })
+        }
+      })
+
+      // Wait for stream to complete
+      const response = await stream.finalMessage()
+
+      console.log(`Agent iteration ${i + 1}: stop_reason=${response.stop_reason}`)
+
+      if (response.stop_reason === 'end_turn') {
+        break
+      }
+
+      if (response.stop_reason === 'tool_use') {
+        // Signal to frontend that tools are running
+        sendEvent('tool_start', { message: 'Working on it...' })
+
+        messages.push({ role: 'assistant', content: response.content })
+
+        const toolResults = []
+
+        for (const block of response.content) {
+          if (block.type !== 'tool_use') continue
+
+          const result = await executeTool(
+            block.name,
+            block.input,
+            userId,
+            automationId
+          )
+
+          console.log(`Tool called: ${block.name}`)
+          console.log(`Tool result: ${JSON.stringify(result)}`)
+
+          if (block.name === 'request_app_connection') {
+            action = 'request_connection'
+            actionData = result
+          } else if (block.name === 'test_workflow') {
+            action = 'show_test_result'
+            actionData = result
+          } else if (block.name === 'activate_workflow') {
+            action = 'automation_live'
+            actionData = result
+          } else if (block.name === 'build_workflow') {
+            currentWorkflowId = result.workflowId
+          } else if (block.name === 'check_connected_apps') {
+            connectedApps = result.connected
+          }
+
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          })
+        }
+
+        sendEvent('tool_end', {})
+        messages.push({ role: 'user', content: toolResults })
+        continue
+      }
+
+      break
+    }
+
+    // Clean up reply text
+    replyText = stripAuthUrls(replyText)
+
+    if (!replyText && action === 'request_connection' && actionData?.app) {
+      const fallbackText = `I need access to your ${actionData.app} to continue. Click the button below to connect it.`
+      sendEvent('text', { text: fallbackText })
+      replyText = fallbackText
+    }
+
+    // Save conversation to Supabase
+    const updatedConversation = [
+      ...conversationHistory,
+      { role: 'user', content: message },
+      { role: 'assistant', content: replyText },
+    ]
+
+    const updatedStage = determineStage(action, currentWorkflowId)
+
+    if (automationId) {
+      await supabase
+        .from('workflows')
+        .update({
+          conversation: updatedConversation,
+          last_message_at: new Date().toISOString(),
+          stage: updatedStage || 'gathering_info',
+        })
+        .eq('id', automationId)
+        .eq('user_id', userId)
+    } else {
+      savedAutoName = generateAutoName(message)
+
+      const { data: newWorkflow } = await supabase
+        .from('workflows')
+        .insert({
+          user_id: userId,
+          auto_name: savedAutoName,
+          conversation: updatedConversation,
+          status: 'draft',
+          stage: 'gathering_info',
+          last_message_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (newWorkflow) {
+        savedAutomationId = newWorkflow.id
+        savedAutoName = newWorkflow.auto_name
+      }
+    }
+
+    // Send final done event with all state
+    sendEvent('done', {
+      action,
+      actionData,
+      updatedState: {
+        connectedApps,
+        currentWorkflowId,
+        stage: updatedStage,
+        automationId: savedAutomationId,
+        autoName: savedAutoName,
+      }
+    })
+
+    res.end()
+
+  } catch (err) {
+    console.error('Stream error:', err)
+    sendEvent('error', { message: err.message })
+    res.end()
+  }
+})
+
 router.post('/message', async (req, res) => {
   const { userId, automationId: requestAutomationId, message, conversationHistory: requestHistory } =
     req.body
