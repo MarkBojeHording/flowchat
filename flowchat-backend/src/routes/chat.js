@@ -1215,6 +1215,54 @@ router.get('/automations/:id', async (req, res) => {
   }
 })
 
+router.get('/automations/:id/history', async (req, res) => {
+  const { id } = req.params
+  const { userId } = req.query
+
+  if (!userId) return res.status(400).json({ error: 'userId required' })
+
+  try {
+    const { data: workflow } = await supabase
+      .from('workflows')
+      .select('n8n_workflow_id')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single()
+
+    if (!workflow?.n8n_workflow_id) {
+      return res.json({ executions: [] })
+    }
+
+    const { n8nClient } = require('../services/n8n')
+    const response = await n8nClient.get('/api/v1/executions', {
+      params: {
+        workflowId: workflow.n8n_workflow_id,
+        limit: 20,
+        includeData: false,
+      },
+    })
+
+    const executions = (response.data?.data || []).map((exec) => ({
+      id: exec.id,
+      status: exec.status === 'success' ? 'success' : 'error',
+      startedAt: exec.startedAt,
+      stoppedAt: exec.stoppedAt,
+      duration:
+        exec.stoppedAt && exec.startedAt
+          ? Math.round(
+              (new Date(exec.stoppedAt) - new Date(exec.startedAt)) / 1000
+            )
+          : null,
+      mode: exec.mode,
+    }))
+
+    res.json({ executions })
+  } catch (err) {
+    console.error('Get history error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 router.delete('/automations/:id', async (req, res) => {
   const { id } = req.params
   const { userId } = req.query
