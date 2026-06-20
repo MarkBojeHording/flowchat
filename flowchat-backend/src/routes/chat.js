@@ -523,8 +523,10 @@ async function executeTool(name, input, userId, automationId = null) {
         })
 
         await n8nClient.put(`/api/v1/workflows/${workflow.n8n_workflow_id}`, {
-          ...n8nWorkflow,
+          name: n8nWorkflow.name,
           nodes: updatedNodes,
+          connections: n8nWorkflow.connections,
+          settings: n8nWorkflow.settings || { executionOrder: 'v1' },
         })
 
         await supabase
