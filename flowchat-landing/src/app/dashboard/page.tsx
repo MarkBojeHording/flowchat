@@ -428,8 +428,8 @@ export default function DashboardPage() {
     // Add user message immediately (optimistic)
     setMessages((prev) => [...prev, { type: "user", text: userMessage }]);
 
-    // Add empty assistant message that will be filled by stream
-    setMessages((prev) => [...prev, { type: "assistant", text: "" }]);
+    // Add assistant message with thinking dots immediately
+    setMessages((prev) => [...prev, { type: "assistant", text: "", thinking: true }]);
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/chat/message/stream`, {
@@ -468,18 +468,23 @@ export default function DashboardPage() {
             const event = JSON.parse(jsonStr);
 
             if (event.type === "text") {
-              // Append text to the last assistant message
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.type === "assistant") {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    text: last.text + event.text,
-                  };
-                }
-                return updated;
-              });
+              // Animate chunk character by character
+              const chars = event.text.split("");
+              for (let i = 0; i < chars.length; i++) {
+                await new Promise((resolve) => setTimeout(resolve, 8));
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last?.type === "assistant") {
+                    updated[updated.length - 1] = {
+                      ...last,
+                      text: last.text + chars[i],
+                      thinking: false,
+                    };
+                  }
+                  return updated;
+                });
+              }
             }
 
             if (event.type === "tool_start") {
@@ -1018,7 +1023,7 @@ export default function DashboardPage() {
                         )}
                         {msg.type === "assistant" && (
                           <div className="flex justify-start">
-                            <div className="max-w-[85%] rounded-2xl border border-[#e5e7eb] border-l-4 border-l-[#00d4aa] bg-white px-4 py-3 text-sm text-[#374151] sm:max-w-md">
+                            <div className="max-w-[85%] rounded-2xl border border-[#e5e7eb] border-l-4 border-l-[#00d4aa] bg-white px-4 py-3 text-sm text-[#374151] transition-all duration-150 sm:max-w-md">
                               {msg.thinking && !msg.text ? (
                                 <div className="flex gap-1 py-1">
                                   <span
