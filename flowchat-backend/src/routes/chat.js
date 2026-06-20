@@ -454,7 +454,7 @@ async function executeTool(name, input, userId, automationId = null) {
 
         const { n8nClient } = require('../services/n8n')
         const { data: n8nWorkflow } = await n8nClient.get(
-          `/api/v1/workflow/${workflow.n8n_workflow_id}`
+          `/api/v1/workflows/${workflow.n8n_workflow_id}`
         )
 
         if (!n8nWorkflow) {
@@ -522,7 +522,7 @@ async function executeTool(name, input, userId, automationId = null) {
           return node
         })
 
-        await n8nClient.put(`/api/v1/workflow/${workflow.n8n_workflow_id}`, {
+        await n8nClient.put(`/api/v1/workflows/${workflow.n8n_workflow_id}`, {
           ...n8nWorkflow,
           nodes: updatedNodes,
         })
