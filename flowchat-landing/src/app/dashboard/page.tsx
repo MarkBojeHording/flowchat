@@ -83,7 +83,7 @@ type Automation = {
 
 type ChatMessage =
   | { type: "user"; text: string }
-  | { type: "assistant"; text: string }
+  | { type: "assistant"; text: string; thinking?: boolean }
   | { type: "connect"; app: string; url: string; message: string }
   | { type: "test_result"; summary: string }
   | { type: "live"; summary: string }
@@ -422,13 +422,17 @@ export default function DashboardPage() {
 
     const userMessage = input.trim();
     const currentAutomationId = selectedId;
-
     setInput("");
     setLoading(true);
+
+    // Add user message immediately (optimistic)
     setMessages((prev) => [...prev, { type: "user", text: userMessage }]);
 
+    // Add empty assistant message that will be filled by stream
+    setMessages((prev) => [...prev, { type: "assistant", text: "" }]);
+
     try {
-      const response = await fetch(`${BACKEND_URL}/api/chat/message`, {
+      const response = await fetch(`${BACKEND_URL}/api/chat/message/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -439,60 +443,147 @@ export default function DashboardPage() {
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        setMessages((prev) => [
-          ...prev,
-          { type: "error", text: data.error || "Something went wrong" },
-        ]);
-        return;
+        throw new Error("Stream request failed");
       }
 
-      const newMessages: ChatMessage[] = [];
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-      if (data.reply?.trim()) {
-        newMessages.push({ type: "assistant", text: data.reply.trim() });
-      }
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      if (data.action === "request_connection" && data.actionData) {
-        newMessages.push({
-          type: "connect",
-          app: data.actionData.app,
-          url: `${data.actionData.url}?userId=${user.id}`,
-          message: data.actionData.message,
-        });
-      }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
 
-      if (data.action === "show_test_result" && data.actionData) {
-        newMessages.push({
-          type: "test_result",
-          summary: data.actionData.summary || "Test completed successfully.",
-        });
-      }
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
 
-      if (data.action === "automation_live" && data.actionData) {
-        newMessages.push({
-          type: "live",
-          summary: data.actionData.summary || "Your automation is now live.",
-        });
-        await fetchAutomations(user.id, false);
-      }
+          try {
+            const event = JSON.parse(jsonStr);
 
-      if (newMessages.length > 0) {
-        setMessages((prev) => [...prev, ...newMessages]);
-      }
+            if (event.type === "text") {
+              // Append text to the last assistant message
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.type === "assistant") {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    text: last.text + event.text,
+                  };
+                }
+                return updated;
+              });
+            }
 
-      const newAutomationId = data.updatedState?.automationId;
-      if (newAutomationId && newAutomationId !== selectedId) {
-        setSelectedId(newAutomationId);
-        await fetchAutomations(user.id, false);
-      } else if (newAutomationId) {
-        await fetchAutomations(user.id, false);
+            if (event.type === "tool_start") {
+              // Show thinking indicator — update last assistant message
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.type === "assistant" && !last.text) {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    thinking: true,
+                  };
+                }
+                return updated;
+              });
+            }
+
+            if (event.type === "tool_end") {
+              // Clear thinking indicator
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.type === "assistant") {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    thinking: false,
+                  };
+                }
+                return updated;
+              });
+            }
+
+            if (event.type === "done") {
+              const { action, actionData, updatedState } = event;
+
+              // Handle actions after streaming completes
+              if (action === "request_connection" && actionData) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    type: "connect",
+                    app: actionData.app,
+                    url: `${BACKEND_URL}/api/auth/${actionData.app}?userId=${user.id}`,
+                    message: actionData.message,
+                  },
+                ]);
+              }
+
+              if (action === "show_test_result" && actionData) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    type: "test_result",
+                    summary: actionData.summary || "Test completed.",
+                  },
+                ]);
+              }
+
+              if (action === "automation_live" && actionData) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    type: "live",
+                    summary:
+                      actionData.summary || "Your automation is now live.",
+                  },
+                ]);
+              }
+
+              // Update state
+              if (updatedState?.automationId) {
+                setSelectedId(updatedState.automationId);
+              }
+
+              if (updatedState?.autoName && updatedState?.automationId) {
+                // Refresh automations list
+                fetchAutomations(user.id, false);
+              }
+            }
+
+            if (event.type === "error") {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  type: "error",
+                  text: event.message || "Something went wrong",
+                },
+              ]);
+            }
+          } catch {
+            console.error("Failed to parse SSE event:", jsonStr);
+          }
+        }
       }
     } catch (err) {
       const text = err instanceof Error ? err.message : "Something went wrong";
-      setMessages((prev) => [...prev, { type: "error", text }]);
+      // Remove the empty assistant message and show error
+      setMessages((prev) => {
+        const updated = prev.filter(
+          (m, i) =>
+            !(i === prev.length - 1 && m.type === "assistant" && !m.text)
+        );
+        return [...updated, { type: "error", text }];
+      });
     } finally {
       setLoading(false);
     }
@@ -927,12 +1018,30 @@ export default function DashboardPage() {
                         )}
                         {msg.type === "assistant" && (
                           <div className="flex justify-start">
-                            <div
-                              className="max-w-[72%] rounded-2xl rounded-bl-sm bg-[#f3f4f6] px-4 py-2.5 text-sm leading-relaxed text-[#374151]"
-                              dangerouslySetInnerHTML={{
-                                __html: renderMarkdown(msg.text),
-                              }}
-                            />
+                            <div className="max-w-[85%] rounded-2xl border border-[#e5e7eb] border-l-4 border-l-[#00d4aa] bg-white px-4 py-3 text-sm text-[#374151] sm:max-w-md">
+                              {msg.thinking && !msg.text ? (
+                                <div className="flex gap-1 py-1">
+                                  <span
+                                    className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                                    style={{ animationDelay: "0ms" }}
+                                  />
+                                  <span
+                                    className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                                    style={{ animationDelay: "150ms" }}
+                                  />
+                                  <span
+                                    className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                                    style={{ animationDelay: "300ms" }}
+                                  />
+                                </div>
+                              ) : (
+                                <span
+                                  dangerouslySetInnerHTML={{
+                                    __html: renderMarkdown(msg.text),
+                                  }}
+                                />
+                              )}
+                            </div>
                           </div>
                         )}
                         {msg.type === "connect" && (
@@ -978,21 +1087,6 @@ export default function DashboardPage() {
                         )}
                       </div>
                     ))}
-                    {loading && (
-                      <div className="flex justify-start">
-                        <div className="flex gap-1 rounded-2xl rounded-bl-sm bg-[#f3f4f6] px-4 py-3">
-                          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#9ca3af]" />
-                          <span
-                            className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#9ca3af]"
-                            style={{ animationDelay: "150ms" }}
-                          />
-                          <span
-                            className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#9ca3af]"
-                            style={{ animationDelay: "300ms" }}
-                          />
-                        </div>
-                      </div>
-                    )}
                     <div ref={bottomRef} />
                   </div>
                 </div>
