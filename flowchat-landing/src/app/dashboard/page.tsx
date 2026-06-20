@@ -1261,13 +1261,15 @@ export default function DashboardPage() {
                             <div>
                               <p className="text-sm font-medium text-[#111]">
                                 {exec.status === "success"
-                                  ? "Ran successfully"
-                                  : "Failed"}
+                                  ? "✅ Ran successfully"
+                                  : "❌ Something went wrong"}
                               </p>
                               <p className="text-xs text-[#6b7280]">
                                 {exec.mode === "webhook"
-                                  ? "Manual test"
-                                  : "Automatic run"}
+                                  ? "Test run"
+                                  : exec.mode === "trigger"
+                                    ? "Ran on schedule"
+                                    : "Automatic run"}
                               </p>
                             </div>
                           </div>
@@ -1298,26 +1300,6 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              <div className="flex shrink-0 flex-wrap gap-2 border-t border-[#f3f4f6] bg-white px-4 py-2">
-                {[
-                  "Test it now",
-                  "Add another action",
-                  "Change schedule",
-                  "View run history",
-                ].map((action) => (
-                  <button
-                    key={action}
-                    type="button"
-                    onClick={() => {
-                      setInput(action);
-                      inputRef.current?.focus();
-                    }}
-                    className="rounded-full border border-[#e5e7eb] bg-white px-3 py-1 text-xs text-[#6b7280] transition-colors hover:border-[#0d1420] hover:text-[#0d1420]"
-                  >
-                    {action}
-                  </button>
-                ))}
-              </div>
             </>
           )}
 
