@@ -187,6 +187,8 @@ export default function DashboardPage() {
     type: "success" | "error" | "warning";
   } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState("");
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -1058,11 +1060,59 @@ export default function DashboardPage() {
             <>
               <div className="flex shrink-0 items-center justify-between border-b border-[#f3f4f6] bg-white px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-[#111]">
-                    {getDisplayName(
-                      selectedAutomation || ({ id: "" } as Automation)
-                    )}
-                  </span>
+                  {editingTitle ? (
+                    <input
+                      autoFocus
+                      value={titleValue}
+                      onChange={(e) => setTitleValue(e.target.value)}
+                      onBlur={async () => {
+                        setEditingTitle(false);
+                        if (
+                          titleValue.trim() &&
+                          titleValue !== selectedAutomation?.auto_name
+                        ) {
+                          await fetch(
+                            `${BACKEND_URL}/api/chat/automations/${selectedId}/rename`,
+                            {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                userId: user?.id,
+                                name: titleValue.trim(),
+                              }),
+                            }
+                          );
+                          setAutomations((prev) =>
+                            prev.map((a) =>
+                              a.id === selectedId
+                                ? { ...a, auto_name: titleValue.trim() }
+                                : a
+                            )
+                          );
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.currentTarget.blur();
+                        if (e.key === "Escape") {
+                          setEditingTitle(false);
+                          setTitleValue(selectedAutomation?.auto_name || "");
+                        }
+                      }}
+                      className="w-full max-w-xs border-b border-[#00d4aa] bg-transparent text-sm font-medium text-[#111] outline-none"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTitleValue(selectedAutomation?.auto_name || "");
+                        setEditingTitle(true);
+                      }}
+                      className="max-w-xs truncate text-left text-sm font-medium text-[#111] transition-colors hover:text-[#00d4aa]"
+                      title="Click to rename"
+                    >
+                      {selectedAutomation?.auto_name || "New automation"}
+                    </button>
+                  )}
                   {selectedAutomation && (
                     <span className={getChatStatusPillClass(selectedAutomation.status)}>
                       ● {getStatusLabel(selectedAutomation.status)}
