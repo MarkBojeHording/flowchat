@@ -170,6 +170,17 @@ export default function DashboardPage() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateCategory, setTemplateCategory] = useState("All");
   const [activeTab, setActiveTab] = useState<"chat" | "history">("chat");
+  const [history, setHistory] = useState<
+    {
+      id: string;
+      status: string;
+      startedAt: string | null;
+      stoppedAt: string | null;
+      duration: number | null;
+      mode: string;
+    }[]
+  >([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
@@ -188,6 +199,22 @@ export default function DashboardPage() {
   ) {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  }
+
+  async function fetchHistory(automationId: string) {
+    if (!user || !automationId || automationId.startsWith("new-")) return;
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(
+        `${BACKEND_URL}/api/chat/automations/${automationId}/history?userId=${user.id}`
+      );
+      const data = await res.json();
+      setHistory(data.executions || []);
+    } catch (err) {
+      console.error("Failed to fetch history:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
   }
 
   const loadAutomation = useCallback(async (id: string, userId: string) => {
@@ -1057,7 +1084,10 @@ export default function DashboardPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveTab("history")}
+                      onClick={() => {
+                        setActiveTab("history");
+                        if (selectedId) fetchHistory(selectedId);
+                      }}
                       className={
                         activeTab === "history"
                           ? "rounded-md bg-[#f3f4f6] px-3 py-1 text-xs font-medium text-[#111]"
@@ -1181,14 +1211,90 @@ export default function DashboardPage() {
                     <div ref={bottomRef} />
                   </div>
                 </div>
-              ) : (
-                <div className="flex-1 overflow-y-auto bg-white px-6 py-4">
-                  <div className="mx-auto max-w-2xl">
-                    <div className="text-xs text-[#9ca3af]">
-                      Run history coming soon — this will show every time your
-                      automation ran and what happened.
+              ) : null}
+
+              {activeTab === "history" && (
+                <div className="flex-1 overflow-y-auto px-6 py-4">
+                  {historyLoading ? (
+                    <div className="flex justify-center py-8">
+                      <div className="flex gap-1">
+                        <span
+                          className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                          style={{ animationDelay: "0ms" }}
+                        />
+                        <span
+                          className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                          style={{ animationDelay: "150ms" }}
+                        />
+                        <span
+                          className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                          style={{ animationDelay: "300ms" }}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  ) : history.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="mb-3 text-3xl">📋</div>
+                      <p className="text-sm font-medium text-[#111]">
+                        No runs yet
+                      </p>
+                      <p className="mt-1 text-xs text-[#6b7280]">
+                        Executions will appear here once your automation starts
+                        running.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {history.map((exec) => (
+                        <div
+                          key={exec.id}
+                          className="flex items-center justify-between rounded-xl border border-[#e5e7eb] bg-white px-4 py-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`h-2 w-2 rounded-full ${
+                                exec.status === "success"
+                                  ? "bg-green-500"
+                                  : "bg-red-500"
+                              }`}
+                            />
+                            <div>
+                              <p className="text-sm font-medium text-[#111]">
+                                {exec.status === "success"
+                                  ? "Ran successfully"
+                                  : "Failed"}
+                              </p>
+                              <p className="text-xs text-[#6b7280]">
+                                {exec.mode === "webhook"
+                                  ? "Manual test"
+                                  : "Automatic run"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-[#6b7280]">
+                              {exec.startedAt
+                                ? new Date(exec.startedAt).toLocaleString(
+                                    "en-GB",
+                                    {
+                                      day: "numeric",
+                                      month: "short",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    }
+                                  )
+                                : "—"}
+                            </p>
+                            {exec.duration !== null && (
+                              <p className="text-xs text-[#6b7280]">
+                                {exec.duration}s
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
