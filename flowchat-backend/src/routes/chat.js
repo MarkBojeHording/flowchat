@@ -1263,6 +1263,30 @@ router.get('/automations/:id/history', async (req, res) => {
   }
 })
 
+router.patch('/automations/:id/rename', async (req, res) => {
+  const { id } = req.params
+  const { userId, name } = req.body
+
+  if (!userId || !name) {
+    return res.status(400).json({ error: 'userId and name required' })
+  }
+
+  try {
+    const { error } = await supabase
+      .from('workflows')
+      .update({ auto_name: name.trim() })
+      .eq('id', id)
+      .eq('user_id', userId)
+
+    if (error) throw error
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Rename error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 router.delete('/automations/:id', async (req, res) => {
   const { id } = req.params
   const { userId } = req.query
