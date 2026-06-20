@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
@@ -426,10 +427,17 @@ export default function DashboardPage() {
     setLoading(true);
 
     // Add user message immediately (optimistic)
-    setMessages((prev) => [...prev, { type: "user", text: userMessage }]);
+    flushSync(() => {
+      setMessages((prev) => [...prev, { type: "user", text: userMessage }]);
+    });
 
-    // Add assistant message with thinking dots immediately
-    setMessages((prev) => [...prev, { type: "assistant", text: "", thinking: true }]);
+    // Add assistant message with thinking dots immediately — before fetch
+    flushSync(() => {
+      setMessages((prev) => [
+        ...prev,
+        { type: "assistant", text: "", thinking: true },
+      ]);
+    });
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/chat/message/stream`, {
@@ -911,7 +919,7 @@ export default function DashboardPage() {
 
         {/* MAIN CHAT AREA */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white">
-          {selectedId === null ? (
+          {selectedId === null && messages.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center bg-white px-8">
               <div
                 className="mb-2 text-2xl font-bold text-[#111]"
@@ -984,7 +992,7 @@ export default function DashboardPage() {
                       History
                     </button>
                   </div>
-                  {(() => {
+                  {selectedId && (() => {
                     const currentAuto = automations.find(
                       (a) => a.id === selectedId
                     );
@@ -999,6 +1007,7 @@ export default function DashboardPage() {
                       </button>
                     );
                   })()}
+                  {selectedId && (
                   <button
                     type="button"
                     onClick={() => handleDelete(selectedId)}
@@ -1006,6 +1015,7 @@ export default function DashboardPage() {
                   >
                     Delete
                   </button>
+                  )}
                 </div>
               </div>
 
