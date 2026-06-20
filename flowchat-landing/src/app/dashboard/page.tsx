@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import ReactMarkdown from "react-markdown";
+import { Pencil } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
@@ -1107,10 +1108,13 @@ export default function DashboardPage() {
                         setTitleValue(selectedAutomation?.auto_name || "");
                         setEditingTitle(true);
                       }}
-                      className="max-w-xs truncate text-left text-sm font-medium text-[#111] transition-colors hover:text-[#00d4aa]"
+                      className="group flex items-center gap-1.5 text-left text-sm font-medium text-[#111] transition-colors hover:text-[#00d4aa]"
                       title="Click to rename"
                     >
-                      {selectedAutomation?.auto_name || "New automation"}
+                      <span className="max-w-xs truncate">
+                        {selectedAutomation?.auto_name || "New automation"}
+                      </span>
+                      <Pencil className="h-3 w-3 flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-50" />
                     </button>
                   )}
                   {selectedAutomation && (
