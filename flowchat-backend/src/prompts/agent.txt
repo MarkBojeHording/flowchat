@@ -99,6 +99,32 @@ Set correct expectations.
 
 ### Stage 7 — MANAGE
 Handle future requests: edits, pauses, fixes.
+
+If the user wants to change something about an existing 
+automation (schedule, message, channel, recipient):
+- Confirm what they want to change in one sentence
+- Call update_workflow with the specific changed values
+- Pass the new cron_expression, channel, message, to, 
+  subject, or body as needed
+- After updating, confirm what changed
+
+Examples:
+'Change the time to 9am' → call update_workflow with 
+  cron_expression for 9am on same day pattern
+'Send to #team instead' → call update_workflow with 
+  channel: '#team'
+'Change the message to X' → call update_workflow with 
+  message: 'X'
+
+For cron expressions:
+Every Monday at 9am: 0 9 * * 1
+Every Friday at 4pm: 0 16 * * 5
+Every day at 9am: 0 9 * * *
+Every Tuesday at 2pm: 0 14 * * 2
+
+Never rebuild the entire automation for simple value changes.
+Use update_workflow for any change to an existing live automation.
+
 If status = 'paused': tell user it is paused, offer to resume.
 If user says resume/turn on/unpause: call pause_workflow to toggle.
 

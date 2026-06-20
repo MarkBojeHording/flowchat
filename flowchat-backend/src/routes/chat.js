@@ -106,17 +106,42 @@ const TOOLS = [
   },
   {
     name: 'update_workflow',
-    description: 'Make changes to an existing automation based on user request',
+    description:
+      'Make changes to an existing automation. Call this when the user wants to change the schedule, message, channel, or recipient of an existing live automation.',
     input_schema: {
       type: 'object',
       properties: {
-        workflowId: { type: 'string' },
         changes: {
           type: 'string',
-          description: 'plain English description of what to change',
+          description: 'Plain English description of what changed',
+        },
+        cron_expression: {
+          type: 'string',
+          description:
+            'New cron expression if schedule changed (e.g. "0 9 * * 1" for Monday 9am)',
+        },
+        channel: {
+          type: 'string',
+          description: 'New Slack channel if changed (e.g. #team)',
+        },
+        message: {
+          type: 'string',
+          description: 'New message text if changed',
+        },
+        to: {
+          type: 'string',
+          description: 'New email recipient if changed',
+        },
+        subject: {
+          type: 'string',
+          description: 'New email subject if changed',
+        },
+        body: {
+          type: 'string',
+          description: 'New email body if changed',
         },
       },
-      required: ['workflowId', 'changes'],
+      required: ['changes'],
     },
   },
   {
@@ -413,8 +438,114 @@ async function executeTool(name, input, userId, automationId = null) {
     case 'activate_workflow':
       return { success: true, summary: 'Automation is now live' }
 
-    case 'update_workflow':
-      return { success: true, summary: 'Automation updated successfully' }
+    case 'update_workflow': {
+      try {
+        const { changes } = input
+
+        const { data: workflow } = await supabase
+          .from('workflows')
+          .select('*')
+          .eq('id', automationId)
+          .single()
+
+        if (!workflow?.n8n_workflow_id) {
+          return { success: false, summary: 'No workflow found to update.' }
+        }
+
+        const { n8nClient } = require('../services/n8n')
+        const { data: n8nWorkflow } = await n8nClient.get(
+          `/api/v1/workflow/${workflow.n8n_workflow_id}`
+        )
+
+        if (!n8nWorkflow) {
+          return { success: false, summary: 'Could not fetch workflow from n8n.' }
+        }
+
+        const updatedNodes = n8nWorkflow.nodes.map((node) => {
+          if (
+            node.type === 'n8n-nodes-base.scheduleTrigger' &&
+            input.cron_expression
+          ) {
+            return {
+              ...node,
+              parameters: {
+                ...node.parameters,
+                rule: {
+                  interval: [
+                    {
+                      field: 'cronExpression',
+                      expression: input.cron_expression,
+                    },
+                  ],
+                },
+              },
+            }
+          }
+
+          if (node.name === 'Send Slack Message') {
+            let updatedJsonBody = node.parameters.jsonBody
+            try {
+              const body = JSON.parse(node.parameters.jsonBody || '{}')
+              if (input.channel) body.channel = input.channel
+              if (input.message) body.text = input.message
+              updatedJsonBody = JSON.stringify(body)
+            } catch (e) {
+              // keep existing jsonBody if parse fails
+            }
+            return {
+              ...node,
+              parameters: { ...node.parameters, jsonBody: updatedJsonBody },
+            }
+          }
+
+          if (
+            node.name === 'Send Gmail' &&
+            (input.to || input.subject || input.body)
+          ) {
+            const toEmail =
+              input.to || workflow.details?.to || 'user@example.com'
+            const subject =
+              input.subject || workflow.details?.subject || 'Update'
+            const body = input.body || workflow.details?.body || ''
+            const rawEmail = Buffer.from(
+              `To: ${toEmail}\r\nSubject: ${subject}\r\nContent-Type: text/plain\r\n\r\n${body}`
+            ).toString('base64url')
+            return {
+              ...node,
+              parameters: {
+                ...node.parameters,
+                jsonBody: JSON.stringify({ raw: rawEmail }),
+              },
+            }
+          }
+
+          return node
+        })
+
+        await n8nClient.put(`/api/v1/workflow/${workflow.n8n_workflow_id}`, {
+          ...n8nWorkflow,
+          nodes: updatedNodes,
+        })
+
+        await supabase
+          .from('workflows')
+          .update({
+            last_message_at: new Date().toISOString(),
+          })
+          .eq('id', automationId)
+
+        return {
+          success: true,
+          summary: `Done — ${changes}. The automation has been updated and will run with the new settings.`,
+        }
+      } catch (err) {
+        console.error('update_workflow error:', err)
+        return {
+          success: false,
+          summary: `Could not update the automation: ${err.message}`,
+        }
+      }
+    }
 
     case 'pause_workflow':
       return { success: true, summary: 'Automation paused' }
