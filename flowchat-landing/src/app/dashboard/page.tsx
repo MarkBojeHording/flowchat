@@ -420,7 +420,7 @@ export default function DashboardPage() {
         trigger_app: null,
         action_apps: null,
       },
-      ...prev,
+      ...prev.filter((a) => !a.id.startsWith("new-")),
     ]);
 
     setSelectedId(tempId);
