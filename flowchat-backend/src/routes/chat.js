@@ -21,6 +21,8 @@ const anthropic = new Anthropic({
 
 const AGENT_PROMPT_PATH = path.join(__dirname, '../prompts/agent.txt')
 const MAX_AGENT_ITERATIONS = 15
+const MAX_HISTORY = 20
+const MAX_STORED = 50
 
 const TOOLS = [
   {
@@ -615,8 +617,15 @@ router.post('/message/stream', async (req, res) => {
       automationId,
     })
 
+    // Truncate conversation history to last 20 messages
+    // This prevents context window bloat and reduces latency/cost
+    const truncatedHistory =
+      conversationHistory.length > MAX_HISTORY
+        ? conversationHistory.slice(-MAX_HISTORY)
+        : conversationHistory
+
     const messages = [
-      ...conversationHistory,
+      ...truncatedHistory,
       { role: 'user', content: message },
     ]
 
@@ -726,7 +735,7 @@ router.post('/message/stream', async (req, res) => {
       ...conversationHistory,
       { role: 'user', content: message },
       { role: 'assistant', content: replyText },
-    ]
+    ].slice(-MAX_STORED)
 
     const updatedStage = determineStage(action, currentWorkflowId)
 
@@ -828,8 +837,15 @@ router.post('/message', async (req, res) => {
       automationId,
     })
 
+    // Truncate conversation history to last 20 messages
+    // This prevents context window bloat and reduces latency/cost
+    const truncatedHistory =
+      conversationHistory.length > MAX_HISTORY
+        ? conversationHistory.slice(-MAX_HISTORY)
+        : conversationHistory
+
     const messages = [
-      ...conversationHistory,
+      ...truncatedHistory,
       { role: 'user', content: message },
     ]
 
@@ -942,7 +958,7 @@ router.post('/message', async (req, res) => {
       ...conversationHistory,
       { role: 'user', content: message },
       { role: 'assistant', content: replyText },
-    ]
+    ].slice(-MAX_STORED)
 
     const updatedStage = determineStage(action, currentWorkflowId)
     let savedAutomationId = automationId
