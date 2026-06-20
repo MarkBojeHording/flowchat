@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import ReactMarkdown from "react-markdown";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
@@ -1127,9 +1128,9 @@ export default function DashboardPage() {
                                   />
                                 </div>
                               ) : (
-                                <p className="text-sm leading-relaxed text-[#374151]">
-                                  {msg.text}
-                                </p>
+                                <div className="prose prose-sm max-w-none text-sm leading-relaxed text-[#374151]">
+                                  <ReactMarkdown>{msg.text}</ReactMarkdown>
+                                </div>
                               )}
                             </div>
                           </div>
