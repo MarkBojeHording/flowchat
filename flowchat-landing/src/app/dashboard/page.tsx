@@ -147,14 +147,6 @@ function getChatStatusPillClass(status: string): string {
   return "rounded-full bg-[#f3f4f6] px-2 py-0.5 text-[9px] text-[#6b7280]";
 }
 
-function renderMarkdown(text: string): string {
-  return text
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.*?)\*/g, "<em>$1</em>")
-    .replace(/\n/g, "<br/>");
-}
-
 function formatAppName(app: string): string {
   return app.charAt(0).toUpperCase() + app.slice(1).replace(/_/g, " ");
 }
@@ -418,7 +410,7 @@ export default function DashboardPage() {
     loadAutomation(id, user.id);
   }
 
-  async function handleSubmit() {
+  const handleSubmit = useCallback(async () => {
     if (!input.trim() || loading || !user) return;
 
     const userMessage = input.trim();
@@ -600,7 +592,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [input, loading, user, selectedId, fetchAutomations]);
 
   useEffect(() => {
     const handleAutoSubmit = () => {
@@ -610,7 +602,7 @@ export default function DashboardPage() {
     };
     document.addEventListener("autosubmit", handleAutoSubmit);
     return () => document.removeEventListener("autosubmit", handleAutoSubmit);
-  }, [input]);
+  }, [input, handleSubmit]);
 
   function handleTemplateSelect(prompt: string) {
     setInput(prompt);
