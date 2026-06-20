@@ -431,16 +431,20 @@ export default function DashboardPage() {
     inputRef.current?.focus();
   };
 
-  function handleSelectAutomation(id: string) {
+  const handleSelectAutomation = (id: string) => {
     if (!user) return;
+
     if (isTempAutomationId(id)) {
       setSelectedId(id);
       setCurrentAutomationId(null);
       setActiveTab("chat");
       return;
     }
+
+    // Remove any temp placeholder when selecting a real automation
+    setAutomations((prev) => prev.filter((a) => !a.id.startsWith("new-")));
     loadAutomation(id, user.id);
-  }
+  };
 
   const handleSubmit = useCallback(async () => {
     if (!input.trim() || loading || !user) return;
@@ -663,6 +667,15 @@ export default function DashboardPage() {
 
   function handleDelete(id: string) {
     if (!user) return;
+
+    if (id.startsWith("new-")) {
+      setAutomations((prev) => prev.filter((a) => a.id !== id));
+      setSelectedId(null);
+      setCurrentAutomationId(null);
+      setMessages([]);
+      return;
+    }
+
     setConfirmDelete(id);
   }
 
@@ -897,13 +910,15 @@ export default function DashboardPage() {
                     </div>
                     {automations
                       .filter((a) => a.status !== "broken")
-                      .map((auto) => (
+                      .map((auto) => {
+                        const isSelected = auto.id === selectedId;
+                        return (
                         <button
                           key={auto.id}
                           type="button"
                           onClick={() => handleSelectAutomation(auto.id)}
                           className={
-                            selectedId === auto.id
+                            isSelected
                               ? "mb-1 w-full rounded-lg border border-[rgba(233,184,114,0.15)] bg-[rgba(233,184,114,0.07)] p-2 text-left transition-colors"
                               : "mb-1 w-full rounded-lg border border-transparent p-2 text-left transition-colors hover:bg-[rgba(255,255,255,0.04)]"
                           }
@@ -928,7 +943,8 @@ export default function DashboardPage() {
                             {formatTime(auto.last_message_at)}
                           </div>
                         </button>
-                      ))}
+                        );
+                      })}
                   </>
                 )}
 
@@ -940,13 +956,15 @@ export default function DashboardPage() {
                     </div>
                     {automations
                       .filter((a) => a.status === "broken")
-                      .map((auto) => (
+                      .map((auto) => {
+                        const isSelected = auto.id === selectedId;
+                        return (
                         <button
                           key={auto.id}
                           type="button"
                           onClick={() => handleSelectAutomation(auto.id)}
                           className={
-                            selectedId === auto.id
+                            isSelected
                               ? "mb-1 w-full rounded-lg border border-[rgba(255,80,80,0.2)] bg-[rgba(255,80,80,0.08)] p-2 text-left transition-colors"
                               : "mb-1 w-full rounded-lg border border-[rgba(255,80,80,0.12)] bg-[rgba(255,80,80,0.04)] p-2 text-left transition-colors hover:bg-[rgba(255,80,80,0.06)]"
                           }
@@ -964,7 +982,8 @@ export default function DashboardPage() {
                             Tap to fix
                           </div>
                         </button>
-                      ))}
+                        );
+                      })}
                   </>
                 )}
               </>
@@ -1047,7 +1066,7 @@ export default function DashboardPage() {
                       History
                     </button>
                   </div>
-                  {selectedId && (() => {
+                  {selectedId && !selectedId.startsWith("new-") && (() => {
                     const currentAuto = automations.find(
                       (a) => a.id === selectedId
                     );
@@ -1062,7 +1081,7 @@ export default function DashboardPage() {
                       </button>
                     );
                   })()}
-                  {selectedId && (
+                  {selectedId && !selectedId.startsWith("new-") && (
                   <button
                     type="button"
                     onClick={() => handleDelete(selectedId)}
