@@ -82,6 +82,18 @@ router.post('/checkout', async (req, res) => {
 })
 
 async function handleWebhook(req, res) {
+  console.log('Webhook received')
+  console.log('Content-Type:', req.headers['content-type'])
+  console.log('Stripe-Signature header present:', !!req.headers['stripe-signature'])
+  console.log('Body type:', typeof req.body)
+  console.log('Body is Buffer:', Buffer.isBuffer(req.body))
+  console.log('Body length:', req.body?.length)
+  console.log('STRIPE_WEBHOOK_SECRET set:', !!process.env.STRIPE_WEBHOOK_SECRET)
+  console.log(
+    'STRIPE_WEBHOOK_SECRET starts with:',
+    process.env.STRIPE_WEBHOOK_SECRET?.substring(0, 10)
+  )
+
   const sig = req.headers['stripe-signature']
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
 
