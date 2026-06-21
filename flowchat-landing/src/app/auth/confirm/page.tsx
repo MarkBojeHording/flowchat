@@ -23,7 +23,7 @@ export default function AuthConfirmPage() {
           token_hash,
         });
         if (!error) {
-          window.location.href = "/";
+          window.location.href = "/dashboard";
           return;
         }
         window.location.href = "/login?error=confirmation_failed";
@@ -33,7 +33,7 @@ export default function AuthConfirmPage() {
       // Google OAuth — token arrives in the URL hash (#access_token=...)
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        window.location.href = "/";
+        window.location.href = "/dashboard";
         return;
       }
 
@@ -43,7 +43,7 @@ export default function AuthConfirmPage() {
           data: { session: retrySession },
         } = await supabase.auth.getSession();
         if (retrySession) {
-          window.location.href = "/";
+          window.location.href = "/dashboard";
         } else {
           window.location.href = "/login?error=oauth_failed";
         }
