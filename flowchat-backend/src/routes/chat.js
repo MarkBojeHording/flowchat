@@ -49,6 +49,26 @@ async function logExecution(userId, workflowId, executionData) {
   }
 }
 
+const PLAN_DEFAULTS = {
+  free: { name: 'Free', runsLimit: 50 },
+  pro: { name: 'Pro', runsLimit: 2000 },
+  business: { name: 'Business', runsLimit: 10000 },
+}
+
+function resolvePlanInfo(profile) {
+  const planId = profile.plan_id || 'free'
+  const joined = Array.isArray(profile.plans)
+    ? profile.plans[0]
+    : profile.plans
+  const defaults = PLAN_DEFAULTS[planId] || PLAN_DEFAULTS.free
+
+  return {
+    id: planId,
+    name: joined?.name || defaults.name,
+    runsLimit: joined?.runs_limit ?? defaults.runsLimit,
+  }
+}
+
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
@@ -336,12 +356,12 @@ async function executeTool(name, input, userId, automationId = null) {
           .single()
 
         if (profile) {
-          const runsLimit =
-            (profile.plans?.runs_limit || 50) + (profile.topup_runs || 0)
+          const planInfo = resolvePlanInfo(profile)
+          const runsLimit = planInfo.runsLimit + (profile.topup_runs || 0)
           if (profile.runs_used >= runsLimit) {
             return {
               success: false,
-              summary: `You've reached your monthly run limit on the ${profile.plans?.name || 'Free'} plan. Upgrade or top up to create more automations.`,
+              summary: `You've reached your monthly run limit on the ${planInfo.name} plan. Upgrade or top up to create more automations.`,
               limitReached: true,
             }
           }
@@ -1252,9 +1272,9 @@ router.get('/usage', async (req, res) => {
       })
     }
 
-    const baseRunsLimit = profile.plans?.runs_limit || 50
+    const planInfo = resolvePlanInfo(profile)
     const topupRuns = profile.topup_runs || 0
-    const runsLimit = baseRunsLimit + topupRuns
+    const runsLimit = planInfo.runsLimit + topupRuns
     const runsUsed = profile.runs_used || 0
     const testRunsUsed = profile.test_runs_used || 0
     const billingStart = new Date(profile.billing_period_start)
@@ -1282,8 +1302,8 @@ router.get('/usage', async (req, res) => {
     }
 
     res.json({
-      plan: profile.plan_id,
-      planName: profile.plans?.name || 'Free',
+      plan: planInfo.id,
+      planName: planInfo.name,
       runsUsed,
       testRunsUsed,
       runsLimit,

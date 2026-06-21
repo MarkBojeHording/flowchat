@@ -11,6 +11,25 @@ import { supabase } from "@/lib/supabase";
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3456";
 
+const PLAN_DISPLAY_NAMES: Record<string, string> = {
+  free: "Free",
+  pro: "Pro",
+  business: "Business",
+};
+
+function normalizeUsage(data: {
+  plan?: string;
+  planName?: string;
+  [key: string]: unknown;
+}) {
+  const plan = data.plan || "free";
+  return {
+    ...data,
+    plan,
+    planName: PLAN_DISPLAY_NAMES[plan] || data.planName || "Free",
+  };
+}
+
 const TEMPLATES = [
   {
     trigger: "📋",
@@ -239,8 +258,21 @@ export default function DashboardPage() {
         { cache: "no-store" }
       );
       const data = await res.json();
-      console.log("Usage fetched:", data);
-      setUsage(data);
+      const normalized = normalizeUsage(data);
+      console.log("Usage fetched:", normalized);
+      setUsage(
+        normalized as {
+          plan: string;
+          planName: string;
+          runsUsed: number;
+          testRunsUsed: number;
+          runsLimit: number;
+          runsRemaining: number;
+          daysUntilReset: number;
+          status: string;
+          percentUsed: number;
+        }
+      );
     } catch (err) {
       console.error("Failed to fetch usage:", err);
     }
@@ -380,7 +412,6 @@ export default function DashboardPage() {
 
       if (session?.user) {
         setUser(session.user);
-        fetchUsage(session.user.id);
 
         const params = new URLSearchParams(window.location.search);
         const connectedApp = params.get("connected");
@@ -438,7 +469,6 @@ export default function DashboardPage() {
         window.location.href = "/login";
       } else {
         setUser(data.user);
-        fetchUsage(data.user.id);
       }
     };
 
@@ -467,18 +497,17 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    fetchAutomations(user.id);
-  }, [user, fetchAutomations]);
-
-  useEffect(() => {
-    if (!user) return;
-
+    console.log("Calling fetchUsage for user:", user.id);
     fetchUsage(user.id);
+    fetchAutomations(user.id, true);
 
-    const handleFocus = () => fetchUsage(user.id);
+    const handleFocus = () => {
+      console.log("Window focused - refreshing usage");
+      fetchUsage(user.id);
+    };
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
-  }, [user]);
+  }, [user, fetchAutomations]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
