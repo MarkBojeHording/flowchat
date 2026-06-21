@@ -800,9 +800,9 @@ export default function Home() {
                   price: "$0",
                   period: "forever",
                   features: [
-                    "3 active automations",
-                    "100 runs per month",
-                    "Gmail, Sheets, Slack",
+                    "1 active automation",
+                    "50 runs per month",
+                    "Gmail, Sheets & Slack",
                     "Community support",
                   ],
                   cta: "Get started free",
@@ -811,14 +811,14 @@ export default function Home() {
                 },
                 {
                   name: "Pro",
-                  price: "$19",
+                  price: "$19.99",
                   period: "per month",
                   features: [
                     "Unlimited automations",
-                    "5,000 runs per month",
+                    "2,000 runs per month",
                     "All available apps",
-                    "Priority support",
-                    "Advanced scheduling",
+                    "Email support",
+                    "Top-up available ($9.99 / 1,000 runs)",
                   ],
                   cta: "Start Pro trial",
                   href: "/signup?plan=pro",
@@ -826,14 +826,15 @@ export default function Home() {
                 },
                 {
                   name: "Business",
-                  price: "$49",
+                  price: "$49.99",
                   period: "per month",
                   features: [
                     "Unlimited automations",
-                    "50,000 runs per month",
-                    "Team members",
-                    "Custom integrations",
-                    "Dedicated support",
+                    "10,000 runs per month",
+                    "All available apps",
+                    "Team members (3 seats)",
+                    "Priority support",
+                    "Top-up available ($9.99 / 1,000 runs)",
                   ],
                   cta: "Contact us",
                   href: "mailto:hello@flowchat.now",
@@ -901,7 +902,11 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <p className="mt-8 text-center text-xs text-[rgba(255,255,255,0.2)]">
+            <p className="mt-8 text-center text-xs text-[rgba(255,255,255,0.35)]">
+              What counts as a run? Every time an automation does something —
+              sends a message, adds a row, sends an email — that&apos;s one run.
+            </p>
+            <p className="mt-4 text-center text-xs text-[rgba(255,255,255,0.2)]">
               All plans include a 3-day free trial · Cancel anytime · No credit
               card required
             </p>
