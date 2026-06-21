@@ -4,7 +4,33 @@ import { useEffect } from "react";
 
 export default function SignupPage() {
   useEffect(() => {
-    window.location.href = "/login?tab=register";
+    const params = new URLSearchParams(window.location.search);
+    const plan = params.get("plan");
+    const query = plan
+      ? `?tab=register&plan=${encodeURIComponent(plan)}`
+      : "?tab=register";
+    window.location.href = `/login${query}`;
   }, []);
-  return null;
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a]">
+      <div className="text-center">
+        <div className="mb-4 flex justify-center gap-1.5">
+          <span
+            className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+            style={{ animationDelay: "0ms" }}
+          />
+          <span
+            className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+            style={{ animationDelay: "150ms" }}
+          />
+          <span
+            className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+            style={{ animationDelay: "300ms" }}
+          />
+        </div>
+        <p className="text-sm text-[#8888aa]">Taking you to sign up...</p>
+      </div>
+    </div>
+  );
 }
