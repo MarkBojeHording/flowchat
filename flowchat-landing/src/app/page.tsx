@@ -520,7 +520,7 @@ export default function Home() {
             >
               Flowchat
             </Link>
-            <div className="hidden items-center gap-8 sm:flex">
+            <div className="flex items-center gap-4 sm:gap-8">
               <Link
                 href="/examples"
                 className="text-sm text-[rgba(255,255,255,0.45)] transition-colors hover:text-white"
