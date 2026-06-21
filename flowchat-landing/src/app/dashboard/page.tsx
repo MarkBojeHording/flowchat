@@ -201,7 +201,7 @@ export default function DashboardPage() {
     }[]
   >([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "warning";
@@ -225,7 +225,6 @@ export default function DashboardPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const templatesRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   function showToast(
     message: string,
@@ -543,11 +542,12 @@ export default function DashboardPage() {
   }, [messages, loading]);
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-user-menu]")) {
+        setShowUserMenu(false);
       }
-    }
+    };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -952,10 +952,10 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              <div className="relative" ref={dropdownRef}>
+              <div className="relative" data-user-menu>
                 <button
                   type="button"
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  onClick={() => setShowUserMenu((prev) => !prev)}
                   className="flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.15)] px-3 py-1.5 transition-colors hover:bg-[rgba(255,255,255,0.07)]"
                 >
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e9b872] text-xs font-bold text-[#0a0a0a]">
@@ -986,43 +986,39 @@ export default function DashboardPage() {
                   </svg>
                 </button>
 
-                {dropdownOpen && (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.1)] bg-[#141929] shadow-2xl">
-                    <div className="border-b border-[rgba(255,255,255,0.08)] px-4 py-3">
-                      <div className="text-sm font-semibold text-white">
-                        {user?.user_metadata?.full_name || "My Account"}
+                {showUserMenu && (
+                  <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-[#e5e7eb] bg-white shadow-lg">
+                    {usage && (
+                      <div className="border-b border-[#e5e7eb] px-4 py-3">
+                        <p className="text-xs font-medium text-[#111]">
+                          {usage.planName} plan
+                        </p>
+                        <p className="mt-0.5 text-xs text-[#6b7280]">
+                          {usage.runsUsed.toLocaleString()} /{" "}
+                          {usage.runsLimit.toLocaleString()} runs used
+                        </p>
                       </div>
-                      <div className="mt-0.5 truncate text-xs text-[rgba(255,255,255,0.4)]">
-                        {user?.email}
-                      </div>
-                    </div>
+                    )}
 
-                    <div className="py-1">
+                    <div className="border-b border-[#e5e7eb] px-4 py-2">
                       <button
                         type="button"
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
+                        onClick={() => {
+                          setShowUpgradeModal(true);
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full py-1 text-left text-sm text-[#374151] transition-colors hover:text-[#111]"
                       >
-                        <span>⚡</span>
-                        My Automations
+                        Billing & subscription →
                       </button>
-                      <Link
-                        href="/settings"
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
-                      >
-                        <span>⚙️</span>
-                        Settings
-                      </Link>
                     </div>
 
-                    <div className="border-t border-[rgba(255,255,255,0.08)] py-1">
+                    <div className="px-4 py-2">
                       <button
                         type="button"
                         onClick={handleSignOut}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
+                        className="w-full py-1 text-left text-sm text-[#374151] transition-colors hover:text-[#111]"
                       >
-                        <span>→</span>
                         Sign out
                       </button>
                     </div>
@@ -1154,27 +1150,27 @@ export default function DashboardPage() {
           </div>
 
           {usage && (
-            <div className="border-t border-[rgba(255,255,255,0.06)] px-4 py-4">
+            <div className="border-t border-[#e5e7eb] px-4 py-4">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-semibold text-white">
+                <span className="text-xs font-medium text-[#111]">
                   {usage.planName} plan
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => user && fetchUsage(user.id)}
-                    className="text-xs text-[rgba(255,255,255,0.35)] transition-colors hover:text-[#00d4aa]"
+                    className="text-xs text-[#9ca3af] transition-colors hover:text-[#00d4aa]"
                     title="Refresh usage"
                   >
                     ↻
                   </button>
-                  <span className="text-xs text-[rgba(255,255,255,0.4)]">
+                  <span className="text-xs text-[#6b7280]">
                     {usage.daysUntilReset}d until reset
                   </span>
                 </div>
               </div>
 
-              <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
+              <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#f3f4f6]">
                 <div
                   className={`h-full rounded-full transition-all ${
                     usage.status === "limit_reached"
@@ -1190,61 +1186,29 @@ export default function DashboardPage() {
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-xs text-[rgba(255,255,255,0.5)]">
+                <span className="text-xs text-[#6b7280]">
                   {usage.runsUsed.toLocaleString()} /{" "}
                   {usage.runsLimit.toLocaleString()} runs
                 </span>
                 {usage.testRunsUsed > 0 && (
-                  <span className="text-xs text-[rgba(255,255,255,0.35)]">
+                  <span className="text-xs text-[#9ca3af]">
                     +{usage.testRunsUsed} tests
                   </span>
                 )}
               </div>
 
               {usage.status === "warning" && (
-                <p className="mt-2 text-xs text-amber-400">
-                  ⚠️ Running low — consider upgrading
-                </p>
+                <p className="mt-2 text-xs text-amber-600">⚠️ Running low</p>
               )}
               {usage.status === "critical" && (
-                <p className="mt-2 text-xs text-red-400">
+                <p className="mt-2 text-xs text-red-500">
                   ⚠️ Almost out of runs
                 </p>
               )}
               {usage.status === "limit_reached" && (
-                <p className="mt-2 text-xs text-red-400">
+                <p className="mt-2 text-xs text-red-500">
                   ✗ Run limit reached
                 </p>
-              )}
-
-              {usage.plan !== "free" && (
-                <button
-                  type="button"
-                  onClick={() => handleCheckout("topup_1000")}
-                  className="mt-2 block text-xs font-medium text-[#00d4aa] hover:underline"
-                >
-                  + Add 1,000 runs ($9.99) →
-                </button>
-              )}
-
-              {usage.plan === "business" ? (
-                <button
-                  type="button"
-                  onClick={handlePortal}
-                  className="mt-2 block text-xs font-medium text-[#00d4aa] hover:underline"
-                >
-                  Manage subscription →
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowUpgradeModal(true)}
-                  className="mt-2 block text-xs font-medium text-[#00d4aa] hover:underline"
-                >
-                  {usage.plan === "free"
-                    ? "Upgrade to Pro →"
-                    : "Upgrade to Business →"}
-                </button>
               )}
             </div>
           )}
@@ -1894,22 +1858,10 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {(usage.plan === "pro" || usage.plan === "business") && (
-                <div className="mt-2 border-t border-[#e5e7eb] pt-4">
-                  <button
-                    type="button"
-                    onClick={handlePortal}
-                    className="text-sm text-[#6b7280] transition-colors hover:text-[#111]"
-                  >
-                    Manage subscription, cancel, or update billing →
-                  </button>
-                </div>
-              )}
-
               {usage.plan !== "free" && (
-                <div className="border-t border-[#e5e7eb] pt-5">
+                <div className="mt-2 border-t border-[#e5e7eb] pt-5">
                   <p className="mb-3 text-xs font-medium uppercase tracking-wider text-[#6b7280]">
-                    Or top up your current plan
+                    Top up runs
                   </p>
                   <div className="flex items-center justify-between rounded-xl border border-[#e5e7eb] px-4 py-3">
                     <div>
@@ -1931,6 +1883,16 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            <div className="border-t border-[#e5e7eb] px-6 py-4">
+              <button
+                type="button"
+                onClick={handlePortal}
+                className="text-sm text-[#6b7280] transition-colors hover:text-[#111]"
+              >
+                Manage subscription, cancel, or update payment method →
+              </button>
             </div>
           </div>
         </div>
