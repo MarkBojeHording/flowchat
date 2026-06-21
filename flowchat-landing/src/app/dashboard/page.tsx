@@ -341,6 +341,7 @@ export default function DashboardPage() {
 
       if (session?.user) {
         setUser(session.user);
+        fetchUsage(session.user.id);
 
         const params = new URLSearchParams(window.location.search);
         const connectedApp = params.get("connected");
