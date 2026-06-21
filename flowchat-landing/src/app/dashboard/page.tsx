@@ -201,7 +201,7 @@ export default function DashboardPage() {
     }[]
   >([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "warning";
@@ -225,6 +225,7 @@ export default function DashboardPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const templatesRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   function showToast(
     message: string,
@@ -542,12 +543,11 @@ export default function DashboardPage() {
   }, [messages, loading]);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest("[data-user-menu]")) {
-        setShowUserMenu(false);
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
       }
-    };
+    }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -952,10 +952,10 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              <div className="relative" data-user-menu>
+              <div className="relative" ref={dropdownRef}>
                 <button
                   type="button"
-                  onClick={() => setShowUserMenu((prev) => !prev)}
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
                   className="flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.15)] px-3 py-1.5 transition-colors hover:bg-[rgba(255,255,255,0.07)]"
                 >
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e9b872] text-xs font-bold text-[#0a0a0a]">
@@ -986,39 +986,64 @@ export default function DashboardPage() {
                   </svg>
                 </button>
 
-                {showUserMenu && (
-                  <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-[#e5e7eb] bg-white shadow-lg">
-                    {usage && (
-                      <div className="border-b border-[#e5e7eb] px-4 py-3">
-                        <p className="text-xs font-medium text-[#111]">
-                          {usage.planName} plan
-                        </p>
-                        <p className="mt-0.5 text-xs text-[#6b7280]">
-                          {usage.runsUsed.toLocaleString()} /{" "}
-                          {usage.runsLimit.toLocaleString()} runs used
-                        </p>
+                {dropdownOpen && (
+                  <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.1)] bg-[#141929] shadow-2xl">
+                    <div className="border-b border-[rgba(255,255,255,0.08)] px-4 py-3">
+                      <div className="text-sm font-semibold text-white">
+                        {user?.user_metadata?.full_name || "My Account"}
                       </div>
-                    )}
-
-                    <div className="border-b border-[#e5e7eb] px-4 py-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowUpgradeModal(true);
-                          setShowUserMenu(false);
-                        }}
-                        className="w-full py-1 text-left text-sm text-[#374151] transition-colors hover:text-[#111]"
-                      >
-                        Billing & subscription →
-                      </button>
+                      <div className="mt-0.5 truncate text-xs text-[rgba(255,255,255,0.4)]">
+                        {user?.email}
+                      </div>
                     </div>
 
-                    <div className="px-4 py-2">
+                    <div className="py-1">
+                      <button
+                        type="button"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
+                      >
+                        <span>⚡</span>
+                        My Automations
+                      </button>
+                      <Link
+                        href="/settings"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
+                      >
+                        <span>⚙️</span>
+                        Settings
+                      </Link>
+                    </div>
+
+                    <div className="border-b border-[#e5e7eb] px-4 py-3">
+                      <p className="text-xs font-medium text-[#111]">
+                        {usage?.planName} plan
+                      </p>
+                      <p className="mt-0.5 text-xs text-[#6b7280]">
+                        {usage?.runsUsed.toLocaleString()} /{" "}
+                        {usage?.runsLimit.toLocaleString()} runs used
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUpgradeModal(true);
+                        setDropdownOpen(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#374151] hover:bg-[#f9fafb]"
+                    >
+                      Billing & subscription →
+                    </button>
+
+                    <div className="border-t border-[rgba(255,255,255,0.08)] py-1">
                       <button
                         type="button"
                         onClick={handleSignOut}
-                        className="w-full py-1 text-left text-sm text-[#374151] transition-colors hover:text-[#111]"
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
                       >
+                        <span>→</span>
                         Sign out
                       </button>
                     </div>
