@@ -469,7 +469,16 @@ export default function DashboardPage() {
   }, [user, fetchAutomations]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    if (!user) return;
+
+    fetchUsage(user.id);
+
+    const handleFocus = () => fetchUsage(user.id);
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [user]);
+
+  useEffect(() => {
     const checkout = params.get("checkout");
     const plan = params.get("plan");
 
@@ -1114,9 +1123,19 @@ export default function DashboardPage() {
                 <span className="text-xs font-medium text-[#111]">
                   {usage.planName} plan
                 </span>
-                <span className="text-xs text-[#6b7280]">
-                  {usage.daysUntilReset}d until reset
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => user && fetchUsage(user.id)}
+                    className="text-xs text-[#9ca3af] transition-colors hover:text-[#00d4aa]"
+                    title="Refresh usage"
+                  >
+                    ↻
+                  </button>
+                  <span className="text-xs text-[#6b7280]">
+                    {usage.daysUntilReset}d until reset
+                  </span>
+                </div>
               </div>
 
               <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#f3f4f6]">
