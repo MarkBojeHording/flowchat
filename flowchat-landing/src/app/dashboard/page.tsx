@@ -479,6 +479,7 @@ export default function DashboardPage() {
   }, [user]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
     const checkout = params.get("checkout");
     const plan = params.get("plan");
 
