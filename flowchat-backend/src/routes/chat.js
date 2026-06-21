@@ -15,6 +15,40 @@ const supabase = createClient(
   { realtime: { transport: ws } }
 )
 
+async function logExecution(userId, workflowId, executionData) {
+  try {
+    const isTest = executionData.mode === 'webhook'
+
+    await supabase.from('executions').insert({
+      user_id: userId,
+      workflow_id: workflowId,
+      n8n_execution_id: executionData.id?.toString(),
+      status: executionData.status || 'success',
+      mode: executionData.mode || 'trigger',
+    })
+
+    if (!isTest) {
+      await supabase.rpc('increment_runs_used', { user_id_input: userId })
+    } else {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('test_runs_used')
+        .eq('id', userId)
+        .single()
+
+      await supabase
+        .from('profiles')
+        .update({
+          test_runs_used: (profile?.test_runs_used || 0) + 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+    }
+  } catch (err) {
+    console.error('logExecution error:', err)
+  }
+}
+
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
@@ -1147,6 +1181,91 @@ router.post('/message', async (req, res) => {
     )
   } catch (err) {
     console.error('Chat error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.get('/usage', async (req, res) => {
+  const { userId } = req.query
+
+  if (!userId) return res.status(400).json({ error: 'userId required' })
+
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select(
+        `
+        plan_id,
+        runs_used,
+        test_runs_used,
+        billing_period_start,
+        plans (
+          name,
+          runs_limit,
+          price_monthly
+        )
+      `
+      )
+      .eq('id', userId)
+      .single()
+
+    if (error || !profile) {
+      return res.json({
+        plan: 'free',
+        planName: 'Free',
+        runsUsed: 0,
+        testRunsUsed: 0,
+        runsLimit: 50,
+        runsRemaining: 50,
+        billingPeriodStart: new Date().toISOString().split('T')[0],
+        daysUntilReset: 30,
+        status: 'safe',
+        percentUsed: 0,
+      })
+    }
+
+    const runsLimit = profile.plans?.runs_limit || 50
+    const runsUsed = profile.runs_used || 0
+    const testRunsUsed = profile.test_runs_used || 0
+    const billingStart = new Date(profile.billing_period_start)
+    const now = new Date()
+    const daysSinceReset = Math.floor(
+      (now - billingStart) / (1000 * 60 * 60 * 24)
+    )
+    const daysUntilReset = Math.max(0, 30 - daysSinceReset)
+    const runsRemaining = Math.max(0, runsLimit - runsUsed)
+    const percentUsed = Math.round((runsUsed / runsLimit) * 100)
+
+    const dailyRate = daysSinceReset > 0 ? runsUsed / daysSinceReset : 0
+    const projectedDeficit = runsRemaining - dailyRate * daysUntilReset
+    const daysUntilEmpty =
+      dailyRate > 0 ? Math.floor(runsRemaining / dailyRate) : 999
+
+    let status = 'safe'
+    if (runsUsed >= runsLimit) {
+      status = 'limit_reached'
+    } else if (projectedDeficit < 0 && daysUntilEmpty <= 2) {
+      status = 'critical'
+    } else if (projectedDeficit < 0) {
+      status = 'warning'
+    }
+
+    res.json({
+      plan: profile.plan_id,
+      planName: profile.plans?.name || 'Free',
+      runsUsed,
+      testRunsUsed,
+      runsLimit,
+      runsRemaining,
+      billingPeriodStart: profile.billing_period_start,
+      daysUntilReset,
+      daysUntilEmpty: daysUntilEmpty < 999 ? daysUntilEmpty : null,
+      status,
+      percentUsed,
+      dailyRate: Math.round(dailyRate * 10) / 10,
+    })
+  } catch (err) {
+    console.error('Usage error:', err)
     res.status(500).json({ error: err.message })
   }
 })
