@@ -4,12 +4,10 @@ import { useEffect } from "react";
 
 export default function SignupPage() {
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const plan = params.get("plan");
-    const query = plan
-      ? `?tab=register&plan=${encodeURIComponent(plan)}`
-      : "?tab=register";
-    window.location.href = `/login${query}`;
+    const plan = new URLSearchParams(window.location.search).get("plan");
+    window.location.replace(
+      "/login?tab=register" + (plan ? `&plan=${plan}` : "")
+    );
   }, []);
 
   return (
