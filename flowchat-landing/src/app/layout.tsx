@@ -20,9 +20,13 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "flowchat.now — Automations that speak your language",
-  description:
-    "Connect your apps and automate your work just by describing what you want. No technical knowledge needed.",
+  title: "Flowchat",
+  description: "Automate anything. Just say it.",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
