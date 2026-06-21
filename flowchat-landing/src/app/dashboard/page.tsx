@@ -1165,27 +1165,27 @@ export default function DashboardPage() {
           </div>
 
           {usage && (
-            <div className="border-t border-[#e5e7eb] px-4 py-4">
+            <div className="border-t border-[#2a2a4a] px-4 py-4">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-[#111]">
+                <span className="text-xs font-medium text-[#e8e8f0]">
                   {usage.planName} plan
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => user && fetchUsage(user.id)}
-                    className="text-xs text-[#9ca3af] transition-colors hover:text-[#00d4aa]"
+                    className="text-xs text-[#8888aa] transition-colors hover:text-[#00d4aa]"
                     title="Refresh usage"
                   >
                     ↻
                   </button>
-                  <span className="text-xs text-[#6b7280]">
+                  <span className="text-xs text-[#8888aa]">
                     {usage.daysUntilReset}d until reset
                   </span>
                 </div>
               </div>
 
-              <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#f3f4f6]">
+              <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#2a2a4a]">
                 <div
                   className={`h-full rounded-full transition-all ${
                     usage.status === "limit_reached"
@@ -1200,28 +1200,21 @@ export default function DashboardPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[#6b7280]">
-                  {usage.runsUsed.toLocaleString()} /{" "}
-                  {usage.runsLimit.toLocaleString()} runs
-                </span>
-                {usage.testRunsUsed > 0 && (
-                  <span className="text-xs text-[#9ca3af]">
-                    +{usage.testRunsUsed} tests
-                  </span>
-                )}
-              </div>
+              <span className="text-xs text-[#8888aa]">
+                {usage.runsUsed.toLocaleString()} /{" "}
+                {usage.runsLimit.toLocaleString()} runs
+              </span>
 
               {usage.status === "warning" && (
-                <p className="mt-2 text-xs text-amber-600">⚠️ Running low</p>
+                <p className="mt-1 text-xs text-amber-400">⚠️ Running low</p>
               )}
               {usage.status === "critical" && (
-                <p className="mt-2 text-xs text-red-500">
+                <p className="mt-1 text-xs text-red-400">
                   ⚠️ Almost out of runs
                 </p>
               )}
               {usage.status === "limit_reached" && (
-                <p className="mt-2 text-xs text-red-500">
+                <p className="mt-1 text-xs text-red-400">
                   ✗ Run limit reached
                 </p>
               )}
