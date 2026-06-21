@@ -244,6 +244,25 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleCheckout(plan: string) {
+    if (!user) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/billing/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, plan }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert("Failed to start checkout: " + data.error);
+      }
+    } catch {
+      alert("Something went wrong");
+    }
+  }
+
   const loadAutomation = useCallback(async (id: string, userId: string) => {
     try {
       const response = await fetch(
@@ -431,6 +450,23 @@ export default function DashboardPage() {
     if (!user) return;
     fetchAutomations(user.id);
   }, [user, fetchAutomations]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get("checkout");
+    const plan = params.get("plan");
+
+    if (checkout === "success" && plan && user) {
+      showToast(`Successfully upgraded to ${plan} plan! 🎉`, "success");
+      fetchUsage(user.id);
+      window.history.replaceState({}, "", "/dashboard");
+    }
+
+    if (checkout === "cancelled") {
+      showToast("Checkout cancelled", "error");
+      window.history.replaceState({}, "", "/dashboard");
+    }
+  }, [user]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1706,9 +1742,7 @@ export default function DashboardPage() {
                   {usage.plan !== "pro" ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        window.location.href = "/#pricing";
-                      }}
+                      onClick={() => handleCheckout("pro")}
                       className="w-full rounded-lg bg-[#00d4aa] py-2 text-sm font-semibold text-white transition-colors hover:bg-[#00b894]"
                     >
                       Choose Pro
@@ -1757,9 +1791,7 @@ export default function DashboardPage() {
                   {usage.plan !== "business" ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        window.location.href = "/#pricing";
-                      }}
+                      onClick={() => handleCheckout("business")}
                       className="w-full rounded-lg border border-[#e5e7eb] py-2 text-sm font-semibold text-[#111] transition-colors hover:bg-[#f3f4f6]"
                     >
                       Choose Business
@@ -1793,9 +1825,7 @@ export default function DashboardPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        window.location.href = "/#pricing";
-                      }}
+                      onClick={() => handleCheckout("topup_1000")}
                       className="rounded-lg bg-[#111] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#333]"
                     >
                       $9.99
