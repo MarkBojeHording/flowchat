@@ -258,6 +258,10 @@ export default function DashboardPage() {
         { cache: "no-store" }
       );
       const data = await res.json();
+      if (!res.ok) {
+        console.error("Usage API error:", data);
+        return;
+      }
       const normalized = normalizeUsage(data);
       console.log("Usage fetched:", normalized);
       setUsage(

@@ -1241,23 +1241,13 @@ router.get('/usage', async (req, res) => {
     const { data: profile, error } = await supabase
       .from('profiles')
       .select(
-        `
-        plan_id,
-        runs_used,
-        test_runs_used,
-        topup_runs,
-        billing_period_start,
-        plans (
-          name,
-          runs_limit,
-          price_monthly
-        )
-      `
+        'plan_id, runs_used, test_runs_used, topup_runs, billing_period_start'
       )
       .eq('id', userId)
       .single()
 
     if (error || !profile) {
+      console.log('Usage: no profile for user', userId, error?.message)
       return res.json({
         plan: 'free',
         planName: 'Free',
@@ -1277,7 +1267,9 @@ router.get('/usage', async (req, res) => {
     const runsLimit = planInfo.runsLimit + topupRuns
     const runsUsed = profile.runs_used || 0
     const testRunsUsed = profile.test_runs_used || 0
-    const billingStart = new Date(profile.billing_period_start)
+    const billingStart = profile.billing_period_start
+      ? new Date(profile.billing_period_start)
+      : new Date()
     const now = new Date()
     const daysSinceReset = Math.floor(
       (now - billingStart) / (1000 * 60 * 60 * 24)
