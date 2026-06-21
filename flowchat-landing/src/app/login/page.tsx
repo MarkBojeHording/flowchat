@@ -90,10 +90,32 @@ export default function LoginPage() {
     setGoogleLoading(true);
     setError(null);
 
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/confirm`;
+
+    // #region agent log
+    fetch("http://127.0.0.1:7402/ingest/66dfec1a-1cd9-44c7-8573-5fb3fdc9feac", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "119215",
+      },
+      body: JSON.stringify({
+        sessionId: "119215",
+        location: "login/page.tsx:handleGoogleSignIn",
+        message: "starting google oauth",
+        data: { redirectTo, origin: window.location.origin },
+        hypothesisId: "A",
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/confirm`,
+        redirectTo,
       },
     });
 

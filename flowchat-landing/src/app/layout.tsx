@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { AuthSessionRedirect } from "@/components/AuthSessionRedirect";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -39,6 +40,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${plusJakarta.variable} min-h-screen bg-[#60a5fa] text-[#e8e8f0] antialiased`}
       >
+        <AuthSessionRedirect />
         {children}
       </body>
     </html>

@@ -3,14 +3,45 @@
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
+function debugLog(
+  location: string,
+  message: string,
+  data: Record<string, unknown>,
+  hypothesisId: string
+) {
+  // #region agent log
+  fetch("http://127.0.0.1:7402/ingest/66dfec1a-1cd9-44c7-8573-5fb3fdc9feac", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Debug-Session-Id": "119215",
+    },
+    body: JSON.stringify({
+      sessionId: "119215",
+      location,
+      message,
+      data,
+      hypothesisId,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
+
 export default function AuthConfirmPage() {
   useEffect(() => {
     let redirecting = false;
     let subscription: { unsubscribe: () => void } | null = null;
 
-    function goDashboard() {
+    function goDashboard(source: string) {
       if (redirecting) return;
       redirecting = true;
+      debugLog(
+        "auth/confirm/page.tsx:goDashboard",
+        "redirecting to dashboard",
+        { source },
+        "C"
+      );
       window.location.replace("/dashboard");
     }
 
@@ -19,14 +50,62 @@ export default function AuthConfirmPage() {
       const token_hash = params.get("token_hash");
       const type = params.get("type");
       const code = params.get("code");
+      const hasHash =
+        window.location.hash.length > 1 &&
+        (window.location.hash.includes("access_token") ||
+          window.location.hash.includes("error"));
+
+      debugLog(
+        "auth/confirm/page.tsx:confirmAuth",
+        "auth confirm entry",
+        {
+          hasCode: Boolean(code),
+          hasTokenHash: Boolean(token_hash),
+          type,
+          hasHash,
+          hashPrefix: window.location.hash.slice(0, 24),
+        },
+        "A"
+      );
+
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        debugLog(
+          "auth/confirm/page.tsx:onAuthStateChange",
+          "auth event",
+          { event, hasSession: Boolean(session) },
+          "C"
+        );
+        if (
+          session &&
+          (event === "SIGNED_IN" || event === "INITIAL_SESSION")
+        ) {
+          goDashboard(`auth-event-${event}`);
+        }
+      });
+      subscription = data.subscription;
 
       // PKCE OAuth — Supabase returns ?code=... on redirect
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (!error) {
-          goDashboard();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        debugLog(
+          "auth/confirm/page.tsx:exchangeCode",
+          "code exchange result",
+          {
+            exchangeError: error?.message ?? null,
+            hasSession: Boolean(session),
+          },
+          "B"
+        );
+
+        if (session) {
+          goDashboard("code-exchange");
           return;
         }
+
         window.location.href = "/login?error=oauth_failed";
         return;
       }
@@ -44,29 +123,18 @@ export default function AuthConfirmPage() {
           token_hash,
         });
         if (!error) {
-          goDashboard();
+          goDashboard("email-otp");
           return;
         }
         window.location.href = "/login?error=confirmation_failed";
         return;
       }
 
-      // Implicit/hash OAuth fallback — wait for Supabase to parse #access_token=...
-      const { data } = supabase.auth.onAuthStateChange((event, session) => {
-        if (
-          (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
-          session
-        ) {
-          goDashboard();
-        }
-      });
-      subscription = data.subscription;
-
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (session) {
-        goDashboard();
+        goDashboard("existing-session");
         return;
       }
 
@@ -75,8 +143,16 @@ export default function AuthConfirmPage() {
           data: { session: retrySession },
         } = await supabase.auth.getSession();
         subscription?.unsubscribe();
+
+        debugLog(
+          "auth/confirm/page.tsx:timeout",
+          "retry session check",
+          { hasSession: Boolean(retrySession) },
+          "D"
+        );
+
         if (retrySession) {
-          goDashboard();
+          goDashboard("retry-session");
         } else {
           window.location.href = "/login?error=oauth_failed";
         }
