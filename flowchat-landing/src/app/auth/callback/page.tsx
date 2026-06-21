@@ -26,84 +26,87 @@ function debugLog(
   // #endregion
 }
 
-export default function AuthConfirmPage() {
+export default function AuthCallbackPage() {
   useEffect(() => {
     let redirecting = false;
     let subscription: { unsubscribe: () => void } | null = null;
 
-    function goDashboard(source: string) {
+    function goTo(path: string, source: string) {
       if (redirecting) return;
       redirecting = true;
-      debugLog("auth/confirm/page.tsx:goDashboard", "redirecting", { source });
-      window.location.replace("/dashboard");
+      debugLog("auth/callback/page.tsx:goTo", "redirecting", { path, source });
+      window.location.replace(path);
     }
 
-    async function confirmAuth() {
+    async function handleCallback() {
       const params = new URLSearchParams(window.location.search);
-      const token_hash = params.get("token_hash");
-      const type = params.get("type");
       const code = params.get("code");
+      const next = params.get("next") || "/dashboard";
 
-      debugLog("auth/confirm/page.tsx:entry", "confirm page loaded", {
+      debugLog("auth/callback/page.tsx:entry", "callback page loaded", {
         hasCode: Boolean(code),
-        hasTokenHash: Boolean(token_hash),
-        type,
+        next,
+        hash: window.location.hash.slice(0, 32),
       });
 
       const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        debugLog("auth/callback/page.tsx:onAuthStateChange", "auth event", {
+          event,
+          hasSession: Boolean(session),
+        });
         if (
           session &&
           (event === "SIGNED_IN" || event === "INITIAL_SESSION")
         ) {
-          goDashboard(`auth-event-${event}`);
+          goTo(next, `auth-event-${event}`);
         }
       });
       subscription = data.subscription;
 
-      // OAuth fallback if Supabase still redirects here
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (session) {
-          goDashboard("code-exchange");
-          return;
-        }
-        if (error) {
-          window.location.href = "/login?error=oauth_failed";
-          return;
-        }
-      }
 
-      if (token_hash && type) {
-        const { error } = await supabase.auth.verifyOtp({
-          type: type as
-            | "signup"
-            | "invite"
-            | "magiclink"
-            | "recovery"
-            | "email_change"
-            | "email",
-          token_hash,
+        debugLog("auth/callback/page.tsx:exchange", "code exchange done", {
+          exchangeError: error?.message ?? null,
+          hasSession: Boolean(session),
         });
-        if (!error) {
-          goDashboard("email-otp");
+
+        if (session) {
+          goTo(next, "code-exchange");
           return;
         }
-        window.location.href = "/login?error=confirmation_failed";
-        return;
+
+        if (error) {
+          goTo("/login?error=oauth_failed", "exchange-failed");
+          return;
+        }
       }
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (session) {
-        goDashboard("existing-session");
+        goTo(next, "existing-session");
+        return;
       }
+
+      setTimeout(async () => {
+        const {
+          data: { session: retrySession },
+        } = await supabase.auth.getSession();
+        subscription?.unsubscribe();
+        if (retrySession) {
+          goTo(next, "retry-session");
+        } else {
+          goTo("/login?error=oauth_failed", "timeout");
+        }
+      }, 3000);
     }
 
-    confirmAuth();
+    handleCallback();
 
     return () => {
       subscription?.unsubscribe();
