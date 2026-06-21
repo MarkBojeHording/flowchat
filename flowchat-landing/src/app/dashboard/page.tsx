@@ -235,9 +235,11 @@ export default function DashboardPage() {
   async function fetchUsage(userId: string) {
     try {
       const res = await fetch(
-        `${BACKEND_URL}/api/chat/usage?userId=${userId}`
+        `${BACKEND_URL}/api/chat/usage?userId=${userId}&t=${Date.now()}`,
+        { cache: "no-store" }
       );
       const data = await res.json();
+      console.log("Usage fetched:", data);
       setUsage(data);
     } catch (err) {
       console.error("Failed to fetch usage:", err);
