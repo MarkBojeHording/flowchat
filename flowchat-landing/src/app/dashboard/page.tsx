@@ -201,6 +201,7 @@ export default function DashboardPage() {
     status: string;
     percentUsed: number;
   } | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -1101,15 +1102,28 @@ export default function DashboardPage() {
               )}
 
               {usage.plan !== "business" && (
-                <Link
-                  href="/#pricing"
+                <button
+                  type="button"
+                  onClick={() => setShowUpgradeModal(true)}
                   className="mt-2 block text-xs font-medium text-[#00d4aa] hover:underline"
                 >
                   {usage.plan === "free"
                     ? "Upgrade to Pro →"
                     : "Upgrade to Business →"}
-                </Link>
+                </button>
               )}
+
+              {(usage.status === "limit_reached" ||
+                usage.status === "warning") &&
+                usage.plan !== "free" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowUpgradeModal(true)}
+                    className="mt-2 block text-xs font-medium text-[#111] hover:underline"
+                  >
+                    Top up →
+                  </button>
+                )}
             </div>
           )}
         </div>
@@ -1626,6 +1640,171 @@ export default function DashboardPage() {
                 : "⚠️"}
           </span>
           {toast.message}
+        </div>
+      )}
+
+      {showUpgradeModal && usage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+            <div className="border-b border-[#e5e7eb] px-6 py-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-[#111]">
+                    Upgrade your plan
+                  </h2>
+                  <p className="mt-0.5 text-sm text-[#6b7280]">
+                    You&apos;re on the {usage.planName} plan · {usage.runsUsed}{" "}
+                    / {usage.runsLimit} runs used
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowUpgradeModal(false)}
+                  className="rounded-lg p-2 text-[#6b7280] transition-colors hover:bg-[#f3f4f6]"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5">
+              <div className="mb-6 grid grid-cols-2 gap-4">
+                <div
+                  className={`rounded-xl border-2 p-4 ${
+                    usage.plan === "pro"
+                      ? "border-[#00d4aa] bg-[#00d4aa]/5"
+                      : "border-[#e5e7eb]"
+                  }`}
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[#111]">
+                      Pro
+                    </span>
+                    {usage.plan !== "pro" && (
+                      <span className="rounded-full bg-[#00d4aa]/10 px-2 py-0.5 text-xs font-medium text-[#00d4aa]">
+                        Popular
+                      </span>
+                    )}
+                    {usage.plan === "pro" && (
+                      <span className="rounded-full bg-[#00d4aa]/10 px-2 py-0.5 text-xs font-medium text-[#00d4aa]">
+                        Current
+                      </span>
+                    )}
+                  </div>
+                  <p className="mb-1 text-2xl font-bold text-[#111]">
+                    $19.99
+                    <span className="text-sm font-normal text-[#6b7280]">
+                      /mo
+                    </span>
+                  </p>
+                  <ul className="mb-4 space-y-1 text-xs text-[#6b7280]">
+                    <li>✓ Unlimited automations</li>
+                    <li>✓ 2,000 runs/month</li>
+                    <li>✓ All apps</li>
+                    <li>✓ Email support</li>
+                  </ul>
+                  {usage.plan !== "pro" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = "/#pricing";
+                      }}
+                      className="w-full rounded-lg bg-[#00d4aa] py-2 text-sm font-semibold text-white transition-colors hover:bg-[#00b894]"
+                    >
+                      Choose Pro
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full rounded-lg bg-[#f3f4f6] py-2 text-sm font-medium text-[#9ca3af]"
+                    >
+                      Current plan
+                    </button>
+                  )}
+                </div>
+
+                <div
+                  className={`rounded-xl border-2 p-4 ${
+                    usage.plan === "business"
+                      ? "border-[#00d4aa] bg-[#00d4aa]/5"
+                      : "border-[#e5e7eb]"
+                  }`}
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[#111]">
+                      Business
+                    </span>
+                    {usage.plan === "business" && (
+                      <span className="rounded-full bg-[#00d4aa]/10 px-2 py-0.5 text-xs font-medium text-[#00d4aa]">
+                        Current
+                      </span>
+                    )}
+                  </div>
+                  <p className="mb-1 text-2xl font-bold text-[#111]">
+                    $49.99
+                    <span className="text-sm font-normal text-[#6b7280]">
+                      /mo
+                    </span>
+                  </p>
+                  <ul className="mb-4 space-y-1 text-xs text-[#6b7280]">
+                    <li>✓ Unlimited automations</li>
+                    <li>✓ 10,000 runs/month</li>
+                    <li>✓ All apps</li>
+                    <li>✓ 3 team seats</li>
+                    <li>✓ Priority support</li>
+                  </ul>
+                  {usage.plan !== "business" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = "/#pricing";
+                      }}
+                      className="w-full rounded-lg border border-[#e5e7eb] py-2 text-sm font-semibold text-[#111] transition-colors hover:bg-[#f3f4f6]"
+                    >
+                      Choose Business
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full rounded-lg bg-[#f3f4f6] py-2 text-sm font-medium text-[#9ca3af]"
+                    >
+                      Current plan
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {usage.plan !== "free" && (
+                <div className="border-t border-[#e5e7eb] pt-5">
+                  <p className="mb-3 text-xs font-medium uppercase tracking-wider text-[#6b7280]">
+                    Or top up your current plan
+                  </p>
+                  <div className="flex items-center justify-between rounded-xl border border-[#e5e7eb] px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-[#111]">
+                        Add 1,000 runs
+                      </p>
+                      <p className="text-xs text-[#6b7280]">
+                        Valid until your plan resets in {usage.daysUntilReset}{" "}
+                        days
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.href = "/#pricing";
+                      }}
+                      className="rounded-lg bg-[#111] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#333]"
+                    >
+                      $9.99
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
