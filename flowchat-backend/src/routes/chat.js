@@ -329,6 +329,23 @@ async function executeTool(name, input, userId, automationId = null) {
     case 'build_workflow': {
       console.log('build_workflow called with:', JSON.stringify(input, null, 2))
       try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('runs_used, plans(runs_limit, name)')
+          .eq('id', userId)
+          .single()
+
+        if (profile) {
+          const runsLimit = profile.plans?.runs_limit || 50
+          if (profile.runs_used >= runsLimit) {
+            return {
+              success: false,
+              summary: `You've reached your monthly run limit on the ${profile.plans?.name || 'Free'} plan. Upgrade or top up to create more automations.`,
+              limitReached: true,
+            }
+          }
+        }
+
         const { buildWorkflow, ensureWorkflowCredentialUrls } = require('../services/workflowBuilder')
         const { createWorkflow, activateWorkflow, getWorkflow, deleteWorkflow } =
           require('../services/n8n')
@@ -434,11 +451,9 @@ async function executeTool(name, input, userId, automationId = null) {
 
     case 'test_workflow': {
       try {
-        const { ensureWorkflowCredentialUrls } = require('../services/workflowBuilder')
-
         const { data: workflow } = await supabase
           .from('workflows')
-          .select('webhook_url, n8n_workflow_id')
+          .select('webhook_url, n8n_workflow_id, id')
           .eq('id', automationId)
           .single()
 
@@ -449,11 +464,13 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         }
 
-        if (workflow.n8n_workflow_id) {
-          await ensureWorkflowCredentialUrls(userId, workflow.n8n_workflow_id)
-        }
-
         await axios.get(workflow.webhook_url, { timeout: 10000 })
+
+        await logExecution(userId, workflow.id, {
+          mode: 'webhook',
+          status: 'success',
+          id: null,
+        })
 
         return {
           success: true,
@@ -462,6 +479,15 @@ async function executeTool(name, input, userId, automationId = null) {
         }
       } catch (err) {
         console.error('test_workflow error:', err.message)
+
+        if (automationId) {
+          await logExecution(userId, automationId, {
+            mode: 'webhook',
+            status: 'error',
+            id: null,
+          }).catch(() => {})
+        }
+
         return {
           success: false,
           summary: `The test failed: ${err.message}. Check your n8n dashboard for details.`,
