@@ -29,18 +29,6 @@ const APP_PILLS = [
   { emoji: "🗃️", label: "Airtable" },
 ];
 
-const CONNECTED_APPS = [
-  { emoji: "📧", name: "Gmail", desc: "Send & receive emails", color: "rgba(234,67,53,0.12)", glow: "#ea4335", status: "live" as const },
-  { emoji: "💬", name: "Slack", desc: "Notify your team", color: "rgba(74,21,75,0.2)", glow: "#4a154b", status: "live" as const },
-  { emoji: "📊", name: "Google Sheets", desc: "Log & track data", color: "rgba(52,168,83,0.12)", glow: "#34a853", status: "live" as const },
-  { emoji: "📋", name: "Typeform", desc: "Trigger on form submit", color: "rgba(38,46,173,0.15)", glow: "#262ead", status: "live" as const },
-  { emoji: "📝", name: "Notion", desc: "Create & update pages", color: "rgba(255,255,255,0.06)", glow: "#000000", status: "live" as const },
-  { emoji: "🗃️", name: "Airtable", desc: "Manage your database", color: "rgba(247,201,72,0.12)", glow: "#f7c948", status: "live" as const },
-  { emoji: "💳", name: "Stripe", desc: "Payment triggers", color: "rgba(99,91,255,0.12)", glow: "#635bff", status: "soon" as const },
-  { emoji: "📅", name: "Calendly", desc: "Booking triggers", color: "rgba(0,107,255,0.12)", glow: "#006bff", status: "soon" as const },
-  { emoji: "💬", name: "WhatsApp", desc: "Send messages", color: "rgba(37,211,102,0.12)", glow: "#25d366", status: "soon" as const },
-];
-
 /** Preserved for reuse — not rendered in current mockup layout. */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const STEPS = [
@@ -521,12 +509,13 @@ export default function Home() {
               Flowchat
             </Link>
             <div className="flex items-center gap-4 sm:gap-8">
-              <Link
-                href="/examples"
-                className="text-sm text-[rgba(255,255,255,0.45)] transition-colors hover:text-white"
+              <button
+                type="button"
+                onClick={() => scrollToSection("integrations")}
+                className="text-sm text-[#8888aa] transition-colors hover:text-[#e8e8f0]"
               >
-                Examples
-              </Link>
+                Integrations
+              </button>
               <button
                 type="button"
                 onClick={() => scrollToSection("pricing")}
@@ -688,79 +677,106 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CONNECTED APPS SECTION */}
-      <section className="px-2 py-4">
-        <div className="mx-auto max-w-[1400px]">
-          <div className="overflow-hidden rounded-3xl bg-[#1a2540] p-10">
-            <h2
-              className="mb-2 text-center text-2xl font-bold text-white"
-              style={{ letterSpacing: "-0.02em" }}
-            >
-              Works with your favourite tools
+      <section id="integrations" className="px-4 py-24 sm:py-32">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-12 text-center">
+            <h2 className="mb-3 text-2xl font-bold tracking-tight text-[#e8e8f0] md:text-3xl">
+              See what&apos;s possible
             </h2>
-            <p className="mb-10 text-center text-sm text-[rgba(255,255,255,0.35)]">
-              Connect once. Automate everything.
-            </p>
-            <div className="flex flex-wrap justify-center gap-3">
-              {CONNECTED_APPS.map((app) => (
-                <div
-                  key={app.name}
-                  className="relative flex items-center gap-3 overflow-hidden rounded-2xl border px-5 py-4"
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    borderColor:
-                      app.status === "soon"
-                        ? "rgba(233,184,114,0.15)"
-                        : "rgba(255,255,255,0.09)",
-                    minWidth: "160px",
-                  }}
-                >
-                  <div
-                    className="absolute left-[-16px] top-[-16px] h-[60px] w-[60px] rounded-full opacity-20"
-                    style={{ background: app.glow, filter: "blur(16px)" }}
-                  />
-                  {app.status === "live" && (
-                    <div
-                      className="absolute right-3 top-3 h-[6px] w-[6px] rounded-full bg-[#00d4aa]"
-                      style={{ boxShadow: "0 0 6px #00d4aa" }}
-                    />
-                  )}
-                  {app.status === "soon" && (
-                    <div
-                      className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[7px] font-bold"
-                      style={{
-                        background: "rgba(233,184,114,0.12)",
-                        color: "#e9b872",
-                      }}
-                    >
-                      Soon
-                    </div>
-                  )}
-                  <div
-                    className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-xl"
-                    style={{ background: app.color }}
-                  >
-                    {app.emoji}
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white">{app.name}</div>
-                    <div className="text-[10px] text-[rgba(255,255,255,0.35)]">
-                      {app.desc}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="mt-8 text-center text-xs text-[rgba(255,255,255,0.2)]">
-              More apps added every week ·{" "}
-              <a
-                href="mailto:hello@flowchat.now"
-                className="cursor-pointer text-[#e9b872] hover:underline"
-              >
-                Request an app →
-              </a>
+            <p className="text-sm text-[#8888aa]">
+              Real automations people set up in minutes
             </p>
           </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                emoji: "📋",
+                color: "bg-[#00d4aa]/10",
+                title: "Save leads automatically",
+                description:
+                  "Every form response goes to your spreadsheet and notifies your team in Slack",
+                tools: ["Typeform", "→", "Google Sheets", "Slack"],
+              },
+              {
+                emoji: "💳",
+                color: "bg-blue-500/10",
+                title: "Payment notifications",
+                description:
+                  "Instant Slack alert and welcome email every time someone pays you",
+                tools: ["Stripe", "→", "Slack", "Gmail"],
+              },
+              {
+                emoji: "📅",
+                color: "bg-purple-500/10",
+                title: "Booking confirmations",
+                description:
+                  "Send prep materials automatically when someone books a meeting with you",
+                tools: ["Calendly", "→", "Gmail"],
+              },
+              {
+                emoji: "⏰",
+                color: "bg-amber-500/10",
+                title: "Weekly team reminders",
+                description:
+                  "Send your team a Slack message every Friday — completely automatically",
+                tools: ["Schedule", "→", "Slack"],
+              },
+              {
+                emoji: "📊",
+                color: "bg-green-500/10",
+                title: "Automated reports",
+                description:
+                  "Email a performance summary to your team every Monday morning",
+                tools: ["Google Sheets", "→", "Gmail"],
+              },
+              {
+                emoji: "🗃️",
+                color: "bg-pink-500/10",
+                title: "Client onboarding",
+                description:
+                  "Trigger a personalised welcome email when a new client record is added",
+                tools: ["Airtable", "→", "Gmail"],
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="flex gap-4 rounded-2xl border border-[#2a2a4a] bg-[#1a1a2e] p-5"
+              >
+                <div
+                  className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-xl ${item.color}`}
+                >
+                  {item.emoji}
+                </div>
+                <div>
+                  <h3 className="mb-1 text-sm font-semibold text-[#e8e8f0]">
+                    {item.title}
+                  </h3>
+                  <p className="mb-3 text-xs leading-relaxed text-[#8888aa]">
+                    {item.description}
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {item.tools.map((tool, i) => (
+                      <span
+                        key={i}
+                        className="rounded-md border border-[#2a2a4a] bg-[#0f0f1a] px-2 py-0.5 text-xs text-[#8888aa]"
+                      >
+                        {tool}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-10 text-center text-sm text-[#8888aa]">
+            More automations added every week ·{" "}
+            <a
+              href="mailto:hello@flowchat.now"
+              className="text-[#00d4aa] hover:underline"
+            >
+              Request one →
+            </a>
+          </p>
         </div>
       </section>
 
