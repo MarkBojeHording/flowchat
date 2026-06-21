@@ -190,6 +190,17 @@ export default function DashboardPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState("");
+  const [usage, setUsage] = useState<{
+    plan: string;
+    planName: string;
+    runsUsed: number;
+    testRunsUsed: number;
+    runsLimit: number;
+    runsRemaining: number;
+    daysUntilReset: number;
+    status: string;
+    percentUsed: number;
+  } | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -217,6 +228,18 @@ export default function DashboardPage() {
       console.error("Failed to fetch history:", err);
     } finally {
       setHistoryLoading(false);
+    }
+  }
+
+  async function fetchUsage(userId: string) {
+    try {
+      const res = await fetch(
+        `${BACKEND_URL}/api/chat/usage?userId=${userId}`
+      );
+      const data = await res.json();
+      setUsage(data);
+    } catch (err) {
+      console.error("Failed to fetch usage:", err);
     }
   }
 
@@ -375,6 +398,7 @@ export default function DashboardPage() {
         window.location.href = "/login";
       } else {
         setUser(data.user);
+        fetchUsage(data.user.id);
       }
     };
 
@@ -1020,6 +1044,73 @@ export default function DashboardPage() {
               </>
             )}
           </div>
+
+          {usage && (
+            <div className="border-t border-[#e5e7eb] px-4 py-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-[#111]">
+                  {usage.planName} plan
+                </span>
+                <span className="text-xs text-[#6b7280]">
+                  {usage.daysUntilReset}d until reset
+                </span>
+              </div>
+
+              <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#f3f4f6]">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    usage.status === "limit_reached"
+                      ? "bg-red-500"
+                      : usage.status === "critical"
+                        ? "bg-red-400"
+                        : usage.status === "warning"
+                          ? "bg-amber-400"
+                          : "bg-[#00d4aa]"
+                  }`}
+                  style={{ width: `${Math.min(usage.percentUsed, 100)}%` }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[#6b7280]">
+                  {usage.runsUsed.toLocaleString()} /{" "}
+                  {usage.runsLimit.toLocaleString()} runs
+                </span>
+                {usage.testRunsUsed > 0 && (
+                  <span className="text-xs text-[#9ca3af]">
+                    +{usage.testRunsUsed} tests
+                  </span>
+                )}
+              </div>
+
+              {usage.status === "warning" && (
+                <p className="mt-2 text-xs text-amber-600">
+                  ⚠️ Running low — consider upgrading
+                </p>
+              )}
+              {usage.status === "critical" && (
+                <p className="mt-2 text-xs text-red-500">
+                  ⚠️ Almost out of runs
+                </p>
+              )}
+              {usage.status === "limit_reached" && (
+                <p className="mt-2 text-xs text-red-500">
+                  ✗ Run limit reached
+                </p>
+              )}
+
+              {usage.plan !== "business" && (
+                <Link
+                  href="/#pricing"
+                  className="mt-2 block text-xs font-medium text-[#00d4aa] hover:underline"
+                >
+                  {usage.plan === "free"
+                    ? "Upgrade to Pro →"
+                    : "Upgrade to Business →"}
+                </Link>
+              )}
+            </div>
+          )}
         </div>
 
         {/* MAIN CHAT AREA */}
