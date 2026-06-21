@@ -201,7 +201,7 @@ export default function DashboardPage() {
     }[]
   >([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "warning";
@@ -225,7 +225,6 @@ export default function DashboardPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const templatesRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   function showToast(
     message: string,
@@ -543,11 +542,12 @@ export default function DashboardPage() {
   }, [messages, loading]);
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-user-menu]")) {
+        setShowUserMenu(false);
       }
-    }
+    };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -952,10 +952,10 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              <div className="relative" ref={dropdownRef}>
+              <div className="relative" data-user-menu>
                 <button
                   type="button"
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  onClick={() => setShowUserMenu((prev) => !prev)}
                   className="flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.15)] px-3 py-1.5 transition-colors hover:bg-[rgba(255,255,255,0.07)]"
                 >
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e9b872] text-xs font-bold text-[#0a0a0a]">
@@ -986,65 +986,55 @@ export default function DashboardPage() {
                   </svg>
                 </button>
 
-                {dropdownOpen && (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.1)] bg-[#141929] shadow-2xl">
-                    <div className="border-b border-[rgba(255,255,255,0.08)] px-4 py-3">
-                      <div className="text-sm font-semibold text-white">
-                        {user?.user_metadata?.full_name || "My Account"}
-                      </div>
-                      <div className="mt-0.5 truncate text-xs text-[rgba(255,255,255,0.4)]">
+                {showUserMenu && (
+                  <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-[#2a2a4a] bg-[#1a1a2e] shadow-lg">
+                    <div className="border-b border-[#2a2a4a] px-4 py-3">
+                      <p className="text-sm font-medium text-[#e8e8f0]">
+                        {user?.user_metadata?.full_name || "Account"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[#8888aa]">
                         {user?.email}
-                      </div>
+                      </p>
                     </div>
 
-                    <div className="py-1">
+                    <div className="py-2">
                       <button
                         type="button"
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:bg-[#2a2a4a]"
                       >
                         <span>⚡</span>
-                        My Automations
+                        <span>My Automations</span>
                       </button>
-                      <Link
-                        href="/settings"
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
+                      <button
+                        type="button"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:bg-[#2a2a4a]"
                       >
                         <span>⚙️</span>
-                        Settings
-                      </Link>
+                        <span>Settings</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUpgradeModal(true);
+                          setShowUserMenu(false);
+                        }}
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:bg-[#2a2a4a]"
+                      >
+                        <span>💳</span>
+                        <span>Billing & subscription</span>
+                      </button>
                     </div>
 
-                    <div className="border-b border-[#e5e7eb] px-4 py-3">
-                      <p className="text-xs font-medium text-[#111]">
-                        {usage?.planName} plan
-                      </p>
-                      <p className="mt-0.5 text-xs text-[#6b7280]">
-                        {usage?.runsUsed.toLocaleString()} /{" "}
-                        {usage?.runsLimit.toLocaleString()} runs used
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowUpgradeModal(true);
-                        setDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm text-[#374151] hover:bg-[#f9fafb]"
-                    >
-                      Billing & subscription →
-                    </button>
-
-                    <div className="border-t border-[rgba(255,255,255,0.08)] py-1">
+                    <div className="border-t border-[#2a2a4a] py-2">
                       <button
                         type="button"
                         onClick={handleSignOut}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.07)] hover:text-white"
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#8888aa] transition-colors hover:bg-[#2a2a4a] hover:text-[#e8e8f0]"
                       >
                         <span>→</span>
-                        Sign out
+                        <span>Sign out</span>
                       </button>
                     </div>
                   </div>
