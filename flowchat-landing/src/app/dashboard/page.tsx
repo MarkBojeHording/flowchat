@@ -263,6 +263,23 @@ export default function DashboardPage() {
     }
   }
 
+  async function handlePortal() {
+    if (!user) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/billing/portal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch {
+      alert("Something went wrong");
+    }
+  }
+
   const loadAutomation = useCallback(async (id: string, userId: string) => {
     try {
       const response = await fetch(
@@ -456,9 +473,11 @@ export default function DashboardPage() {
     const checkout = params.get("checkout");
     const plan = params.get("plan");
 
-    if (checkout === "success" && plan && user) {
+    if (checkout === "success" && plan) {
       showToast(`Successfully upgraded to ${plan} plan! 🎉`, "success");
-      fetchUsage(user.id);
+      setTimeout(() => {
+        if (user) fetchUsage(user.id);
+      }, 1000);
       window.history.replaceState({}, "", "/dashboard");
     }
 
@@ -467,6 +486,12 @@ export default function DashboardPage() {
       window.history.replaceState({}, "", "/dashboard");
     }
   }, [user]);
+
+  useEffect(() => {
+    if (showUpgradeModal && usage) {
+      console.log("Current usage plan:", usage.plan);
+    }
+  }, [showUpgradeModal, usage]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1807,6 +1832,18 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
+
+              {(usage.plan === "pro" || usage.plan === "business") && (
+                <div className="mt-2 border-t border-[#e5e7eb] pt-4">
+                  <button
+                    type="button"
+                    onClick={handlePortal}
+                    className="text-sm text-[#6b7280] transition-colors hover:text-[#111]"
+                  >
+                    Manage subscription, cancel, or update billing →
+                  </button>
+                </div>
+              )}
 
               {usage.plan !== "free" && (
                 <div className="border-t border-[#e5e7eb] pt-5">
