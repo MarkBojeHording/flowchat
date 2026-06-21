@@ -77,6 +77,9 @@ export default function LoginPage() {
     if (params.get("tab") === "register") {
       setTab("register");
     }
+    if (params.get("error") === "oauth_failed") {
+      setError("Google sign-in failed. Please try again.");
+    }
   }, []);
 
   useEffect(() => {
@@ -92,7 +95,7 @@ export default function LoginPage() {
 
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
-    const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/confirm`;
+    const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/callback?next=/dashboard`;
 
     // #region agent log
     fetch("http://127.0.0.1:7402/ingest/66dfec1a-1cd9-44c7-8573-5fb3fdc9feac", {

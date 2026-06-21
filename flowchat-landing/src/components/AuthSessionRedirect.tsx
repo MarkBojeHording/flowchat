@@ -10,6 +10,19 @@ function debugLog(
   data: Record<string, unknown>,
   hypothesisId: string
 ) {
+  const entry = {
+    sessionId: "119215",
+    location,
+    message,
+    data,
+    hypothesisId,
+    timestamp: Date.now(),
+  };
+  try {
+    sessionStorage.setItem("flowchat_oauth_debug", JSON.stringify(entry));
+  } catch {
+    // ignore
+  }
   // #region agent log
   fetch("http://127.0.0.1:7402/ingest/66dfec1a-1cd9-44c7-8573-5fb3fdc9feac", {
     method: "POST",
@@ -17,24 +30,17 @@ function debugLog(
       "Content-Type": "application/json",
       "X-Debug-Session-Id": "119215",
     },
-    body: JSON.stringify({
-      sessionId: "119215",
-      location,
-      message,
-      data,
-      hypothesisId,
-      timestamp: Date.now(),
-    }),
+    body: JSON.stringify(entry),
   }).catch(() => {});
   // #endregion
 }
+
+const AUTH_LANDING_PATHS = ["/", "/login", "/auth/confirm"];
 
 export function AuthSessionRedirect() {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (pathname === "/auth/confirm") return;
-
     let redirecting = false;
 
     function goDashboard(source: string) {
@@ -49,85 +55,56 @@ export function AuthSessionRedirect() {
       window.location.replace("/dashboard");
     }
 
-    async function handleAuthCallback() {
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        debugLog(
+          "AuthSessionRedirect.tsx:onAuthStateChange",
+          "auth event",
+          { event, hasSession: Boolean(session), pathname },
+          "C"
+        );
+        if (
+          session &&
+          (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+          AUTH_LANDING_PATHS.includes(pathname)
+        ) {
+          goDashboard(`auth-event-${event}`);
+        }
+      }
+    );
+
+    async function checkExistingSession() {
       const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
       const hasHash =
         window.location.hash.length > 1 &&
         (window.location.hash.includes("access_token") ||
           window.location.hash.includes("error"));
 
       debugLog(
-        "AuthSessionRedirect.tsx:handleAuthCallback",
-        "checking auth callback on page",
+        "AuthSessionRedirect.tsx:checkExistingSession",
+        "session check on mount",
         {
           pathname,
-          hasCode: Boolean(code),
+          hasCode: Boolean(params.get("code")),
           hasHash,
-          hashPrefix: window.location.hash.slice(0, 20),
+          hash: window.location.hash.slice(0, 32),
         },
         "A"
       );
 
-      if (!code && !hasHash) return;
-
-      const { data: authListener } = supabase.auth.onAuthStateChange(
-        (event, session) => {
-          debugLog(
-            "AuthSessionRedirect.tsx:onAuthStateChange",
-            "auth event",
-            { event, hasSession: Boolean(session) },
-            "C"
-          );
-          if (
-            session &&
-            (event === "SIGNED_IN" || event === "INITIAL_SESSION")
-          ) {
-            goDashboard(`auth-event-${event}`);
-          }
-        }
-      );
-
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        debugLog(
-          "AuthSessionRedirect.tsx:exchangeCode",
-          "code exchange result",
-          {
-            exchangeError: error?.message ?? null,
-            hasSession: Boolean(session),
-          },
-          "B"
-        );
-
-        if (session) {
-          authListener.subscription.unsubscribe();
-          goDashboard("code-exchange");
-          return;
-        }
-      }
-
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (session) {
-        authListener.subscription.unsubscribe();
-        goDashboard("existing-session");
-        return;
-      }
 
-      return () => {
-        authListener.subscription.unsubscribe();
-      };
+      if (session && AUTH_LANDING_PATHS.includes(pathname)) {
+        goDashboard("existing-session");
+      }
     }
 
-    const cleanupPromise = handleAuthCallback();
+    checkExistingSession();
+
     return () => {
-      cleanupPromise.then((cleanup) => cleanup?.());
+      authListener.subscription.unsubscribe();
     };
   }, [pathname]);
 
