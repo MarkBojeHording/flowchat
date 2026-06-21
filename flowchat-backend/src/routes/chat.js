@@ -331,12 +331,13 @@ async function executeTool(name, input, userId, automationId = null) {
       try {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('runs_used, plans(runs_limit, name)')
+          .select('runs_used, topup_runs, plans(runs_limit, name)')
           .eq('id', userId)
           .single()
 
         if (profile) {
-          const runsLimit = profile.plans?.runs_limit || 50
+          const runsLimit =
+            (profile.plans?.runs_limit || 50) + (profile.topup_runs || 0)
           if (profile.runs_used >= runsLimit) {
             return {
               success: false,
@@ -1224,6 +1225,7 @@ router.get('/usage', async (req, res) => {
         plan_id,
         runs_used,
         test_runs_used,
+        topup_runs,
         billing_period_start,
         plans (
           name,
@@ -1250,7 +1252,9 @@ router.get('/usage', async (req, res) => {
       })
     }
 
-    const runsLimit = profile.plans?.runs_limit || 50
+    const baseRunsLimit = profile.plans?.runs_limit || 50
+    const topupRuns = profile.topup_runs || 0
+    const runsLimit = baseRunsLimit + topupRuns
     const runsUsed = profile.runs_used || 0
     const testRunsUsed = profile.test_runs_used || 0
     const billingStart = new Date(profile.billing_period_start)
@@ -1260,7 +1264,8 @@ router.get('/usage', async (req, res) => {
     )
     const daysUntilReset = Math.max(0, 30 - daysSinceReset)
     const runsRemaining = Math.max(0, runsLimit - runsUsed)
-    const percentUsed = Math.round((runsUsed / runsLimit) * 100)
+    const percentUsed =
+      runsLimit > 0 ? Math.round((runsUsed / runsLimit) * 100) : 0
 
     const dailyRate = daysSinceReset > 0 ? runsUsed / daysSinceReset : 0
     const projectedDeficit = runsRemaining - dailyRate * daysUntilReset
@@ -1282,6 +1287,7 @@ router.get('/usage', async (req, res) => {
       runsUsed,
       testRunsUsed,
       runsLimit,
+      topupRuns,
       runsRemaining,
       billingPeriodStart: profile.billing_period_start,
       daysUntilReset,

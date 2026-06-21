@@ -6,6 +6,16 @@ dotenv.config()
 
 const app = express()
 app.use(cors())
+
+const billingRouter = require('./routes/billing')
+
+// Stripe webhook needs raw body — must be before express.json()
+app.post(
+  '/api/billing/webhook',
+  express.raw({ type: 'application/json' }),
+  billingRouter.handleWebhook
+)
+
 app.use(express.json())
 
 app.get('/health', (req, res) => {
@@ -20,6 +30,8 @@ app.use('/api/workflows', workflowRoutes)
 
 const chatRoutes = require('./routes/chat')
 app.use('/api/chat', chatRoutes)
+
+app.use('/api/billing', billingRouter)
 
 const PORT = process.env.PORT || 3456
 app.listen(PORT, () => {
