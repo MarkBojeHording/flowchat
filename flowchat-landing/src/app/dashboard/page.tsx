@@ -1154,27 +1154,27 @@ export default function DashboardPage() {
           </div>
 
           {usage && (
-            <div className="border-t border-[#e5e7eb] px-4 py-4">
+            <div className="border-t border-[rgba(255,255,255,0.06)] px-4 py-4">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-[#111]">
+                <span className="text-xs font-semibold text-white">
                   {usage.planName} plan
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => user && fetchUsage(user.id)}
-                    className="text-xs text-[#9ca3af] transition-colors hover:text-[#00d4aa]"
+                    className="text-xs text-[rgba(255,255,255,0.35)] transition-colors hover:text-[#00d4aa]"
                     title="Refresh usage"
                   >
                     ↻
                   </button>
-                  <span className="text-xs text-[#6b7280]">
+                  <span className="text-xs text-[rgba(255,255,255,0.4)]">
                     {usage.daysUntilReset}d until reset
                   </span>
                 </div>
               </div>
 
-              <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#f3f4f6]">
+              <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
                 <div
                   className={`h-full rounded-full transition-all ${
                     usage.status === "limit_reached"
@@ -1190,34 +1190,52 @@ export default function DashboardPage() {
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-xs text-[#6b7280]">
+                <span className="text-xs text-[rgba(255,255,255,0.5)]">
                   {usage.runsUsed.toLocaleString()} /{" "}
                   {usage.runsLimit.toLocaleString()} runs
                 </span>
                 {usage.testRunsUsed > 0 && (
-                  <span className="text-xs text-[#9ca3af]">
+                  <span className="text-xs text-[rgba(255,255,255,0.35)]">
                     +{usage.testRunsUsed} tests
                   </span>
                 )}
               </div>
 
               {usage.status === "warning" && (
-                <p className="mt-2 text-xs text-amber-600">
+                <p className="mt-2 text-xs text-amber-400">
                   ⚠️ Running low — consider upgrading
                 </p>
               )}
               {usage.status === "critical" && (
-                <p className="mt-2 text-xs text-red-500">
+                <p className="mt-2 text-xs text-red-400">
                   ⚠️ Almost out of runs
                 </p>
               )}
               {usage.status === "limit_reached" && (
-                <p className="mt-2 text-xs text-red-500">
+                <p className="mt-2 text-xs text-red-400">
                   ✗ Run limit reached
                 </p>
               )}
 
-              {usage.plan !== "business" && (
+              {usage.plan !== "free" && (
+                <button
+                  type="button"
+                  onClick={() => handleCheckout("topup_1000")}
+                  className="mt-2 block text-xs font-medium text-[#00d4aa] hover:underline"
+                >
+                  + Add 1,000 runs ($9.99) →
+                </button>
+              )}
+
+              {usage.plan === "business" ? (
+                <button
+                  type="button"
+                  onClick={handlePortal}
+                  className="mt-2 block text-xs font-medium text-[#00d4aa] hover:underline"
+                >
+                  Manage subscription →
+                </button>
+              ) : (
                 <button
                   type="button"
                   onClick={() => setShowUpgradeModal(true)}
@@ -1228,18 +1246,6 @@ export default function DashboardPage() {
                     : "Upgrade to Business →"}
                 </button>
               )}
-
-              {(usage.status === "limit_reached" ||
-                usage.status === "warning") &&
-                usage.plan !== "free" && (
-                  <button
-                    type="button"
-                    onClick={() => setShowUpgradeModal(true)}
-                    className="mt-2 block text-xs font-medium text-[#111] hover:underline"
-                  >
-                    Top up →
-                  </button>
-                )}
             </div>
           )}
         </div>
