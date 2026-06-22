@@ -209,6 +209,74 @@ const TOOLS = [
       required: ['workflowId'],
     },
   },
+  {
+    name: 'fix_workflow',
+    description:
+      'Fix a specific issue in the broken workflow. Use this to update a channel, sheet, email recipient, or other configuration.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        change_type: {
+          type: 'string',
+          enum: ['channel', 'sheet', 'email_recipient', 'email_subject', 'message', 'cron'],
+          description: 'What to change',
+        },
+        new_value: {
+          type: 'string',
+          description: 'The new value to set',
+        },
+        explanation: {
+          type: 'string',
+          description: 'Plain English explanation of what was changed',
+        },
+      },
+      required: ['change_type', 'new_value', 'explanation'],
+    },
+  },
+  {
+    name: 'request_reconnection',
+    description:
+      'Request the user to reconnect an app. Use when auth has expired or permissions were removed.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        app: {
+          type: 'string',
+          enum: ['google', 'slack', 'typeform', 'airtable', 'stripe', 'calendly'],
+          description: 'The app that needs reconnection',
+        },
+        reason: {
+          type: 'string',
+          description: 'Plain English reason why reconnection is needed',
+        },
+      },
+      required: ['app', 'reason'],
+    },
+  },
+  {
+    name: 'test_fixed_workflow',
+    description: 'Test the workflow after a fix to confirm it works.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: 'mark_resolved',
+    description:
+      'Mark the automation as resolved after successfully fixing it. Reactivates the workflow and resets error state.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        summary: {
+          type: 'string',
+          description: 'Plain English summary of what was fixed',
+        },
+      },
+      required: ['summary'],
+    },
+  },
 ]
 
 function appToPlatform(app) {
@@ -660,6 +728,167 @@ async function executeTool(name, input, userId, automationId = null) {
     case 'pause_workflow':
       return { success: true, summary: 'Automation paused' }
 
+    case 'fix_workflow': {
+      try {
+        const { change_type, new_value, explanation } = input
+
+        const { data: workflow } = await supabase
+          .from('workflows')
+          .select('*')
+          .eq('id', automationId)
+          .single()
+
+        if (!workflow?.n8n_workflow_id) {
+          return { success: false, message: 'Workflow not found' }
+        }
+
+        const workflowRes = await fetch(
+          `${process.env.N8N_BASE_URL}/api/v1/workflows/${workflow.n8n_workflow_id}`,
+          { headers: { 'X-N8N-API-KEY': process.env.N8N_API_KEY } }
+        )
+        const n8nWorkflow = await workflowRes.json()
+
+        const updatedNodes = n8nWorkflow.nodes.map((node) => {
+          if (change_type === 'channel' && node.name === 'Send Slack Message') {
+            const body = JSON.parse(node.parameters.jsonBody || '{}')
+            body.channel = new_value.startsWith('#') ? new_value : `#${new_value}`
+            return {
+              ...node,
+              parameters: { ...node.parameters, jsonBody: JSON.stringify(body) },
+            }
+          }
+          if (change_type === 'message' && node.name === 'Send Slack Message') {
+            const body = JSON.parse(node.parameters.jsonBody || '{}')
+            body.text = new_value
+            return {
+              ...node,
+              parameters: { ...node.parameters, jsonBody: JSON.stringify(body) },
+            }
+          }
+          if (change_type === 'email_recipient' && node.name === 'Send Gmail') {
+            const rawEmail = Buffer.from(
+              `To: ${new_value}\r\nSubject: Update\r\nContent-Type: text/plain\r\n\r\nUpdate`
+            ).toString('base64url')
+            return {
+              ...node,
+              parameters: {
+                ...node.parameters,
+                jsonBody: JSON.stringify({ raw: rawEmail }),
+              },
+            }
+          }
+          if (change_type === 'cron' && node.type === 'n8n-nodes-base.scheduleTrigger') {
+            return {
+              ...node,
+              parameters: {
+                rule: {
+                  interval: [{ field: 'cronExpression', expression: new_value }],
+                },
+              },
+            }
+          }
+          return node
+        })
+
+        await fetch(
+          `${process.env.N8N_BASE_URL}/api/v1/workflows/${workflow.n8n_workflow_id}`,
+          {
+            method: 'PUT',
+            headers: {
+              'X-N8N-API-KEY': process.env.N8N_API_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: n8nWorkflow.name,
+              nodes: updatedNodes,
+              connections: n8nWorkflow.connections,
+              settings: {
+                ...n8nWorkflow.settings,
+                errorWorkflow: 'QhkpkeGqlspl7xXY',
+              },
+            }),
+          }
+        )
+
+        await fetch(
+          `${process.env.N8N_BASE_URL}/api/v1/workflows/${workflow.n8n_workflow_id}/activate`,
+          {
+            method: 'POST',
+            headers: { 'X-N8N-API-KEY': process.env.N8N_API_KEY },
+          }
+        )
+
+        return { success: true, message: explanation }
+      } catch (err) {
+        console.error('fix_workflow error:', err)
+        return { success: false, message: err.message }
+      }
+    }
+
+    case 'request_reconnection': {
+      const { app, reason } = input
+      const reconnectUrl = `${process.env.BACKEND_URL}/api/auth/${app}`
+      return {
+        success: true,
+        action: 'request_connection',
+        app,
+        url: reconnectUrl,
+        message: reason,
+      }
+    }
+
+    case 'test_fixed_workflow': {
+      try {
+        const { data: workflow } = await supabase
+          .from('workflows')
+          .select('webhook_url')
+          .eq('id', automationId)
+          .single()
+
+        if (!workflow?.webhook_url) {
+          return { success: false, message: 'No test webhook found' }
+        }
+
+        const testRes = await fetch(workflow.webhook_url, {
+          method: 'GET',
+          signal: AbortSignal.timeout(10000),
+        })
+
+        if (testRes.ok) {
+          return {
+            success: true,
+            message: 'Test successful — the automation is working correctly.',
+          }
+        }
+        return { success: false, message: 'Test failed — there may still be an issue.' }
+      } catch (err) {
+        return { success: false, message: `Test failed: ${err.message}` }
+      }
+    }
+
+    case 'mark_resolved': {
+      try {
+        const { summary } = input
+
+        await supabase
+          .from('workflows')
+          .update({
+            status: 'active',
+            consecutive_failures: 0,
+            last_error_type: null,
+            last_error_at: null,
+            last_error_message: null,
+            notification_sent_at: null,
+          })
+          .eq('id', automationId)
+          .eq('user_id', userId)
+
+        return { success: true, summary }
+      } catch (err) {
+        return { success: false, message: err.message }
+      }
+    }
+
     default:
       return { error: `Unknown tool: ${name}` }
   }
@@ -801,6 +1030,77 @@ Name: ${workflow.auto_name || 'Untitled'}
     .replace('{{TIMEZONE}}', timezone || 'UTC')
 }
 
+function buildSystemPrompt({
+  systemTemplate,
+  workflow,
+  connectedPlatforms,
+  automationNames,
+  automationId,
+  timezone,
+}) {
+  const isErrorResolution = workflow?.status === 'broken'
+
+  if (isErrorResolution) {
+    const errorTemplate = fs.readFileSync(
+      path.join(__dirname, '../prompts/error-agent.txt'),
+      'utf8'
+    )
+    return errorTemplate
+      .replace('{{AUTOMATION_NAME}}', workflow.auto_name || workflow.name || 'Your automation')
+      .replace('{{ERROR_TYPE}}', workflow.last_error_type || 'unknown')
+      .replace(
+        '{{FAILED_APP}}',
+        workflow.last_error_message?.includes('Slack')
+          ? 'Slack'
+          : workflow.last_error_message?.includes('Gmail')
+            ? 'Gmail'
+            : workflow.last_error_message?.includes('Sheets')
+              ? 'Google Sheets'
+              : 'connected app'
+      )
+      .replace('{{ERROR_MESSAGE}}', workflow.last_error_message || 'Unknown error')
+      .replace('{{CONSECUTIVE_FAILURES}}', String(workflow.consecutive_failures || 0))
+      .replace(
+        '{{LAST_ERROR_AT}}',
+        workflow.last_error_at
+          ? new Date(workflow.last_error_at).toLocaleDateString('en-GB', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : 'recently'
+      )
+      .replace('{{TIMEZONE}}', timezone || 'UTC')
+  }
+
+  return populateSystemPrompt(systemTemplate, {
+    connectedPlatforms,
+    automationNames,
+    workflow,
+    automationId,
+    timezone: timezone || 'UTC',
+  })
+}
+
+function handleToolAction(block, result, state) {
+  if (block.name === 'request_app_connection' || block.name === 'request_reconnection') {
+    state.action = 'request_connection'
+    state.actionData = result
+  } else if (block.name === 'test_workflow' || block.name === 'test_fixed_workflow') {
+    state.action = 'show_test_result'
+    state.actionData = result
+  } else if (block.name === 'activate_workflow' || block.name === 'mark_resolved') {
+    state.action = 'automation_live'
+    state.actionData = result
+  } else if (block.name === 'build_workflow') {
+    state.currentWorkflowId = result.workflowId
+  } else if (block.name === 'check_connected_apps') {
+    state.connectedApps = result.connected
+  }
+}
+
 router.post('/message/stream', async (req, res) => {
   const { userId, automationId: requestAutomationId, message, conversationHistory: requestHistory, timezone } = req.body
 
@@ -852,10 +1152,11 @@ router.post('/message/stream', async (req, res) => {
 
     const systemTemplate = fs.readFileSync(AGENT_PROMPT_PATH, 'utf8')
     const { connectedPlatforms, automationNames } = await loadUserContext(userId)
-    const systemPrompt = populateSystemPrompt(systemTemplate, {
+    const systemPrompt = buildSystemPrompt({
+      systemTemplate,
+      workflow,
       connectedPlatforms,
       automationNames,
-      workflow,
       automationId,
       timezone: timezone || 'UTC',
     })
@@ -934,20 +1235,12 @@ router.post('/message/stream', async (req, res) => {
           console.log(`Tool called: ${block.name}`)
           console.log(`Tool result: ${JSON.stringify(result)}`)
 
-          if (block.name === 'request_app_connection') {
-            action = 'request_connection'
-            actionData = result
-          } else if (block.name === 'test_workflow') {
-            action = 'show_test_result'
-            actionData = result
-          } else if (block.name === 'activate_workflow') {
-            action = 'automation_live'
-            actionData = result
-          } else if (block.name === 'build_workflow') {
-            currentWorkflowId = result.workflowId
-          } else if (block.name === 'check_connected_apps') {
-            connectedApps = result.connected
-          }
+          const toolState = { action, actionData, currentWorkflowId, connectedApps }
+          handleToolAction(block, result, toolState)
+          action = toolState.action
+          actionData = toolState.actionData
+          currentWorkflowId = toolState.currentWorkflowId
+          connectedApps = toolState.connectedApps
 
           toolResults.push({
             type: 'tool_result',
@@ -1077,10 +1370,11 @@ router.post('/message', async (req, res) => {
 
     const systemTemplate = fs.readFileSync(AGENT_PROMPT_PATH, 'utf8')
     const { connectedPlatforms, automationNames } = await loadUserContext(userId)
-    const systemPrompt = populateSystemPrompt(systemTemplate, {
+    const systemPrompt = buildSystemPrompt({
+      systemTemplate,
+      workflow,
       connectedPlatforms,
       automationNames,
-      workflow,
       automationId,
       timezone: timezone || 'UTC',
     })
@@ -1158,20 +1452,12 @@ router.post('/message', async (req, res) => {
           console.log(`Tool input: ${JSON.stringify(block.input)}`)
           console.log(`Tool result: ${JSON.stringify(result)}`)
 
-          if (block.name === 'request_app_connection') {
-            action = 'request_connection'
-            actionData = result
-          } else if (block.name === 'test_workflow') {
-            action = 'show_test_result'
-            actionData = result
-          } else if (block.name === 'activate_workflow') {
-            action = 'automation_live'
-            actionData = result
-          } else if (block.name === 'build_workflow') {
-            currentWorkflowId = result.workflowId
-          } else if (block.name === 'check_connected_apps') {
-            connectedApps = result.connected
-          }
+          const toolState = { action, actionData, currentWorkflowId, connectedApps }
+          handleToolAction(block, result, toolState)
+          action = toolState.action
+          actionData = toolState.actionData
+          currentWorkflowId = toolState.currentWorkflowId
+          connectedApps = toolState.connectedApps
 
           toolResults.push({
             type: 'tool_result',
