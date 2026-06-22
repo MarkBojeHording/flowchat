@@ -29,6 +29,231 @@ type AdminData = {
 
 type Tab = "overview" | "workflows" | "users" | "system";
 
+function WorkflowsTab({
+  apiKey,
+  backendUrl,
+}: {
+  apiKey: string;
+  backendUrl: string;
+}) {
+  const [workflows, setWorkflows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("all");
+
+  useEffect(() => {
+    fetch(`${backendUrl}/api/executions/admin/workflows`, {
+      headers: { "x-api-key": apiKey },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        setWorkflows(data.workflows || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [apiKey, backendUrl]);
+
+  const filtered =
+    filter === "all"
+      ? workflows
+      : workflows.filter((w) => w.status === filter);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        {["all", "active", "broken", "paused", "draft"].map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setFilter(f)}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              filter === f
+                ? "bg-[#00d4aa] text-[#0f0f1a]"
+                : "border border-[#2a2a4a] text-[#8888aa] hover:text-[#e8e8f0]"
+            }`}
+          >
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-[#8888aa]">Loading...</p>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-[#2a2a4a] bg-[#1a1a2e]">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[#2a2a4a]">
+                <th className="px-4 py-3 text-left text-xs font-medium text-[#8888aa]">
+                  Name
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-[#8888aa]">
+                  User
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-[#8888aa]">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-[#8888aa]">
+                  Last active
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-[#8888aa]">
+                  Failures
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((w) => (
+                <tr
+                  key={w.id}
+                  className="border-b border-[#2a2a4a] last:border-0"
+                >
+                  <td className="px-4 py-3 text-sm text-[#e8e8f0]">
+                    {w.name || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-[#8888aa]">
+                    {w.user_id ? `${w.user_id.slice(0, 8)}...` : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        w.status === "active"
+                          ? "bg-green-900/30 text-green-400"
+                          : w.status === "broken"
+                            ? "bg-red-900/30 text-red-400"
+                            : w.status === "paused"
+                              ? "bg-amber-900/30 text-amber-400"
+                              : "bg-[#2a2a4a] text-[#8888aa]"
+                      }`}
+                    >
+                      {w.status || "draft"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-[#8888aa]">
+                    {w.last_message_at
+                      ? new Date(w.last_message_at).toLocaleDateString(
+                          "en-GB",
+                          {
+                            day: "numeric",
+                            month: "short",
+                          }
+                        )
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-[#8888aa]">
+                    {w.consecutive_failures || 0}
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-4 py-6 text-center text-sm text-[#8888aa]"
+                  >
+                    No workflows found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UsersTab({
+  apiKey,
+  backendUrl,
+}: {
+  apiKey: string;
+  backendUrl: string;
+}) {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${backendUrl}/api/executions/admin/users`, {
+      headers: { "x-api-key": apiKey },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        setUsers(data.users || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [apiKey, backendUrl]);
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-[#2a2a4a] bg-[#1a1a2e]">
+      {loading ? (
+        <p className="px-4 py-6 text-sm text-[#8888aa]">Loading...</p>
+      ) : (
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-[#2a2a4a]">
+              <th className="px-4 py-3 text-left text-xs font-medium text-[#8888aa]">
+                Email
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-[#8888aa]">
+                Plan
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-[#8888aa]">
+                Runs used
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-[#8888aa]">
+                Workflows
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-[#8888aa]">
+                Signed up
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr
+                key={u.id}
+                className="border-b border-[#2a2a4a] last:border-0"
+              >
+                <td className="px-4 py-3 text-sm text-[#e8e8f0]">
+                  {u.email}
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      u.plan === "business"
+                        ? "bg-purple-900/30 text-purple-400"
+                        : u.plan === "pro"
+                          ? "bg-blue-900/30 text-blue-400"
+                          : "bg-[#2a2a4a] text-[#8888aa]"
+                    }`}
+                  >
+                    {u.plan || "free"}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-xs text-[#8888aa]">
+                  {u.runs_used || 0} / {u.runs_limit || 50}
+                </td>
+                <td className="px-4 py-3 text-xs text-[#8888aa]">
+                  {u.workflow_count || 0}
+                </td>
+                <td className="px-4 py-3 text-xs text-[#8888aa]">
+                  {u.created_at
+                    ? new Date(u.created_at).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -297,19 +522,14 @@ export default function AdminPage() {
         )}
 
         {activeTab === "workflows" && (
-          <div className="rounded-xl border border-[#2a2a4a] bg-[#1a1a2e] p-5">
-            <p className="text-sm text-[#8888aa]">
-              Workflow management coming soon.
-            </p>
-          </div>
+          <WorkflowsTab
+            apiKey={INTERNAL_API_KEY}
+            backendUrl={BACKEND_URL}
+          />
         )}
 
         {activeTab === "users" && (
-          <div className="rounded-xl border border-[#2a2a4a] bg-[#1a1a2e] p-5">
-            <p className="text-sm text-[#8888aa]">
-              User management coming soon.
-            </p>
-          </div>
+          <UsersTab apiKey={INTERNAL_API_KEY} backendUrl={BACKEND_URL} />
         )}
 
         {activeTab === "system" && (
