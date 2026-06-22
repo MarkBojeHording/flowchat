@@ -330,61 +330,264 @@ export default function DashboardPage() {
     }
   }
 
-  const loadAutomation = useCallback(async (id: string, userId: string) => {
-    try {
-      const response = await fetch(
-        `${BACKEND_URL}/api/chat/automations/${id}?userId=${userId}`
-      );
-      const data = await response.json();
-
+  const processChatStream = useCallback(
+    async (response: Response, userId: string) => {
       if (!response.ok) {
-        console.error("Load automation error:", data.error);
-        return;
+        throw new Error("Stream request failed");
       }
 
-      const automation = data.automation;
-      const rawMessages: ChatMessage[] = [];
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-      for (const turn of automation?.conversation || []) {
-        if (turn.role === "user") {
-          rawMessages.push({ type: "user", text: turn.content });
-        } else {
-          const connectMatch = turn.content.match(
-            /https?:\/\/[^\s]+\/api\/auth\/(slack|google|typeform|airtable|notion)/
-          );
-          if (connectMatch) {
-            const app = connectMatch[1];
-            const url = connectMatch[0];
-            const cleanMessage = turn.content
-              .replace(
-                /Click here to connect your \w+:?\s*https?:\/\/[^\s]+/gi,
-                ""
-              )
-              .replace(/https?:\/\/[^\s]+\/api\/auth\/\w+/g, "")
-              .trim();
-            if (cleanMessage) {
-              rawMessages.push({ type: "assistant", text: cleanMessage });
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+
+            if (event.type === "text") {
+              const chars = event.text.split("");
+              for (let i = 0; i < chars.length; i++) {
+                await new Promise((resolve) => setTimeout(resolve, 8));
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last?.type === "assistant") {
+                    updated[updated.length - 1] = {
+                      ...last,
+                      text: last.text + chars[i],
+                      thinking: false,
+                    };
+                  }
+                  return updated;
+                });
+              }
             }
-            rawMessages.push({
-              type: "connect",
-              app,
-              url: `${url.split("?")[0]}?userId=${userId}`,
-              message: `I need access to your ${app.charAt(0).toUpperCase() + app.slice(1)} to continue setting up your automation.`,
-            });
-          } else {
-            rawMessages.push({ type: "assistant", text: turn.content });
+
+            if (event.type === "tool_start") {
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.type === "assistant" && !last.text) {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    thinking: true,
+                  };
+                }
+                return updated;
+              });
+            }
+
+            if (event.type === "tool_end") {
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.type === "assistant") {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    thinking: false,
+                  };
+                }
+                return updated;
+              });
+            }
+
+            if (event.type === "done") {
+              const { action, actionData, updatedState } = event;
+              const savedAutomationId = updatedState?.automationId;
+              const savedAutoName = updatedState?.autoName;
+
+              if (action === "request_connection" && actionData) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    type: "connect",
+                    app: actionData.app,
+                    url: `${BACKEND_URL}/api/auth/${actionData.app}?userId=${userId}`,
+                    message: actionData.message,
+                  },
+                ]);
+              }
+
+              if (action === "show_test_result" && actionData) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    type: "test_result",
+                    summary: actionData.summary || actionData.message || "Test completed.",
+                  },
+                ]);
+              }
+
+              if (action === "automation_live" && actionData) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    type: "live",
+                    summary:
+                      actionData.summary || actionData.message || "Your automation is now live.",
+                  },
+                ]);
+                setAutomations((prev) =>
+                  prev.map((a) =>
+                    a.id === savedAutomationId ? { ...a, status: "active" } : a
+                  )
+                );
+              }
+
+              if (savedAutomationId) {
+                setAutomations((prev) =>
+                  prev.map((a) =>
+                    a.id.startsWith("new-")
+                      ? {
+                          ...a,
+                          id: savedAutomationId,
+                          auto_name: savedAutoName || "New automation",
+                        }
+                      : a
+                  )
+                );
+                setSelectedId(savedAutomationId);
+                setCurrentAutomationId(savedAutomationId);
+              }
+
+              if (
+                savedAutoName &&
+                savedAutomationId &&
+                !selectedId?.startsWith("new-")
+              ) {
+                const listRes = await fetch(
+                  `${BACKEND_URL}/api/chat/automations?userId=${userId}`
+                );
+                const listData = await listRes.json();
+                if (listRes.ok) {
+                  setAutomations(listData.automations || []);
+                }
+              }
+            }
+
+            if (event.type === "error") {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  type: "error",
+                  text: event.message || "Something went wrong",
+                },
+              ]);
+            }
+          } catch {
+            console.error("Failed to parse SSE event:", jsonStr);
           }
         }
       }
+    },
+    [selectedId]
+  );
 
-      setMessages(rawMessages);
-      setSelectedId(id);
-      setCurrentAutomationId(id);
-      setActiveTab("chat");
-    } catch (err) {
-      console.error("Load automation error:", err);
-    }
-  }, []);
+  const loadAutomation = useCallback(
+    async (id: string, userId: string) => {
+      try {
+        const response = await fetch(
+          `${BACKEND_URL}/api/chat/automations/${id}?userId=${userId}`
+        );
+        const data = await response.json();
+
+        if (!response.ok) {
+          console.error("Load automation error:", data.error);
+          return;
+        }
+
+        const automation = data.automation;
+        setSelectedId(id);
+        setCurrentAutomationId(id);
+        setActiveTab("chat");
+
+        if (automation?.status === "broken") {
+          setMessages([{ type: "assistant", text: "", thinking: true }]);
+          setLoading(true);
+
+          try {
+            const streamResponse = await fetch(
+              `${BACKEND_URL}/api/chat/message/stream`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  userId,
+                  automationId: automation.id,
+                  message: "__error_resolution_start__",
+                  conversationHistory: [],
+                  timezone: userTimezone,
+                }),
+              }
+            );
+            await processChatStream(streamResponse, userId);
+          } catch (err) {
+            console.error("Error resolution start failed:", err);
+            setMessages([
+              {
+                type: "error",
+                text: "Could not start error resolution. Please try sending a message.",
+              },
+            ]);
+          } finally {
+            setLoading(false);
+          }
+          return;
+        }
+
+        const rawMessages: ChatMessage[] = [];
+
+        for (const turn of automation?.conversation || []) {
+          if (turn.role === "user") {
+            rawMessages.push({ type: "user", text: turn.content });
+          } else {
+            const connectMatch = turn.content.match(
+              /https?:\/\/[^\s]+\/api\/auth\/(slack|google|typeform|airtable|notion)/
+            );
+            if (connectMatch) {
+              const app = connectMatch[1];
+              const url = connectMatch[0];
+              const cleanMessage = turn.content
+                .replace(
+                  /Click here to connect your \w+:?\s*https?:\/\/[^\s]+/gi,
+                  ""
+                )
+                .replace(/https?:\/\/[^\s]+\/api\/auth\/\w+/g, "")
+                .trim();
+              if (cleanMessage) {
+                rawMessages.push({ type: "assistant", text: cleanMessage });
+              }
+              rawMessages.push({
+                type: "connect",
+                app,
+                url: `${url.split("?")[0]}?userId=${userId}`,
+                message: `I need access to your ${app.charAt(0).toUpperCase() + app.slice(1)} to continue setting up your automation.`,
+              });
+            } else {
+              rawMessages.push({ type: "assistant", text: turn.content });
+            }
+          }
+        }
+
+        setMessages(rawMessages);
+      } catch (err) {
+        console.error("Load automation error:", err);
+      }
+    },
+    [processChatStream, userTimezone]
+  );
 
   const fetchAutomations = useCallback(
     async (userId: string, autoSelectFirst = true) => {
@@ -679,159 +882,7 @@ export default function DashboardPage() {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Stream request failed");
-      }
-
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6).trim();
-          if (!jsonStr) continue;
-
-          try {
-            const event = JSON.parse(jsonStr);
-
-            if (event.type === "text") {
-              // Animate chunk character by character
-              const chars = event.text.split("");
-              for (let i = 0; i < chars.length; i++) {
-                await new Promise((resolve) => setTimeout(resolve, 8));
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last?.type === "assistant") {
-                    updated[updated.length - 1] = {
-                      ...last,
-                      text: last.text + chars[i],
-                      thinking: false,
-                    };
-                  }
-                  return updated;
-                });
-              }
-            }
-
-            if (event.type === "tool_start") {
-              // Show thinking indicator — update last assistant message
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.type === "assistant" && !last.text) {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    thinking: true,
-                  };
-                }
-                return updated;
-              });
-            }
-
-            if (event.type === "tool_end") {
-              // Clear thinking indicator
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last?.type === "assistant") {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    thinking: false,
-                  };
-                }
-                return updated;
-              });
-            }
-
-            if (event.type === "done") {
-              const { action, actionData, updatedState } = event;
-              const savedAutomationId = updatedState?.automationId;
-              const savedAutoName = updatedState?.autoName;
-
-              // Handle actions after streaming completes
-              if (action === "request_connection" && actionData) {
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    type: "connect",
-                    app: actionData.app,
-                    url: `${BACKEND_URL}/api/auth/${actionData.app}?userId=${user.id}`,
-                    message: actionData.message,
-                  },
-                ]);
-              }
-
-              if (action === "show_test_result" && actionData) {
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    type: "test_result",
-                    summary: actionData.summary || "Test completed.",
-                  },
-                ]);
-              }
-
-              if (action === "automation_live" && actionData) {
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    type: "live",
-                    summary:
-                      actionData.summary || "Your automation is now live.",
-                  },
-                ]);
-              }
-
-              // Update state
-              if (savedAutomationId) {
-                setAutomations((prev) =>
-                  prev.map((a) =>
-                    a.id.startsWith("new-")
-                      ? {
-                          ...a,
-                          id: savedAutomationId,
-                          auto_name: savedAutoName || "New automation",
-                        }
-                      : a
-                  )
-                );
-                setSelectedId(savedAutomationId);
-                setCurrentAutomationId(savedAutomationId);
-              }
-
-              if (
-                savedAutoName &&
-                savedAutomationId &&
-                !selectedId?.startsWith("new-")
-              ) {
-                fetchAutomations(user.id, false);
-              }
-            }
-
-            if (event.type === "error") {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  type: "error",
-                  text: event.message || "Something went wrong",
-                },
-              ]);
-            }
-          } catch {
-            console.error("Failed to parse SSE event:", jsonStr);
-          }
-        }
-      }
+      await processChatStream(response, user.id);
     } catch (err) {
       const text = err instanceof Error ? err.message : "Something went wrong";
       // Remove the empty assistant message and show error
@@ -845,7 +896,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, user, selectedId, currentAutomationId, fetchAutomations, userTimezone]);
+  }, [input, loading, user, selectedId, currentAutomationId, processChatStream, userTimezone]);
 
   useEffect(() => {
     const handleAutoSubmit = () => {
