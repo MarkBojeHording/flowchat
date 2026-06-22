@@ -525,7 +525,18 @@ export default function DashboardPage() {
 
     console.log("Calling fetchUsage for user:", user.id);
     fetchUsage(user.id);
-    fetchAutomations(user.id, true);
+
+    const params = new URLSearchParams(window.location.search);
+    const fixId = params.get("fix");
+    if (fixId) {
+      window.history.replaceState({}, "", "/dashboard");
+      setSelectedId(fixId);
+      setCurrentAutomationId(fixId);
+      loadAutomation(fixId, user.id);
+      fetchAutomations(user.id, false);
+    } else {
+      fetchAutomations(user.id, true);
+    }
 
     const handleFocus = () => {
       console.log("Window focused - refreshing usage");
@@ -533,7 +544,7 @@ export default function DashboardPage() {
     };
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
-  }, [user, fetchAutomations]);
+  }, [user, fetchAutomations, loadAutomation]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1100,6 +1111,37 @@ export default function DashboardPage() {
               </div>
             ) : (
               <>
+                {automations.some((a) => a.status === "broken") && (
+                  <div className="px-3 mb-2">
+                    <p className="text-xs font-medium text-red-400 mb-1.5">
+                      NEEDS ATTENTION
+                    </p>
+                    {automations
+                      .filter((a) => a.status === "broken")
+                      .map((auto) => (
+                        <button
+                          key={auto.id}
+                          type="button"
+                          onClick={() => handleSelectAutomation(auto.id)}
+                          className={`w-full rounded-xl px-3 py-2.5 text-left transition-colors mb-1
+                            border border-red-500/30 bg-red-900/10 hover:bg-red-900/20
+                            ${selectedId === auto.id ? "ring-1 ring-red-500/50" : ""}
+                          `}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse shrink-0" />
+                            <span className="text-xs font-medium text-red-300 truncate">
+                              {getDisplayName(auto)}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-red-400/70 mt-0.5 ml-3.5">
+                            Needs attention
+                          </p>
+                        </button>
+                      ))}
+                  </div>
+                )}
+
                 {automations.filter((a) => a.status !== "broken").length >
                   0 && (
                   <>
@@ -1122,12 +1164,16 @@ export default function DashboardPage() {
                           }
                         >
                           <div className="mb-1 flex items-center gap-1.5">
-                            <span
-                              className="h-1.5 w-1.5 shrink-0 rounded-full"
-                              style={{
-                                background: getStatusColor(auto.status),
-                              }}
-                            />
+                            {auto.status === "broken" ? (
+                              <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse shrink-0" />
+                            ) : (
+                              <span
+                                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                                style={{
+                                  background: getStatusColor(auto.status),
+                                }}
+                              />
+                            )}
                             <span className="flex-1 truncate text-[11px] text-[rgba(255,255,255,0.75)]">
                               {getDisplayName(auto)}
                             </span>
@@ -1139,45 +1185,6 @@ export default function DashboardPage() {
                           </div>
                           <div className="truncate pl-3 text-[9px] text-[rgba(255,255,255,0.25)]">
                             {formatTime(auto.last_message_at)}
-                          </div>
-                        </button>
-                        );
-                      })}
-                  </>
-                )}
-
-                {automations.filter((a) => a.status === "broken").length >
-                  0 && (
-                  <>
-                    <div className="mb-1 mt-3 px-2 text-[9px] font-medium uppercase tracking-widest text-[rgba(255,100,100,0.5)]">
-                      Needs attention
-                    </div>
-                    {automations
-                      .filter((a) => a.status === "broken")
-                      .map((auto) => {
-                        const isSelected = auto.id === selectedId;
-                        return (
-                        <button
-                          key={auto.id}
-                          type="button"
-                          onClick={() => handleSelectAutomation(auto.id)}
-                          className={
-                            isSelected
-                              ? "mb-1 w-full rounded-lg border border-[rgba(255,80,80,0.2)] bg-[rgba(255,80,80,0.08)] p-2 text-left transition-colors"
-                              : "mb-1 w-full rounded-lg border border-[rgba(255,80,80,0.12)] bg-[rgba(255,80,80,0.04)] p-2 text-left transition-colors hover:bg-[rgba(255,80,80,0.06)]"
-                          }
-                        >
-                          <div className="mb-1 flex items-center gap-1.5">
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[rgba(255,100,100,0.8)]" />
-                            <span className="flex-1 truncate text-[11px] text-[rgba(255,255,255,0.75)]">
-                              {getDisplayName(auto)}
-                            </span>
-                            <span className="shrink-0 rounded-full bg-[rgba(255,80,80,0.1)] px-1.5 py-0.5 text-[8px] text-[rgba(255,100,100,0.8)]">
-                              Broken
-                            </span>
-                          </div>
-                          <div className="truncate pl-3 text-[9px] text-[rgba(255,100,100,0.5)]">
-                            Tap to fix
                           </div>
                         </button>
                         );
