@@ -201,6 +201,8 @@ type Execution = {
   error_message?: string;
 };
 
+type MobileTab = "chat" | "automations" | "account";
+
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [automations, setAutomations] = useState<Automation[]>([]);
@@ -240,6 +242,7 @@ export default function DashboardPage() {
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [userTimezone, setUserTimezone] = useState<string>("UTC");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -1030,8 +1033,116 @@ export default function DashboardPage() {
 
   const selectedAutomation = automations.find((a) => a.id === selectedId);
 
+  const handleMobileAutomationSelect = (id: string) => {
+    handleSelectAutomation(id);
+    setMobileTab("chat");
+  };
+
+  const renderAutomationList = (
+    onSelect: (id: string) => void = handleSelectAutomation
+  ) => {
+    if (loadingAutomations) {
+      return (
+        <div className="p-4 text-center text-xs text-[rgba(255,255,255,0.2)]">
+          Loading...
+        </div>
+      );
+    }
+
+    if (automations.length === 0) {
+      return (
+        <div className="p-4 text-center text-xs text-[rgba(255,255,255,0.2)]">
+          No automations yet. Start one!
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {automations.some((a) => a.status === "broken") && (
+          <div className="mb-2 px-3">
+            <p className="mb-1.5 text-xs font-medium text-red-400">
+              NEEDS ATTENTION
+            </p>
+            {automations
+              .filter((a) => a.status === "broken")
+              .map((auto) => (
+                <button
+                  key={auto.id}
+                  type="button"
+                  onClick={() => onSelect(auto.id)}
+                  className={`mb-1 w-full rounded-xl border border-red-500/30 bg-red-900/10 px-3 py-2.5 text-left transition-colors hover:bg-red-900/20 ${
+                    selectedId === auto.id ? "ring-1 ring-red-500/50" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-400" />
+                    <span className="truncate text-xs font-medium text-red-300">
+                      {getDisplayName(auto)}
+                    </span>
+                  </div>
+                  <p className="ml-3.5 mt-0.5 text-[10px] text-red-400/70">
+                    Needs attention
+                  </p>
+                </button>
+              ))}
+          </div>
+        )}
+
+        {automations.filter((a) => a.status !== "broken").length > 0 && (
+          <>
+            <div className="mb-1 mt-2 px-2 text-[9px] font-medium uppercase tracking-widest text-[rgba(255,255,255,0.2)]">
+              My automations
+            </div>
+            {automations
+              .filter((a) => a.status !== "broken")
+              .map((auto) => {
+                const isSelected = auto.id === selectedId;
+                return (
+                  <button
+                    key={auto.id}
+                    type="button"
+                    onClick={() => onSelect(auto.id)}
+                    className={
+                      isSelected
+                        ? "mb-1 w-full rounded-lg border border-[rgba(233,184,114,0.15)] bg-[rgba(233,184,114,0.07)] p-2 text-left transition-colors"
+                        : "mb-1 w-full rounded-lg border border-transparent p-2 text-left transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+                    }
+                  >
+                    <div className="mb-1 flex items-center gap-1.5">
+                      {auto.status === "broken" ? (
+                        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-400" />
+                      ) : (
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{
+                            background: getStatusColor(auto.status),
+                          }}
+                        />
+                      )}
+                      <span className="flex-1 truncate text-[11px] text-[rgba(255,255,255,0.75)]">
+                        {getDisplayName(auto)}
+                      </span>
+                      <span
+                        className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] ${getStatusPillClass(auto.status)}`}
+                      >
+                        {getStatusLabel(auto.status)}
+                      </span>
+                    </div>
+                    <div className="truncate pl-3 text-[9px] text-[rgba(255,255,255,0.25)]">
+                      {formatTime(auto.last_message_at)}
+                    </div>
+                  </button>
+                );
+              })}
+          </>
+        )}
+      </>
+    );
+  };
+
   return (
-    <div className="flex h-screen flex-col bg-[#0a1020]">
+    <div className="flex h-screen flex-col bg-[#0f0f1a]">
       {/* TOP NAVBAR */}
       <nav className="shrink-0 px-4 pt-3 pb-0 bg-[#0a1020]">
         <div className="w-full">
@@ -1147,9 +1258,9 @@ export default function DashboardPage() {
       </nav>
 
       {/* BODY */}
-      <div className="flex flex-1 gap-3 overflow-hidden px-4 pb-4 pt-3">
-        {/* SIDEBAR */}
-        <div className="flex w-56 shrink-0 flex-col rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[#0d1420]">
+      <div className="flex flex-1 overflow-hidden gap-0 px-4 pt-3 pb-0 md:gap-3 md:pb-4">
+        {/* SIDEBAR — desktop only */}
+        <aside className="hidden w-56 shrink-0 flex-col rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[#0d1420] md:flex">
           <div className="flex flex-col gap-2 border-b border-[rgba(255,255,255,0.06)] p-3">
             <button
               type="button"
@@ -1161,98 +1272,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-2">
-            {loadingAutomations ? (
-              <div className="p-4 text-center text-xs text-[rgba(255,255,255,0.2)]">
-                Loading...
-              </div>
-            ) : automations.length === 0 ? (
-              <div className="p-4 text-center text-xs text-[rgba(255,255,255,0.2)]">
-                No automations yet. Start one!
-              </div>
-            ) : (
-              <>
-                {automations.some((a) => a.status === "broken") && (
-                  <div className="px-3 mb-2">
-                    <p className="text-xs font-medium text-red-400 mb-1.5">
-                      NEEDS ATTENTION
-                    </p>
-                    {automations
-                      .filter((a) => a.status === "broken")
-                      .map((auto) => (
-                        <button
-                          key={auto.id}
-                          type="button"
-                          onClick={() => handleSelectAutomation(auto.id)}
-                          className={`w-full rounded-xl px-3 py-2.5 text-left transition-colors mb-1
-                            border border-red-500/30 bg-red-900/10 hover:bg-red-900/20
-                            ${selectedId === auto.id ? "ring-1 ring-red-500/50" : ""}
-                          `}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse shrink-0" />
-                            <span className="text-xs font-medium text-red-300 truncate">
-                              {getDisplayName(auto)}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-red-400/70 mt-0.5 ml-3.5">
-                            Needs attention
-                          </p>
-                        </button>
-                      ))}
-                  </div>
-                )}
-
-                {automations.filter((a) => a.status !== "broken").length >
-                  0 && (
-                  <>
-                    <div className="mb-1 mt-2 px-2 text-[9px] font-medium uppercase tracking-widest text-[rgba(255,255,255,0.2)]">
-                      My automations
-                    </div>
-                    {automations
-                      .filter((a) => a.status !== "broken")
-                      .map((auto) => {
-                        const isSelected = auto.id === selectedId;
-                        return (
-                        <button
-                          key={auto.id}
-                          type="button"
-                          onClick={() => handleSelectAutomation(auto.id)}
-                          className={
-                            isSelected
-                              ? "mb-1 w-full rounded-lg border border-[rgba(233,184,114,0.15)] bg-[rgba(233,184,114,0.07)] p-2 text-left transition-colors"
-                              : "mb-1 w-full rounded-lg border border-transparent p-2 text-left transition-colors hover:bg-[rgba(255,255,255,0.04)]"
-                          }
-                        >
-                          <div className="mb-1 flex items-center gap-1.5">
-                            {auto.status === "broken" ? (
-                              <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse shrink-0" />
-                            ) : (
-                              <span
-                                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                                style={{
-                                  background: getStatusColor(auto.status),
-                                }}
-                              />
-                            )}
-                            <span className="flex-1 truncate text-[11px] text-[rgba(255,255,255,0.75)]">
-                              {getDisplayName(auto)}
-                            </span>
-                            <span
-                              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] ${getStatusPillClass(auto.status)}`}
-                            >
-                              {getStatusLabel(auto.status)}
-                            </span>
-                          </div>
-                          <div className="truncate pl-3 text-[9px] text-[rgba(255,255,255,0.25)]">
-                            {formatTime(auto.last_message_at)}
-                          </div>
-                        </button>
-                        );
-                      })}
-                  </>
-                )}
-              </>
-            )}
+            {renderAutomationList()}
           </div>
 
           {usage && (
@@ -1313,10 +1333,84 @@ export default function DashboardPage() {
               )}
             </div>
           )}
+        </aside>
+
+        {/* MOBILE — automations tab */}
+        <div
+          className={`flex-1 overflow-y-auto bg-[#0f0f1a] pb-20 ${
+            mobileTab === "automations" ? "block md:hidden" : "hidden"
+          }`}
+        >
+          <div className="border-b border-[rgba(255,255,255,0.06)] p-3">
+            <button
+              type="button"
+              onClick={() => {
+                handleNewAutomation();
+                setMobileTab("chat");
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#e9b872] px-3 py-2 text-xs font-medium text-[#0a0a0a] transition-colors hover:bg-[#d4a05a]"
+            >
+              + New automation
+            </button>
+          </div>
+          <div className="p-2">{renderAutomationList(handleMobileAutomationSelect)}</div>
+        </div>
+
+        {/* MOBILE — account tab */}
+        <div
+          className={`flex-1 bg-[#0f0f1a] pb-20 ${
+            mobileTab === "account" ? "block md:hidden" : "hidden"
+          }`}
+        >
+          <div className="space-y-4 px-4 py-6">
+            <div className="rounded-xl border border-[#2a2a4a] bg-[#1a1a2e] p-4">
+              <p className="font-medium text-[#e8e8f0]">
+                {user?.user_metadata?.full_name || "Account"}
+              </p>
+              <p className="text-sm text-[#8888aa]">{user?.email}</p>
+            </div>
+            {usage && (
+              <div className="rounded-xl border border-[#2a2a4a] bg-[#1a1a2e] p-4">
+                <p className="mb-2 text-xs font-medium text-[#e8e8f0]">
+                  {usage.planName} plan
+                </p>
+                <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-[#2a2a4a]">
+                  <div
+                    className="h-full rounded-full bg-[#00d4aa]"
+                    style={{ width: `${Math.min(usage.percentUsed, 100)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-[#8888aa]">
+                  {usage.runsUsed} / {usage.runsLimit} runs ·{" "}
+                  {usage.daysUntilReset}d until reset
+                </p>
+              </div>
+            )}
+            <div className="overflow-hidden rounded-xl border border-[#2a2a4a] bg-[#1a1a2e]">
+              <button
+                type="button"
+                onClick={() => setShowUpgradeModal(true)}
+                className="w-full border-b border-[#2a2a4a] px-4 py-3 text-left text-sm text-[#e8e8f0] transition-colors hover:bg-[#2a2a4a]"
+              >
+                💳 Billing & subscription
+              </button>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="w-full px-4 py-3 text-left text-sm text-[#8888aa] transition-colors hover:bg-[#2a2a4a]"
+              >
+                → Sign out
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* MAIN CHAT AREA */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white">
+        <main
+          className={`min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white pb-20 md:pb-0 ${
+            mobileTab === "chat" ? "flex" : "hidden md:flex"
+          }`}
+        >
           {selectedId === null && messages.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center bg-white px-8">
               <div
@@ -1787,6 +1881,53 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+        </main>
+      </div>
+
+      {/* MOBILE BOTTOM NAV */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#2a2a4a] bg-[#0f0f1a] md:hidden">
+        <div className="flex">
+          <button
+            type="button"
+            onClick={() => setMobileTab("chat")}
+            className={`flex flex-1 flex-col items-center gap-0.5 py-3 text-xs transition-colors ${
+              mobileTab === "chat" ? "text-[#00d4aa]" : "text-[#8888aa]"
+            }`}
+          >
+            <span className="text-lg">💬</span>
+            <span>Chat</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("automations")}
+            className={`flex flex-1 flex-col items-center gap-0.5 py-3 text-xs transition-colors ${
+              mobileTab === "automations" ? "text-[#00d4aa]" : "text-[#8888aa]"
+            }`}
+          >
+            <span className="text-lg">⚡</span>
+            <span>Automations</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              handleNewAutomation();
+              setMobileTab("chat");
+            }}
+            className="flex flex-1 flex-col items-center gap-0.5 py-3 text-xs text-[#8888aa] transition-colors"
+          >
+            <span className="text-lg font-light">＋</span>
+            <span>New</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("account")}
+            className={`flex flex-1 flex-col items-center gap-0.5 py-3 text-xs transition-colors ${
+              mobileTab === "account" ? "text-[#00d4aa]" : "text-[#8888aa]"
+            }`}
+          >
+            <span className="text-lg">👤</span>
+            <span>Account</span>
+          </button>
         </div>
       </div>
 
@@ -1822,7 +1963,7 @@ export default function DashboardPage() {
 
       {toast && (
         <div
-          className={`fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-5 py-3 text-sm font-medium shadow-xl transition-all ${
+          className={`fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-5 py-3 text-sm font-medium shadow-xl transition-all md:bottom-6 ${
             toast.type === "success"
               ? "bg-[#0d1420] text-white"
               : toast.type === "error"
