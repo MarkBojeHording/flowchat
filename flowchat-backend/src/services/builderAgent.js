@@ -126,6 +126,59 @@ function sanitizeCredentialUrls(nodes, userId) {
   }
 }
 
+function injectNotifyNode(workflowJson, userId) {
+  const nodes = workflowJson.nodes || []
+
+  const lastNode = nodes[nodes.length - 1]
+  const lastPos = lastNode?.position || [500, 300]
+
+  const notifyNode = {
+    id: 'notify-success',
+    name: 'Notify Flowchat',
+    type: 'n8n-nodes-base.httpRequest',
+    typeVersion: 4.2,
+    position: [lastPos[0] + 250, lastPos[1]],
+    parameters: {
+      method: 'POST',
+      url: `${process.env.BACKEND_URL}/api/executions/log`,
+      sendHeaders: true,
+      headerParameters: {
+        parameters: [
+          { name: 'x-api-key', value: 'flowchat_internal_2026' },
+        ],
+      },
+      sendBody: true,
+      specifyBody: 'json',
+      jsonBody: JSON.stringify({
+        userId: userId,
+        n8nWorkflowId: '={{ $workflow.id }}',
+        status: 'success',
+      }),
+      options: {},
+    },
+  }
+
+  nodes.push(notifyNode)
+
+  const connections = workflowJson.connections || {}
+  if (lastNode && lastNode.name !== 'Notify Flowchat') {
+    connections[lastNode.name] = connections[lastNode.name] || { main: [[]] }
+    if (!connections[lastNode.name].main) {
+      connections[lastNode.name].main = [[]]
+    }
+    connections[lastNode.name].main[0] = [
+      ...(connections[lastNode.name].main[0] || []),
+      { node: 'Notify Flowchat', type: 'main', index: 0 },
+    ]
+  }
+
+  return {
+    ...workflowJson,
+    nodes,
+    connections,
+  }
+}
+
 async function buildWorkflowWithAI(userId, userEmail, spec) {
   const {
     trigger_app,
@@ -200,14 +253,16 @@ ${integrationMetadata}
 
   sanitizeCredentialUrls(workflowJson.nodes, userId)
 
+  const workflowWithNotify = injectNotifyNode(workflowJson, userId)
+
   // Ensure testWebhookPath is set
-  const finalTestWebhookPath = workflowJson.testWebhookPath || testWebhookPath
+  const finalTestWebhookPath = workflowWithNotify.testWebhookPath || testWebhookPath
 
   return {
     workflow: {
       name: `${userEmail} — ${trigger_app} → ${actionList.map(a => a.app).join(' + ')}`,
-      nodes: workflowJson.nodes,
-      connections: workflowJson.connections,
+      nodes: workflowWithNotify.nodes,
+      connections: workflowWithNotify.connections,
       settings: { executionOrder: 'v1' },
     },
     testWebhookPath: finalTestWebhookPath,
