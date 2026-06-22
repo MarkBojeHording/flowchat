@@ -184,6 +184,23 @@ function formatAppName(app: string): string {
   return app.charAt(0).toUpperCase() + app.slice(1).replace(/_/g, " ");
 }
 
+type Execution = {
+  id: string;
+  status: string;
+  mode: string;
+  ran_at: string;
+  details?: {
+    type: string;
+    channel?: string;
+    message?: string;
+    to?: string;
+    subject?: string;
+    error_type?: string;
+    failed_node?: string;
+  };
+  error_message?: string;
+};
+
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [automations, setAutomations] = useState<Automation[]>([]);
@@ -198,16 +215,7 @@ export default function DashboardPage() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateCategory, setTemplateCategory] = useState("All");
   const [activeTab, setActiveTab] = useState<"chat" | "history">("chat");
-  const [history, setHistory] = useState<
-    {
-      id: string;
-      status: string;
-      startedAt: string | null;
-      stoppedAt: string | null;
-      duration: number | null;
-      mode: string;
-    }[]
-  >([]);
+  const [history, setHistory] = useState<Execution[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [toast, setToast] = useState<{
@@ -1586,50 +1594,61 @@ export default function DashboardPage() {
                       {history.map((exec) => (
                         <div
                           key={exec.id}
-                          className="flex items-center justify-between rounded-xl border border-[#e5e7eb] bg-white px-4 py-3"
+                          className="rounded-xl border border-[#e5e7eb] bg-white px-4 py-3"
                         >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`h-2 w-2 rounded-full ${
-                                exec.status === "success"
-                                  ? "bg-green-500"
-                                  : "bg-red-500"
-                              }`}
-                            />
-                            <div>
-                              <p className="text-sm font-medium text-[#111]">
-                                {exec.status === "success"
-                                  ? "✅ Ran successfully"
-                                  : "❌ Something went wrong"}
-                              </p>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`h-2 w-2 shrink-0 rounded-full ${
+                                  exec.status === "success"
+                                    ? "bg-green-500"
+                                    : "bg-red-500"
+                                }`}
+                              />
+                              <div>
+                                <p className="text-sm font-medium text-[#111]">
+                                  {exec.status === "success"
+                                    ? "✅ Ran successfully"
+                                    : "❌ Something went wrong"}
+                                </p>
+                                <p className="text-xs text-[#6b7280]">
+                                  {exec.mode === "webhook"
+                                    ? "Test run"
+                                    : "Ran on schedule"}
+                                </p>
+                                {exec.status === "success" && exec.details && (
+                                  <p className="mt-0.5 text-xs text-[#9ca3af]">
+                                    {exec.details.type === "slack_message" &&
+                                      exec.details.message &&
+                                      `Sent "${exec.details.message}" to ${exec.details.channel}`}
+                                    {exec.details.type === "gmail" &&
+                                      exec.details.subject &&
+                                      `Sent "${exec.details.subject}" to ${exec.details.to}`}
+                                  </p>
+                                )}
+                                {exec.status !== "success" &&
+                                  exec.error_message && (
+                                    <p className="mt-0.5 text-xs text-red-400">
+                                      {exec.error_message}
+                                    </p>
+                                  )}
+                              </div>
+                            </div>
+                            <div className="shrink-0 text-right">
                               <p className="text-xs text-[#6b7280]">
-                                {exec.mode === "webhook"
-                                  ? "Test run"
-                                  : exec.mode === "trigger"
-                                    ? "Ran on schedule"
-                                    : "Automatic run"}
+                                {exec.ran_at
+                                  ? new Date(exec.ran_at).toLocaleString(
+                                      "en-GB",
+                                      {
+                                        day: "numeric",
+                                        month: "short",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      }
+                                    )
+                                  : "—"}
                               </p>
                             </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-[#6b7280]">
-                              {exec.startedAt
-                                ? new Date(exec.startedAt).toLocaleString(
-                                    "en-GB",
-                                    {
-                                      day: "numeric",
-                                      month: "short",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    }
-                                  )
-                                : "—"}
-                            </p>
-                            {exec.duration !== null && (
-                              <p className="text-xs text-[#6b7280]">
-                                {exec.duration}s
-                              </p>
-                            )}
                           </div>
                         </div>
                       ))}
