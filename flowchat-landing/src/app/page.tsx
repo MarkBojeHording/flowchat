@@ -463,9 +463,20 @@ function InteractiveDemo() {
 }
 
 export default function Home() {
+  const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        window.location.replace("/dashboard");
+      } else {
+        setAuthChecked(true);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
@@ -493,6 +504,10 @@ export default function Home() {
     await supabase.auth.signOut();
     setUser(null);
     setDropdownOpen(false);
+  }
+
+  if (!authChecked) {
+    return <div className="min-h-screen bg-[#0f0f1a]" />;
   }
 
   return (
