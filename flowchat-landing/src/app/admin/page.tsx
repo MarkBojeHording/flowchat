@@ -29,6 +29,31 @@ type AdminData = {
 
 type Tab = "overview" | "workflows" | "users" | "system";
 
+type Workflow = {
+  id: string;
+  name: string | null;
+  auto_name: string | null;
+  status: string;
+  user_id: string;
+  trigger_app: string | null;
+  action_apps: string[] | null;
+  last_message_at: string | null;
+  consecutive_failures: number;
+  last_error_type: string | null;
+  last_error_at: string | null;
+  last_error_message: string | null;
+};
+
+type AdminUser = {
+  id: string;
+  email: string;
+  plan: string;
+  runs_used: number;
+  runs_limit: number;
+  workflow_count: number;
+  created_at: string;
+};
+
 function WorkflowsTab({
   apiKey,
   backendUrl,
@@ -36,7 +61,7 @@ function WorkflowsTab({
   apiKey: string;
   backendUrl: string;
 }) {
-  const [workflows, setWorkflows] = useState<any[]>([]);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
 
@@ -177,7 +202,7 @@ function UsersTab({
   apiKey: string;
   backendUrl: string;
 }) {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
