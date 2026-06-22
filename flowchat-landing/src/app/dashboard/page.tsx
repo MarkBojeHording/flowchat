@@ -227,6 +227,7 @@ export default function DashboardPage() {
     currentPeriodEnd: string | null;
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [userTimezone, setUserTimezone] = useState<string>("UTC");
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -508,6 +509,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return;
+
+    const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    setUserTimezone(detectedTimezone);
+
+    fetch(`${BACKEND_URL}/api/chat/profile/timezone`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id, timezone: detectedTimezone }),
+    }).catch(console.error);
+
     console.log("Calling fetchUsage for user:", user.id);
     fetchUsage(user.id);
     fetchAutomations(user.id, true);
@@ -649,6 +660,7 @@ export default function DashboardPage() {
           automationId: automationIdForRequest,
           message: userMessage,
           conversationHistory: [],
+          timezone: userTimezone,
         }),
       });
 
@@ -818,7 +830,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, user, selectedId, currentAutomationId, fetchAutomations]);
+  }, [input, loading, user, selectedId, currentAutomationId, fetchAutomations, userTimezone]);
 
   useEffect(() => {
     const handleAutoSubmit = () => {
