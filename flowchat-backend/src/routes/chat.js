@@ -447,7 +447,7 @@ async function executeTool(name, input, userId, automationId = null) {
               n8n_workflow_id: created.id,
               webhook_url: testWebhookUrl,
               name: `${userEmail} — ${trigger_app} → ${action_app}`,
-              status: 'live',
+              status: 'active',
               stage: 'live',
               trigger_app,
               action_apps: [action_app],
@@ -516,8 +516,16 @@ async function executeTool(name, input, userId, automationId = null) {
       }
     }
 
-    case 'activate_workflow':
+    case 'activate_workflow': {
+      if (automationId) {
+        await supabase
+          .from('workflows')
+          .update({ status: 'active', stage: 'live' })
+          .eq('id', automationId)
+          .eq('user_id', userId)
+      }
       return { success: true, summary: 'Automation is now live' }
+    }
 
     case 'update_workflow': {
       try {
@@ -975,12 +983,16 @@ router.post('/message/stream', async (req, res) => {
     const updatedStage = determineStage(action, currentWorkflowId)
 
     if (automationId) {
+      const statusUpdate =
+        action === 'automation_live' ? { status: 'active' } : {}
+
       await supabase
         .from('workflows')
         .update({
           conversation: updatedConversation,
           last_message_at: new Date().toISOString(),
           stage: updatedStage || 'gathering_info',
+          ...statusUpdate,
         })
         .eq('id', automationId)
         .eq('user_id', userId)
@@ -1201,12 +1213,16 @@ router.post('/message', async (req, res) => {
     let savedAutoName = autoName
 
     if (automationId) {
+      const statusUpdate =
+        action === 'automation_live' ? { status: 'active' } : {}
+
       const { error: updateError } = await supabase
         .from('workflows')
         .update({
           conversation: updatedConversation,
           last_message_at: new Date().toISOString(),
           stage: updatedStage || 'gathering_info',
+          ...statusUpdate,
         })
         .eq('id', automationId)
         .eq('user_id', userId)
@@ -1596,7 +1612,7 @@ router.patch('/automations/:id/pause', async (req, res) => {
 
     const currentStatus = workflow.status
     const isPaused = currentStatus === 'paused'
-    const newStatus = isPaused ? 'live' : 'paused'
+    const newStatus = isPaused ? 'active' : 'paused'
 
     console.log('Pause toggle:', { currentStatus, isPaused, newStatus })
 
