@@ -463,18 +463,13 @@ function InteractiveDemo() {
 }
 
 export default function Home() {
-  const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        window.location.replace("/dashboard");
-      } else {
-        setAuthChecked(true);
-      }
+      setUser(session?.user ?? null);
     });
   }, []);
 
@@ -504,10 +499,6 @@ export default function Home() {
     await supabase.auth.signOut();
     setUser(null);
     setDropdownOpen(false);
-  }
-
-  if (!authChecked) {
-    return <div className="min-h-screen bg-[#0f0f1a]" />;
   }
 
   return (
@@ -585,6 +576,14 @@ export default function Home() {
                       </div>
 
                       <div className="py-1">
+                        <Link
+                          href="/dashboard"
+                          onClick={() => setDropdownOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-[rgba(255,255,255,0.7)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
+                        >
+                          <span>🏠</span>
+                          Dashboard
+                        </Link>
                         <Link
                           href="/automations"
                           onClick={() => setDropdownOpen(false)}
