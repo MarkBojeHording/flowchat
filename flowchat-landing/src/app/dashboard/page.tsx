@@ -1158,12 +1158,6 @@ export default function DashboardPage() {
             >
               + New automation
             </button>
-            <div className="flex items-center gap-2 rounded-lg border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.03)] px-3 py-1.5">
-              <span className="text-xs text-[rgba(255,255,255,0.25)]">🔍</span>
-              <span className="text-xs text-[rgba(255,255,255,0.25)]">
-                Search...
-              </span>
-            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-2">
