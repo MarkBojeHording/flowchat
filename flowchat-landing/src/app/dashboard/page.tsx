@@ -244,6 +244,7 @@ export default function DashboardPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const templatesRef = useRef<HTMLDivElement>(null);
+  const userInitiatedNewRef = useRef(false);
 
   function showToast(
     message: string,
@@ -613,9 +614,14 @@ export default function DashboardPage() {
         const list: Automation[] = data.automations || [];
         setAutomations(list);
 
-        if (autoSelectFirst && list.length > 0) {
+        if (
+          autoSelectFirst &&
+          list.length > 0 &&
+          !userInitiatedNewRef.current
+        ) {
           await loadAutomation(list[0].id, userId);
         }
+        userInitiatedNewRef.current = false;
       } catch (err) {
         console.error("Fetch automations error:", err);
       } finally {
@@ -723,7 +729,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
     const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     setUserTimezone(detectedTimezone);
@@ -755,7 +761,7 @@ export default function DashboardPage() {
     };
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
-  }, [user, fetchAutomations, loadAutomation]);
+  }, [user?.id]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -814,6 +820,7 @@ export default function DashboardPage() {
   }, [showTemplates]);
 
   const handleNewAutomation = () => {
+    userInitiatedNewRef.current = true;
     const tempId = "new-" + Date.now();
 
     setAutomations((prev) => [
