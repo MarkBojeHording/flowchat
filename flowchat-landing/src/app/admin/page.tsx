@@ -49,7 +49,10 @@ function WorkflowsTab({
         setWorkflows(data.workflows || []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        console.error("Workflows fetch error:", err);
+        setLoading(false);
+      });
   }, [apiKey, backendUrl]);
 
   const filtered =
@@ -157,6 +160,12 @@ function WorkflowsTab({
           </table>
         </div>
       )}
+
+      {!loading && workflows.length === 0 && (
+        <p className="px-4 py-6 text-sm text-[#8888aa]">
+          No workflows found. Check console for errors.
+        </p>
+      )}
     </div>
   );
 }
@@ -180,7 +189,10 @@ function UsersTab({
         setUsers(data.users || []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        console.error("Users fetch error:", err);
+        setLoading(false);
+      });
   }, [apiKey, backendUrl]);
 
   return (
