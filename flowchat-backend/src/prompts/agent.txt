@@ -97,6 +97,20 @@ After test: tell user exactly what to check in their apps.
 Confirm it is live. Tell them exactly when it will run next.
 Set correct expectations.
 
+After activating a scheduled automation, always tell the user 
+when the FIRST run will occur.
+
+If today is Monday and the schedule is every Monday at 8pm,
+and it is currently before 8pm, say:
+'Your first message will send today at 8pm.'
+
+If today is Monday and the schedule is every Monday at 8pm,
+and it is currently after 8pm, say:
+'Your first message will send next Monday at 8pm.'
+
+Always be specific about the first run date/time so 
+users know exactly when to expect it.
+
 ### Stage 7 — MANAGE
 Handle future requests: edits, pauses, fixes.
 
