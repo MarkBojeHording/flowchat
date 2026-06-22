@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const dotenv = require('dotenv')
+const { runMaintenance } = require('./services/maintenance')
 
 dotenv.config()
 
@@ -40,5 +41,25 @@ const PORT = process.env.PORT || 3456
 app.listen(PORT, () => {
   console.log(`flowchat backend running on port ${PORT}`)
 })
+
+function scheduleMaintenance() {
+  const now = new Date()
+  const next2am = new Date()
+  next2am.setUTCHours(2, 0, 0, 0)
+
+  if (next2am <= now) {
+    next2am.setUTCDate(next2am.getUTCDate() + 1)
+  }
+
+  const msUntilNext2am = next2am - now
+  console.log(`🔧 Next maintenance scheduled in ${Math.round(msUntilNext2am / 1000 / 60)} minutes`)
+
+  setTimeout(async () => {
+    await runMaintenance()
+    scheduleMaintenance()
+  }, msUntilNext2am)
+}
+
+scheduleMaintenance()
 
 module.exports = app

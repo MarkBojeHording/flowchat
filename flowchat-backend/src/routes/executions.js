@@ -354,4 +354,19 @@ router.post('/log', async (req, res) => {
   }
 })
 
+router.post('/admin/maintenance', async (req, res) => {
+  const apiKey = req.headers['x-api-key']
+  if (apiKey !== process.env.INTERNAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const { runMaintenance } = require('../services/maintenance')
+    runMaintenance().catch(console.error)
+    res.json({ success: true, message: 'Maintenance job started' })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 module.exports = router
