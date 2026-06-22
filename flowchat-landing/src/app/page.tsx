@@ -520,7 +520,7 @@ export default function Home() {
                 onClick={() => scrollToSection("integrations")}
                 className="text-sm text-[#8888aa] transition-colors hover:text-[#e8e8f0]"
               >
-                Integrations
+                Automations
               </button>
               <button
                 type="button"
@@ -952,6 +952,12 @@ export default function Home() {
                 </button>
                 <Link href="/login" className="transition-colors hover:text-white">
                   Sign in
+                </Link>
+                <Link href="/privacy" className="transition-colors hover:text-white">
+                  Privacy
+                </Link>
+                <Link href="/terms" className="transition-colors hover:text-white">
+                  Terms
                 </Link>
               </div>
             </div>
