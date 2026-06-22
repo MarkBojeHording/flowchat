@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3456";
-const ADMIN_EMAIL = "contact@flowchat.now";
+const ADMIN_EMAILS = ["contact@flowchat.now", "markhording@gmail.com"];
 const INTERNAL_API_KEY =
   process.env.NEXT_PUBLIC_INTERNAL_API_KEY || "flowchat_internal_2026";
 
@@ -43,7 +43,7 @@ export default function AdminPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user || user.email !== ADMIN_EMAIL) {
+      if (!user || !ADMIN_EMAILS.includes(user.email || "")) {
         router.replace("/dashboard");
         return;
       }
