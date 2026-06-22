@@ -22,7 +22,7 @@ export default function TermsPage() {
           <section>
             <h2 className="mb-3 text-lg font-semibold text-white">1. Agreement to Terms</h2>
             <p className="text-sm">
-              By accessing or using Flowchat ("the Service"), you agree to be bound 
+              By accessing or using Flowchat (&quot;the Service&quot;), you agree to be bound
               by these Terms of Service. If you do not agree, please do not use the Service.
             </p>
           </section>
@@ -77,7 +77,7 @@ export default function TermsPage() {
             <h2 className="mb-3 text-lg font-semibold text-white">6. Third-Party Integrations</h2>
             <p className="text-sm">
               The Service connects to third-party applications. Your use of these 
-              integrations is subject to those services' own terms and privacy policies. 
+              integrations is subject to those services&apos; own terms and privacy policies.
               We are not responsible for third-party service actions or content.
             </p>
           </section>

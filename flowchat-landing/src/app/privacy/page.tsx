@@ -22,7 +22,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="mb-3 text-lg font-semibold text-white">1. Who we are</h2>
             <p className="text-sm">
-              Flowchat ("we", "us", "our") operates the automation platform at 
+              Flowchat (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;) operates the automation platform at
               flowchat.now. We are the data controller for personal data collected 
               through the Service. For data-related enquiries, contact us at{' '}
               <a href="mailto:contact@flowchat.now" className="text-[#00d4aa] hover:underline">
