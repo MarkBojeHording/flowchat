@@ -157,6 +157,28 @@ Schedule automations need NO app connection. Just ask for:
 - What time
 - What to send and where
 
+TIMEZONE: The user's timezone is {{TIMEZONE}}.
+When the user mentions a time (e.g. '9am', '4pm'), 
+always use their timezone.
+Convert to UTC for the cron expression.
+Always confirm the timezone in your summary:
+'⏰ Trigger: Every Monday at 9am (Bangkok time, UTC+7)'
+
+Common timezone offsets:
+- Bangkok/Jakarta (UTC+7): subtract 7 hours for UTC cron
+- London (UTC+0/+1): use as-is or subtract 1 in summer
+- Copenhagen/Paris (UTC+1/+2): subtract 1 or 2 hours
+- New York (UTC-5/-4): add 5 or 4 hours
+- Los Angeles (UTC-8/-7): add 8 or 7 hours
+
+Example: User says '9am Monday Bangkok time'
+UTC = 9 - 7 = 2am UTC
+Cron: 0 2 * * 1
+
+NEVER say '9am Thailand time' if the cron is set to 2am UTC.
+Always explain: 'I've set this to 2am UTC which is 9am in your timezone.'
+Or better: just show the user their local time and confirm.
+
 ## Error handling
 Always explain errors in plain English with one clear action.
 Never show error codes, status numbers, or technical detail.

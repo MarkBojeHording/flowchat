@@ -741,7 +741,7 @@ async function loadUserContext(userId) {
 
 function populateSystemPrompt(
   template,
-  { connectedPlatforms, automationNames, workflow, automationId }
+  { connectedPlatforms, automationNames, workflow, automationId, timezone }
 ) {
   const currentState = workflow
     ? `
@@ -771,10 +771,11 @@ Name: ${workflow.auto_name || 'Untitled'}
     .replace('{{CURRENT_STATE}}', currentState)
     .replace('{{CONNECTED_APPS}}', connectedPlatforms.length > 0 ? connectedPlatforms.join(', ') : 'None connected yet')
     .replace('{{INTEGRATION_METADATA}}', integrationMetadata)
+    .replace('{{TIMEZONE}}', timezone || 'UTC')
 }
 
 router.post('/message/stream', async (req, res) => {
-  const { userId, automationId: requestAutomationId, message, conversationHistory: requestHistory } = req.body
+  const { userId, automationId: requestAutomationId, message, conversationHistory: requestHistory, timezone } = req.body
 
   if (!userId || !message) {
     return res.status(400).json({ error: 'userId and message required' })
@@ -829,6 +830,7 @@ router.post('/message/stream', async (req, res) => {
       automationNames,
       workflow,
       automationId,
+      timezone: timezone || 'UTC',
     })
 
     // Truncate conversation history to last 20 messages
@@ -1008,7 +1010,7 @@ router.post('/message/stream', async (req, res) => {
 })
 
 router.post('/message', async (req, res) => {
-  const { userId, automationId: requestAutomationId, message, conversationHistory: requestHistory } =
+  const { userId, automationId: requestAutomationId, message, conversationHistory: requestHistory, timezone } =
     req.body
 
   if (!userId || !message) {
@@ -1049,6 +1051,7 @@ router.post('/message', async (req, res) => {
       automationNames,
       workflow,
       automationId,
+      timezone: timezone || 'UTC',
     })
 
     // Truncate conversation history to last 20 messages
@@ -1241,7 +1244,7 @@ router.get('/usage', async (req, res) => {
     const { data: profile, error } = await supabase
       .from('profiles')
       .select(
-        'plan_id, runs_used, test_runs_used, topup_runs, billing_period_start, cancel_at_period_end, current_period_end'
+        'plan_id, runs_used, test_runs_used, topup_runs, billing_period_start, cancel_at_period_end, current_period_end, timezone'
       )
       .eq('id', userId)
       .single()
@@ -1261,6 +1264,7 @@ router.get('/usage', async (req, res) => {
         percentUsed: 0,
         cancelAtPeriodEnd: false,
         currentPeriodEnd: null,
+        timezone: 'UTC',
       })
     }
 
@@ -1338,6 +1342,7 @@ router.get('/usage', async (req, res) => {
       dailyRate: Math.round(dailyRate * 10) / 10,
       cancelAtPeriodEnd: profile.cancel_at_period_end || false,
       currentPeriodEnd: profile.current_period_end || null,
+      timezone: profile.timezone || 'UTC',
     })
   } catch (err) {
     console.error('Usage error:', err)
