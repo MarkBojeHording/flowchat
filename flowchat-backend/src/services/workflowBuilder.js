@@ -104,6 +104,56 @@ function fetchCredentialsNode(id, name, userId, platform, position) {
   }
 }
 
+function notifySuccessNode(userId, lastNodePosition) {
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+  return {
+    id: 'notify-success',
+    name: 'Notify Flowchat',
+    type: 'n8n-nodes-base.httpRequest',
+    typeVersion: 4.2,
+    position: [lastNodePosition[0] + 250, lastNodePosition[1]],
+    parameters: {
+      method: 'POST',
+      url: `${backendUrl}/api/executions/log`,
+      sendHeaders: true,
+      headerParameters: {
+        parameters: [
+          {
+            name: 'x-api-key',
+            value: process.env.INTERNAL_API_KEY || 'flowchat_internal_2026',
+          },
+        ],
+      },
+      sendBody: true,
+      specifyBody: 'json',
+      jsonBody: `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success" }) }}`,
+      options: {},
+    },
+  }
+}
+
+function wireNotifySuccess(nodes, connections, lastActionNodeName, userId) {
+  const lastActionNode = nodes.find((n) => n.name === lastActionNodeName)
+  if (!lastActionNode) return
+
+  const notifyNode = notifySuccessNode(userId, lastActionNode.position)
+  nodes.push(notifyNode)
+
+  const respondNode = nodes.find((n) => n.name === 'Respond to Webhook')
+  if (respondNode) {
+    respondNode.position = [notifyNode.position[0] + 250, notifyNode.position[1]]
+  }
+
+  const nextNode =
+    connections[lastActionNodeName]?.main?.[0]?.[0]?.node || 'Respond to Webhook'
+  connections[lastActionNodeName] = {
+    main: [[{ node: 'Notify Flowchat', type: 'main', index: 0 }]],
+  }
+  connections['Notify Flowchat'] = {
+    main: [[{ node: nextNode, type: 'main', index: 0 }]],
+  }
+}
+
 function buildScheduleSlackWorkflow(userId, details) {
   const testWebhookPath = createTestWebhookPath(userId)
   const channel = details.channel || details.slack_channel || '#general'
@@ -192,6 +242,8 @@ function buildScheduleSlackWorkflow(userId, details) {
     'Fetch Slack Credentials': { main: [[{ node: 'Send Slack Message', type: 'main', index: 0 }]] },
     'Send Slack Message': { main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]] }
   }
+
+  wireNotifySuccess(nodes, connections, 'Send Slack Message', userId)
 
   return { humanName: 'Schedule → Slack', nodes, connections, testWebhookPath }
 }
@@ -291,6 +343,8 @@ function buildTypeformSheetsWorkflow(userId, details) {
     'Fetch Google Credentials': { main: [[{ node: 'Append to Google Sheets', type: 'main', index: 0 }]] },
     'Append to Google Sheets': { main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]] }
   }
+
+  wireNotifySuccess(nodes, connections, 'Append to Google Sheets', userId)
 
   return {
     humanName: 'Typeform → Google Sheet',
@@ -397,6 +451,8 @@ function buildScheduleGmailWorkflow(userId, details) {
     'Fetch Google Credentials': { main: [[{ node: 'Send Gmail', type: 'main', index: 0 }]] },
     'Send Gmail': { main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]] }
   }
+
+  wireNotifySuccess(nodes, connections, 'Send Gmail', userId)
 
   return { humanName: 'Schedule → Gmail', nodes, connections, testWebhookPath }
 }

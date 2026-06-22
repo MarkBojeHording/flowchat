@@ -297,4 +297,44 @@ router.get('/admin/users', async (req, res) => {
   }
 })
 
+// POST /api/executions/log - called by notify-success node on successful runs
+router.post('/log', async (req, res) => {
+  const apiKey = req.headers['x-api-key']
+  if (apiKey !== process.env.INTERNAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const { userId, n8nWorkflowId, status } = req.body
+
+  if (!userId || !n8nWorkflowId) {
+    return res.status(400).json({ error: 'userId and n8nWorkflowId required' })
+  }
+
+  try {
+    const { data: workflow } = await supabase
+      .from('workflows')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('n8n_workflow_id', n8nWorkflowId)
+      .single()
+
+    await supabase.from('executions').insert({
+      user_id: userId,
+      workflow_id: workflow?.id || null,
+      n8n_execution_id: null,
+      status: status || 'success',
+      mode: 'trigger',
+    })
+
+    await supabase.rpc('increment_runs_used', { user_id_input: userId })
+
+    console.log(`✅ Run logged for user ${userId}, workflow ${n8nWorkflowId}`)
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Log execution error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 module.exports = router
