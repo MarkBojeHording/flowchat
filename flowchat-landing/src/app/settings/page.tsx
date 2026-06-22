@@ -35,6 +35,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [connectedApps, setConnectedApps] = useState<string[]>([]);
 
   useEffect(() => {
     async function init() {
@@ -57,6 +58,13 @@ export default function SettingsPage() {
       } catch {
         setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
       }
+
+      const { data: accounts } = await supabase
+        .from("platform_accounts")
+        .select("platform")
+        .eq("user_id", user.id);
+      setConnectedApps(accounts?.map((a) => a.platform) || []);
+
       setLoading(false);
     }
     init();
@@ -170,40 +178,40 @@ export default function SettingsPage() {
               Connected apps
             </h2>
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">📧</span>
-                  <div>
-                    <p className="text-sm text-[#e8e8f0]">Google</p>
-                    <p className="text-xs text-[#8888aa]">
-                      Gmail + Google Sheets
-                    </p>
-                  </div>
-                </div>
-                <a
-                  href={`${BACKEND_URL}/api/auth/google`}
-                  className="rounded-lg border border-[#2a2a4a] px-3 py-1.5 text-xs text-[#8888aa] transition-colors hover:border-[#00d4aa] hover:text-[#00d4aa]"
+              {(["google", "slack"] as const).map((app) => (
+                <div
+                  key={app}
+                  className="flex items-center justify-between py-2"
                 >
-                  Reconnect
-                </a>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">💬</span>
-                  <div>
-                    <p className="text-sm text-[#e8e8f0]">Slack</p>
-                    <p className="text-xs text-[#8888aa]">
-                      Send messages to channels
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">
+                      {app === "google" ? "📧" : "💬"}
+                    </span>
+                    <div>
+                      <p className="text-sm text-[#e8e8f0]">
+                        {app === "google" ? "Google" : "Slack"}
+                      </p>
+                      <p className="text-xs text-[#8888aa]">
+                        {app === "google"
+                          ? "Gmail + Google Sheets"
+                          : "Send messages to channels"}
+                      </p>
+                    </div>
                   </div>
+                  {connectedApps.includes(app) ? (
+                    <span className="text-xs font-medium text-green-400">
+                      ✓ Connected
+                    </span>
+                  ) : (
+                    <a
+                      href={`${BACKEND_URL}/api/auth/${app}?userId=${user?.id}`}
+                      className="rounded-lg bg-[#00d4aa] px-3 py-1.5 text-xs font-medium text-[#0f0f1a] transition-colors hover:bg-[#00b894]"
+                    >
+                      Connect
+                    </a>
+                  )}
                 </div>
-                <a
-                  href={`${BACKEND_URL}/api/auth/slack`}
-                  className="rounded-lg border border-[#2a2a4a] px-3 py-1.5 text-xs text-[#8888aa] transition-colors hover:border-[#00d4aa] hover:text-[#00d4aa]"
-                >
-                  Reconnect
-                </a>
-              </div>
+              ))}
             </div>
           </div>
 
