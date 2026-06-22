@@ -232,4 +232,69 @@ router.get('/admin', async (req, res) => {
   }
 })
 
+// GET /api/executions/admin/workflows
+router.get('/admin/workflows', async (req, res) => {
+  const apiKey = req.headers['x-api-key']
+  if (apiKey !== process.env.INTERNAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const { data: workflows } = await supabase
+      .from('workflows')
+      .select('*')
+      .order('last_message_at', { ascending: false })
+
+    res.json({ workflows: workflows || [] })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/executions/admin/users
+router.get('/admin/users', async (req, res) => {
+  const apiKey = req.headers['x-api-key']
+  if (apiKey !== process.env.INTERNAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const { data: userData } = await supabase.auth.admin.listUsers()
+    const authUsers = userData?.users || []
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, plan_id, runs_used, topup_runs')
+
+    const { data: workflows } = await supabase
+      .from('workflows')
+      .select('user_id')
+
+    const workflowCounts = {}
+    workflows?.forEach((w) => {
+      workflowCounts[w.user_id] = (workflowCounts[w.user_id] || 0) + 1
+    })
+
+    const PLAN_LIMITS = { free: 50, pro: 2000, business: 10000 }
+
+    const users = authUsers.map((u) => {
+      const profile = profiles?.find((p) => p.id === u.id)
+      const plan = profile?.plan_id || 'free'
+      return {
+        id: u.id,
+        email: u.email,
+        plan,
+        runs_used: profile?.runs_used || 0,
+        runs_limit: PLAN_LIMITS[plan] || 50,
+        workflow_count: workflowCounts[u.id] || 0,
+        created_at: u.created_at,
+      }
+    })
+
+    res.json({ users })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 module.exports = router
