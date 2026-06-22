@@ -1188,7 +1188,9 @@ export default function DashboardPage() {
                     ↻
                   </button>
                   <span className="text-xs text-[#8888aa]">
-                    {usage.daysUntilReset}d until reset
+                    {usage.cancelAtPeriodEnd && usage.currentPeriodEnd
+                      ? `Cancels ${new Date(usage.currentPeriodEnd).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
+                      : `${usage.daysUntilReset}d until reset`}
                   </span>
                 </div>
               </div>
@@ -1212,19 +1214,6 @@ export default function DashboardPage() {
                 {usage.runsUsed.toLocaleString()} /{" "}
                 {usage.runsLimit.toLocaleString()} runs
               </span>
-
-              {usage.cancelAtPeriodEnd && usage.currentPeriodEnd && (
-                <p className="mt-1 text-xs text-amber-400">
-                  Cancels{" "}
-                  {new Date(usage.currentPeriodEnd).toLocaleDateString(
-                    "en-GB",
-                    {
-                      day: "numeric",
-                      month: "short",
-                    }
-                  )}
-                </p>
-              )}
 
               {usage.status === "warning" && (
                 <p className="mt-1 text-xs text-amber-400">⚠️ Running low</p>
