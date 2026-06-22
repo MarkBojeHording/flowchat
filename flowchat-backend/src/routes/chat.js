@@ -351,7 +351,7 @@ async function executeTool(name, input, userId, automationId = null) {
       try {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('runs_used, topup_runs, plans(runs_limit, name)')
+          .select('runs_used, topup_runs, plan_id')
           .eq('id', userId)
           .single()
 
@@ -1241,7 +1241,7 @@ router.get('/usage', async (req, res) => {
     const { data: profile, error } = await supabase
       .from('profiles')
       .select(
-        'plan_id, runs_used, test_runs_used, topup_runs, billing_period_start'
+        'plan_id, runs_used, test_runs_used, topup_runs, billing_period_start, cancel_at_period_end, current_period_end'
       )
       .eq('id', userId)
       .single()
@@ -1259,14 +1259,11 @@ router.get('/usage', async (req, res) => {
         daysUntilReset: 30,
         status: 'safe',
         percentUsed: 0,
+        cancelAtPeriodEnd: false,
+        currentPeriodEnd: null,
       })
     }
 
-    const planInfo = resolvePlanInfo(profile)
-    const topupRuns = profile.topup_runs || 0
-    const runsLimit = planInfo.runsLimit + topupRuns
-    const runsUsed = profile.runs_used || 0
-    const testRunsUsed = profile.test_runs_used || 0
     const billingStart = profile.billing_period_start
       ? new Date(profile.billing_period_start)
       : new Date()
@@ -1274,12 +1271,42 @@ router.get('/usage', async (req, res) => {
     const daysSinceReset = Math.floor(
       (now - billingStart) / (1000 * 60 * 60 * 24)
     )
-    const daysUntilReset = Math.max(0, 30 - daysSinceReset)
+
+    if (daysSinceReset >= 30) {
+      await supabase
+        .from('profiles')
+        .update({
+          runs_used: 0,
+          test_runs_used: 0,
+          topup_runs: 0,
+          billing_period_start: now.toISOString().split('T')[0],
+        })
+        .eq('id', userId)
+
+      profile.runs_used = 0
+      profile.test_runs_used = 0
+      profile.topup_runs = 0
+      profile.billing_period_start = now.toISOString().split('T')[0]
+      console.log('✅ Monthly runs reset for user:', userId)
+    }
+
+    const planInfo = resolvePlanInfo(profile)
+    const topupRuns = profile.topup_runs || 0
+    const runsLimit = planInfo.runsLimit + topupRuns
+    const runsUsed = profile.runs_used || 0
+    const testRunsUsed = profile.test_runs_used || 0
+    const billingStartForCalc = profile.billing_period_start
+      ? new Date(profile.billing_period_start)
+      : new Date()
+    const daysSinceResetCalc = Math.floor(
+      (now - billingStartForCalc) / (1000 * 60 * 60 * 24)
+    )
+    const daysUntilReset = Math.max(0, 30 - daysSinceResetCalc)
     const runsRemaining = Math.max(0, runsLimit - runsUsed)
     const percentUsed =
       runsLimit > 0 ? Math.round((runsUsed / runsLimit) * 100) : 0
 
-    const dailyRate = daysSinceReset > 0 ? runsUsed / daysSinceReset : 0
+    const dailyRate = daysSinceResetCalc > 0 ? runsUsed / daysSinceResetCalc : 0
     const projectedDeficit = runsRemaining - dailyRate * daysUntilReset
     const daysUntilEmpty =
       dailyRate > 0 ? Math.floor(runsRemaining / dailyRate) : 999
@@ -1301,12 +1328,16 @@ router.get('/usage', async (req, res) => {
       runsLimit,
       topupRuns,
       runsRemaining,
-      billingPeriodStart: profile.billing_period_start,
+      billingPeriodStart:
+        profile.billing_period_start ||
+        new Date().toISOString().split('T')[0],
       daysUntilReset,
       daysUntilEmpty: daysUntilEmpty < 999 ? daysUntilEmpty : null,
       status,
       percentUsed,
       dailyRate: Math.round(dailyRate * 10) / 10,
+      cancelAtPeriodEnd: profile.cancel_at_period_end || false,
+      currentPeriodEnd: profile.current_period_end || null,
     })
   } catch (err) {
     console.error('Usage error:', err)

@@ -106,6 +106,12 @@ async function handleWebhook(req, res) {
   }
 
   try {
+    const PLAN_LIMITS = {
+      free: 50,
+      pro: 2000,
+      business: 10000,
+    }
+
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object
@@ -119,19 +125,19 @@ async function handleWebhook(req, res) {
             user_id_input: userId,
             runs_to_add: 1000,
           })
-          console.log('✅ Top-up added for user:', userId)
+          console.log('✅ Top-up 1000 runs added for user:', userId)
         }
         break
       }
 
-      case 'customer.subscription.updated':
-      case 'customer.subscription.created': {
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
         const subscription = event.data.object
         const customerId = subscription.customer
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, plan_id, runs_used, topup_runs')
           .eq('stripe_customer_id', customerId)
           .single()
 
@@ -142,15 +148,43 @@ async function handleWebhook(req, res) {
         if (priceId === PRICE_IDS.pro) newPlan = 'pro'
         if (priceId === PRICE_IDS.business) newPlan = 'business'
 
-        await supabase
-          .from('profiles')
-          .update({
-            plan_id: newPlan,
-            stripe_subscription_id: subscription.id,
-          })
-          .eq('id', profile.id)
+        const oldPlan = profile.plan_id
+        const cancelAtPeriodEnd = subscription.cancel_at_period_end
+        const currentPeriodEnd = subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000)
+              .toISOString()
+              .split('T')[0]
+          : null
 
-        console.log('✅ Plan updated to', newPlan, 'for user:', profile.id)
+        let topupRunsToAdd = 0
+        if (
+          oldPlan !== 'free' &&
+          oldPlan !== newPlan &&
+          PLAN_LIMITS[newPlan] > PLAN_LIMITS[oldPlan]
+        ) {
+          const oldLimit = PLAN_LIMITS[oldPlan]
+          const unusedRuns = Math.max(0, oldLimit - profile.runs_used)
+          topupRunsToAdd = unusedRuns
+          console.log(
+            `✅ Crediting ${unusedRuns} unused runs from ${oldPlan} to ${newPlan}`
+          )
+        }
+
+        const updates = {
+          plan_id: newPlan,
+          stripe_subscription_id: subscription.id,
+          cancel_at_period_end: cancelAtPeriodEnd,
+          current_period_end: currentPeriodEnd,
+        }
+
+        if (topupRunsToAdd > 0) {
+          updates.topup_runs = (profile.topup_runs || 0) + topupRunsToAdd
+        }
+
+        await supabase.from('profiles').update(updates).eq('id', profile.id)
+
+        console.log(`✅ Plan updated to ${newPlan} for user:`, profile.id)
+        console.log(`   cancel_at_period_end: ${cancelAtPeriodEnd}`)
         break
       }
 
@@ -171,10 +205,18 @@ async function handleWebhook(req, res) {
           .update({
             plan_id: 'free',
             stripe_subscription_id: null,
+            cancel_at_period_end: false,
+            current_period_end: null,
+            runs_used: 0,
+            topup_runs: 0,
+            billing_period_start: new Date().toISOString().split('T')[0],
           })
           .eq('id', profile.id)
 
-        console.log('✅ Downgraded to free for user:', profile.id)
+        console.log(
+          '✅ Subscription ended - downgraded to free for user:',
+          profile.id
+        )
         break
       }
     }
