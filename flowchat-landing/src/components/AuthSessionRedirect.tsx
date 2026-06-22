@@ -35,7 +35,7 @@ function debugLog(
   // #endregion
 }
 
-const AUTH_LANDING_PATHS = ["/", "/login"];
+const AUTH_LANDING_PATHS = ["/login"];
 
 export function AuthSessionRedirect() {
   const pathname = usePathname();
