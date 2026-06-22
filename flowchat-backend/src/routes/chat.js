@@ -1772,39 +1772,35 @@ router.get('/automations/:id/history', async (req, res) => {
   try {
     const { data: workflow } = await supabase
       .from('workflows')
-      .select('n8n_workflow_id')
+      .select('id')
       .eq('id', id)
       .eq('user_id', userId)
       .single()
 
-    if (!workflow?.n8n_workflow_id) {
-      return res.json({ executions: [] })
+    if (!workflow) {
+      return res.status(404).json({ error: 'Automation not found' })
     }
 
-    const { n8nClient } = require('../services/n8n')
-    const response = await n8nClient.get('/api/v1/executions', {
-      params: {
-        workflowId: workflow.n8n_workflow_id,
-        limit: 20,
-        includeData: false,
-      },
+    const { data: executions, error } = await supabase
+      .from('executions')
+      .select('id, status, mode, ran_at, details, error_message')
+      .eq('workflow_id', id)
+      .eq('user_id', userId)
+      .order('ran_at', { ascending: false })
+      .limit(20)
+
+    if (error) throw error
+
+    res.json({
+      executions: (executions || []).map((exec) => ({
+        id: exec.id,
+        status: exec.status,
+        mode: exec.mode,
+        ran_at: exec.ran_at,
+        details: exec.details,
+        error_message: exec.error_message,
+      })),
     })
-
-    const executions = (response.data?.data || []).map((exec) => ({
-      id: exec.id,
-      status: exec.status === 'success' ? 'success' : 'error',
-      startedAt: exec.startedAt,
-      stoppedAt: exec.stoppedAt,
-      duration:
-        exec.stoppedAt && exec.startedAt
-          ? Math.round(
-              (new Date(exec.stoppedAt) - new Date(exec.startedAt)) / 1000
-            )
-          : null,
-      mode: exec.mode,
-    }))
-
-    res.json({ executions })
   } catch (err) {
     console.error('Get history error:', err)
     res.status(500).json({ error: err.message })

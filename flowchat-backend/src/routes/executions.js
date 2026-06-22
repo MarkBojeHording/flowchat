@@ -142,6 +142,20 @@ router.post('/error', async (req, res) => {
     // Classify the error
     const classification = classifyError(errorMessage, lastNodeExecuted)
 
+    await supabase.from('executions').insert({
+      user_id: user.id,
+      workflow_id: workflow.id,
+      status: 'error',
+      mode: 'trigger',
+      error_message: classification.userMessage || errorMessage,
+      details: {
+        type: 'error',
+        error_type: classification.type,
+        raw_error: errorMessage,
+        failed_node: lastNodeExecuted,
+      },
+    })
+
     // Increment consecutive failures
     const consecutiveFailures = (workflow.consecutive_failures || 0) + 1
 
@@ -334,9 +348,10 @@ router.post('/log', async (req, res) => {
     await supabase.from('executions').insert({
       user_id: userId,
       workflow_id: workflow?.id || null,
-      n8n_execution_id: null,
       status: status || 'success',
       mode: isTest ? 'webhook' : 'trigger',
+      details: req.body.details || null,
+      error_message: req.body.error_message || null,
     })
 
     if (isTest) {

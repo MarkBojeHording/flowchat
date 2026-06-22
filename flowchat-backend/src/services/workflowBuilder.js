@@ -104,8 +104,18 @@ function fetchCredentialsNode(id, name, userId, platform, position) {
   }
 }
 
-function notifySuccessNode(userId, lastNodePosition) {
+function notifySuccessNode(userId, lastNodePosition, lastActionNodeName) {
   const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  let jsonBody
+  if (lastActionNodeName === 'Send Slack Message') {
+    jsonBody = `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode, details: { type: "slack_message", channel: $("Send Slack Message").item.json.channel, message: $("Send Slack Message").item.json.text } }) }}`
+  } else if (lastActionNodeName === 'Send Gmail') {
+    jsonBody = `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode, details: { type: "gmail", to: $("Send Gmail").item.json.to, subject: $("Send Gmail").item.json.subject } }) }}`
+  } else {
+    jsonBody = `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode }) }}`
+  }
+
   return {
     id: 'notify-success',
     name: 'Notify Flowchat',
@@ -126,7 +136,7 @@ function notifySuccessNode(userId, lastNodePosition) {
       },
       sendBody: true,
       specifyBody: 'json',
-      jsonBody: `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success" }) }}`,
+      jsonBody,
       options: {},
     },
   }
@@ -136,7 +146,7 @@ function wireNotifySuccess(nodes, connections, lastActionNodeName, userId) {
   const lastActionNode = nodes.find((n) => n.name === lastActionNodeName)
   if (!lastActionNode) return
 
-  const notifyNode = notifySuccessNode(userId, lastActionNode.position)
+  const notifyNode = notifySuccessNode(userId, lastActionNode.position, lastActionNodeName)
   nodes.push(notifyNode)
 
   const respondNode = nodes.find((n) => n.name === 'Respond to Webhook')
