@@ -31,6 +31,9 @@ app.use('/api/workflows', workflowRoutes)
 const chatRoutes = require('./routes/chat')
 app.use('/api/chat', chatRoutes)
 
+const executionsRouter = require('./routes/executions')
+app.use('/api/executions', executionsRouter)
+
 app.use('/api/billing', billingRouter)
 
 const PORT = process.env.PORT || 3456
