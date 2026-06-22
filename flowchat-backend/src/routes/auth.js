@@ -4,6 +4,7 @@ const { google } = require('googleapis')
 const axios = require('axios')
 const { createClient } = require('@supabase/supabase-js')
 const ws = require('ws')
+const { sendWelcomeEmail } = require('../services/email')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -89,6 +90,13 @@ router.get('/callback/google', async (req, res) => {
 
     console.log('✅ Google OAuth successful for user:', userId)
 
+    const { data: existingAccount } = await supabase
+      .from('platform_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('platform', 'google')
+      .single()
+
     const { error: dbError } = await supabase
       .from('platform_accounts')
       .upsert({
@@ -104,6 +112,13 @@ router.get('/callback/google', async (req, res) => {
       console.error('❌ Supabase save error:', dbError)
     } else {
       console.log('✅ Google tokens saved for Supabase user:', userId)
+
+      if (!existingAccount) {
+        await sendWelcomeEmail({
+          email: userInfo.email,
+          user_metadata: { full_name: userInfo.name },
+        })
+      }
     }
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'

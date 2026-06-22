@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { createClient } = require('@supabase/supabase-js')
 const ws = require('ws')
+const { sendBrokenAutomationEmail } = require('../services/email')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -28,6 +29,7 @@ function classifyError(errorMessage, lastNodeExecuted) {
       msg.includes('token expired') || msg.includes('invalid_grant')) {
     return {
       type: 'auth_expired',
+      appName,
       userMessage: `Your ${appName} connection expired — this happens occasionally.`,
       fixAction: 'reconnect',
       fixLabel: `Reconnect ${appName} →`,
@@ -39,6 +41,7 @@ function classifyError(errorMessage, lastNodeExecuted) {
       msg.includes('no spreadsheet')) {
     return {
       type: 'resource_missing',
+      appName,
       userMessage: `Something was deleted or moved. ${appName} couldn't find the file or channel it was looking for.`,
       fixAction: 'chat',
       fixLabel: 'Tell me what changed →',
@@ -50,6 +53,7 @@ function classifyError(errorMessage, lastNodeExecuted) {
       msg.includes('too many requests')) {
     return {
       type: 'rate_limit',
+      appName,
       userMessage: `${appName} is temporarily busy. I'll retry automatically.`,
       fixAction: 'auto_retry',
       shouldNotify: false,
@@ -60,6 +64,7 @@ function classifyError(errorMessage, lastNodeExecuted) {
       msg.includes('network')) {
     return {
       type: 'network',
+      appName,
       userMessage: 'There was a temporary connection issue. I\'ll retry automatically.',
       fixAction: 'auto_retry',
       shouldNotify: false,
@@ -70,6 +75,7 @@ function classifyError(errorMessage, lastNodeExecuted) {
       msg.includes('permission')) {
     return {
       type: 'permission',
+      appName,
       userMessage: `Flowchat no longer has permission to access your ${appName}. You may have removed access.`,
       fixAction: 'reconnect',
       fixLabel: `Reconnect ${appName} →`,
@@ -79,6 +85,7 @@ function classifyError(errorMessage, lastNodeExecuted) {
 
   return {
     type: 'unknown',
+    appName,
     userMessage: null,
     fixAction: null,
     shouldNotify: false,
@@ -167,7 +174,11 @@ router.post('/error', async (req, res) => {
         .eq('id', workflow.id)
 
       console.log(`✅ Automation marked as broken, notification needed for: ${userEmail}`)
-      // TODO: Send email notification
+
+      const { data: userData } = await supabase.auth.admin.getUserById(user.id)
+      if (userData?.user) {
+        await sendBrokenAutomationEmail(userData.user, workflow, classification)
+      }
     }
 
     res.json({ received: true })
@@ -304,7 +315,7 @@ router.post('/log', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  const { userId, n8nWorkflowId, status } = req.body
+  const { userId, n8nWorkflowId, status, mode } = req.body
 
   if (!userId || !n8nWorkflowId) {
     return res.status(400).json({ error: 'userId and n8nWorkflowId required' })
@@ -318,17 +329,23 @@ router.post('/log', async (req, res) => {
       .eq('n8n_workflow_id', n8nWorkflowId)
       .single()
 
+    const isTest = mode === 'webhook' || mode === 'test'
+
     await supabase.from('executions').insert({
       user_id: userId,
       workflow_id: workflow?.id || null,
       n8n_execution_id: null,
       status: status || 'success',
-      mode: 'trigger',
+      mode: isTest ? 'webhook' : 'trigger',
     })
 
-    await supabase.rpc('increment_runs_used', { user_id_input: userId })
-
-    console.log(`✅ Run logged for user ${userId}, workflow ${n8nWorkflowId}`)
+    if (isTest) {
+      await supabase.rpc('increment_test_runs', { user_id_input: userId })
+      console.log(`✅ Test run logged for user ${userId}`)
+    } else {
+      await supabase.rpc('increment_runs_used', { user_id_input: userId })
+      console.log(`✅ Real run logged for user ${userId}`)
+    }
 
     res.json({ success: true })
   } catch (err) {
