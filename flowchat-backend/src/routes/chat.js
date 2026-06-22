@@ -607,7 +607,11 @@ async function executeTool(name, input, userId, automationId = null) {
           name: n8nWorkflow.name,
           nodes: updatedNodes,
           connections: n8nWorkflow.connections,
-          settings: n8nWorkflow.settings || { executionOrder: 'v1' },
+          settings: {
+            ...n8nWorkflow.settings,
+            executionOrder: 'v1',
+            errorWorkflow: 'QhkpkeGqlspl7xXY',
+          },
         })
 
         await n8nClient.post(

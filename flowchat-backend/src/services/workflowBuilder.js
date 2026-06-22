@@ -449,7 +449,10 @@ async function buildWorkflow(userId, userEmail, spec) {
         name: `${userEmail} — ${workflow.humanName}`,
         nodes: workflow.nodes,
         connections: workflow.connections,
-        settings: { executionOrder: 'v1' },
+        settings: {
+          executionOrder: 'v1',
+          errorWorkflow: 'QhkpkeGqlspl7xXY',
+        },
       },
       testWebhookPath: workflow.testWebhookPath,
     }
