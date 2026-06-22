@@ -610,6 +610,21 @@ async function executeTool(name, input, userId, automationId = null) {
           settings: n8nWorkflow.settings || { executionOrder: 'v1' },
         })
 
+        await n8nClient.post(
+          `/api/v1/workflows/${workflow.n8n_workflow_id}/deactivate`
+        )
+
+        await new Promise((resolve) => setTimeout(resolve, 500))
+
+        await n8nClient.post(
+          `/api/v1/workflows/${workflow.n8n_workflow_id}/activate`
+        )
+
+        console.log(
+          '✅ Workflow reactivated after update:',
+          workflow.n8n_workflow_id
+        )
+
         await supabase
           .from('workflows')
           .update({
