@@ -583,6 +583,25 @@ export default function AdminPage() {
                 >
                   ↻ Refresh data
                 </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(
+                        `${BACKEND_URL}/api/executions/admin/maintenance`,
+                        { method: "POST", headers: { "x-api-key": INTERNAL_API_KEY } }
+                      );
+                      const data = await res.json();
+                      if (data.success) alert("Maintenance job started — check Railway logs");
+                      else alert("Failed: " + data.error);
+                    } catch {
+                      alert("Something went wrong");
+                    }
+                  }}
+                  className="rounded-lg border border-[#2a2a4a] px-4 py-2 text-sm text-[#e8e8f0] hover:bg-[#2a2a4a] transition-colors"
+                >
+                  🔧 Run maintenance now
+                </button>
               </div>
             </div>
             <div className="rounded-xl border border-[#2a2a4a] bg-[#1a1a2e] p-5">
