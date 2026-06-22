@@ -20,6 +20,8 @@ const PLAN_DISPLAY_NAMES: Record<string, string> = {
 function normalizeUsage(data: {
   plan?: string;
   planName?: string;
+  cancelAtPeriodEnd?: boolean;
+  currentPeriodEnd?: string | null;
   [key: string]: unknown;
 }) {
   const plan = data.plan || "free";
@@ -27,6 +29,8 @@ function normalizeUsage(data: {
     ...data,
     plan,
     planName: PLAN_DISPLAY_NAMES[plan] || data.planName || "Free",
+    cancelAtPeriodEnd: data.cancelAtPeriodEnd || false,
+    currentPeriodEnd: data.currentPeriodEnd || null,
   };
 }
 
@@ -219,6 +223,8 @@ export default function DashboardPage() {
     daysUntilReset: number;
     status: string;
     percentUsed: number;
+    cancelAtPeriodEnd: boolean;
+    currentPeriodEnd: string | null;
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
@@ -274,6 +280,8 @@ export default function DashboardPage() {
           daysUntilReset: number;
           status: string;
           percentUsed: number;
+          cancelAtPeriodEnd: boolean;
+          currentPeriodEnd: string | null;
         }
       );
     } catch (err) {
@@ -1205,6 +1213,19 @@ export default function DashboardPage() {
                 {usage.runsLimit.toLocaleString()} runs
               </span>
 
+              {usage.cancelAtPeriodEnd && usage.currentPeriodEnd && (
+                <p className="mt-1 text-xs text-amber-400">
+                  Cancels{" "}
+                  {new Date(usage.currentPeriodEnd).toLocaleDateString(
+                    "en-GB",
+                    {
+                      day: "numeric",
+                      month: "short",
+                    }
+                  )}
+                </p>
+              )}
+
               {usage.status === "warning" && (
                 <p className="mt-1 text-xs text-amber-400">⚠️ Running low</p>
               )}
@@ -1761,6 +1782,68 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {usage.cancelAtPeriodEnd ? (
+              <div className="px-6 py-5">
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
+                  <p className="mb-1 text-sm font-medium text-amber-800">
+                    Your subscription is cancelled
+                  </p>
+                  <p className="text-sm text-amber-700">
+                    You have access until{" "}
+                    {usage.currentPeriodEnd
+                      ? new Date(usage.currentPeriodEnd).toLocaleDateString(
+                          "en-GB",
+                          {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          }
+                        )
+                      : "end of billing period"}
+                    . After that you will move to the Free plan.
+                  </p>
+                </div>
+                <p className="mb-3 text-sm font-medium text-[#111]">
+                  Resubscribe
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => handleCheckout("pro")}
+                    className="rounded-xl border-2 border-[#e5e7eb] p-4 text-left transition-colors hover:border-[#00d4aa]"
+                  >
+                    <p className="text-sm font-semibold text-[#111]">Pro</p>
+                    <p className="mt-1 text-xl font-bold text-[#111]">
+                      $19.99
+                      <span className="text-sm font-normal text-[#6b7280]">
+                        /mo
+                      </span>
+                    </p>
+                    <p className="mt-1 text-xs text-[#6b7280]">
+                      2,000 runs/month
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCheckout("business")}
+                    className="rounded-xl border-2 border-[#e5e7eb] p-4 text-left transition-colors hover:border-[#00d4aa]"
+                  >
+                    <p className="text-sm font-semibold text-[#111]">
+                      Business
+                    </p>
+                    <p className="mt-1 text-xl font-bold text-[#111]">
+                      $49.99
+                      <span className="text-sm font-normal text-[#6b7280]">
+                        /mo
+                      </span>
+                    </p>
+                    <p className="mt-1 text-xs text-[#6b7280]">
+                      10,000 runs/month
+                    </p>
+                  </button>
+                </div>
+              </div>
+            ) : (
             <div className="px-6 py-5">
               <div className="mb-6 grid grid-cols-2 gap-4">
                 <div
@@ -1892,6 +1975,7 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+            )}
 
             <div className="border-t border-[#e5e7eb] px-6 py-4">
               <button
