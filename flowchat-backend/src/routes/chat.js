@@ -1235,6 +1235,24 @@ router.post('/message', async (req, res) => {
   }
 })
 
+router.patch('/profile/timezone', async (req, res) => {
+  const { userId, timezone } = req.body
+  if (!userId || !timezone) {
+    return res.status(400).json({ error: 'userId and timezone required' })
+  }
+
+  try {
+    await supabase
+      .from('profiles')
+      .update({ timezone })
+      .eq('id', userId)
+
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 router.get('/usage', async (req, res) => {
   const { userId } = req.query
 
