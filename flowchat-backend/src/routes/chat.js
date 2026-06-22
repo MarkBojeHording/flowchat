@@ -1161,6 +1161,11 @@ router.post('/message/stream', async (req, res) => {
       timezone: timezone || 'UTC',
     })
 
+    const effectiveMessage =
+      message === '__error_resolution_start__' && workflow?.status === 'broken'
+        ? 'Start the error resolution conversation. Greet the user and explain what went wrong with their automation.'
+        : message
+
     // Truncate conversation history to last 20 messages
     // This prevents context window bloat and reduces latency/cost
     const truncatedHistory =
@@ -1170,7 +1175,7 @@ router.post('/message/stream', async (req, res) => {
 
     const messages = [
       ...truncatedHistory,
-      { role: 'user', content: message },
+      { role: 'user', content: effectiveMessage },
     ]
 
     let action = null
@@ -1379,6 +1384,11 @@ router.post('/message', async (req, res) => {
       timezone: timezone || 'UTC',
     })
 
+    const effectiveMessage =
+      message === '__error_resolution_start__' && workflow?.status === 'broken'
+        ? 'Start the error resolution conversation. Greet the user and explain what went wrong with their automation.'
+        : message
+
     // Truncate conversation history to last 20 messages
     // This prevents context window bloat and reduces latency/cost
     const truncatedHistory =
@@ -1388,7 +1398,7 @@ router.post('/message', async (req, res) => {
 
     const messages = [
       ...truncatedHistory,
-      { role: 'user', content: message },
+      { role: 'user', content: effectiveMessage },
     ]
 
     let action = null
