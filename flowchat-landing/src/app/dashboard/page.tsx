@@ -124,29 +124,31 @@ function isTempAutomationId(id: string | null | undefined): boolean {
 }
 
 function getStatusColor(status: string): string {
-  if (status === "live") return "#00d4aa";
+  if (status === "active") return "#00d4aa";
   if (status === "broken") return "rgba(255,100,100,0.8)";
+  if (status === "paused") return "#e9b872";
+  if (status === "draft") return "rgba(255,255,255,0.2)";
   if (status === "building") return "#e9b872";
-  if (status === "paused") return "rgba(255,255,255,0.2)";
   return "rgba(255,255,255,0.2)";
 }
 
 function getStatusLabel(status: string): string {
-  if (status === "live") return "Live";
+  if (status === "active") return "Live";
   if (status === "broken") return "Broken";
-  if (status === "building") return "Building";
   if (status === "paused") return "Paused";
   if (status === "draft") return "Draft";
+  if (status === "building") return "Building";
   return "Draft";
 }
 
 function getStatusPillClass(status: string): string {
-  if (status === "live") return "bg-[rgba(0,212,170,0.1)] text-[#00d4aa]";
+  if (status === "active") return "bg-[rgba(0,212,170,0.1)] text-[#00d4aa]";
   if (status === "broken")
     return "bg-[rgba(255,80,80,0.1)] text-[rgba(255,100,100,0.8)]";
+  if (status === "paused") return "bg-[rgba(233,184,114,0.1)] text-[#e9b872]";
+  if (status === "draft")
+    return "bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.3)]";
   if (status === "building") return "bg-[rgba(233,184,114,0.1)] text-[#e9b872]";
-  if (status === "paused")
-    return "bg-[#f3f4f6] text-[#6b7280] border border-[#e5e7eb]";
   return "bg-[rgba(255,255,255,0.06)] text-[rgba(255,255,255,0.3)]";
 }
 
@@ -165,14 +167,16 @@ function formatTime(dateString: string): string {
 }
 
 function getChatStatusPillClass(status: string): string {
-  if (status === "live")
+  if (status === "active")
     return "rounded-full bg-[#d1fae5] px-2 py-0.5 text-[9px] text-[#065f46]";
   if (status === "broken")
     return "rounded-full bg-[#fee2e2] px-2 py-0.5 text-[9px] text-[#991b1b]";
+  if (status === "paused")
+    return "rounded-full bg-[#fef3c7] px-2 py-0.5 text-[9px] text-[#92400e]";
+  if (status === "draft")
+    return "rounded-full bg-[#f3f4f6] px-2 py-0.5 text-[9px] text-[#6b7280]";
   if (status === "building")
     return "rounded-full bg-[#fef3c7] px-2 py-0.5 text-[9px] text-[#92400e]";
-  if (status === "paused")
-    return "rounded-full bg-[#f3f4f6] px-2 py-0.5 text-[9px] text-[#6b7280] border border-[#e5e7eb]";
   return "rounded-full bg-[#f3f4f6] px-2 py-0.5 text-[9px] text-[#6b7280]";
 }
 
