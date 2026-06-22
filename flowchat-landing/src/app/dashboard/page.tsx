@@ -1218,14 +1218,14 @@ export default function DashboardPage() {
                         <span>⚡</span>
                         <span>My Automations</span>
                       </button>
-                      <button
-                        type="button"
+                      <Link
+                        href="/settings"
                         onClick={() => setShowUserMenu(false)}
                         className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:bg-[#2a2a4a]"
                       >
                         <span>⚙️</span>
                         <span>Settings</span>
-                      </button>
+                      </Link>
                       <button
                         type="button"
                         onClick={() => {
