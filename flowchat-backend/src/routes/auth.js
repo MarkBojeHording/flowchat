@@ -24,20 +24,31 @@ function getOAuthClient() {
   )
 }
 
+const GOOGLE_OAUTH_SCOPES = [
+  // Identity
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+
+  // Gmail
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+
+  // Google Sheets
+  'https://www.googleapis.com/auth/spreadsheets',
+
+  // Google Drive
+  'https://www.googleapis.com/auth/drive.readonly',
+
+  // Google Calendar
+  'https://www.googleapis.com/auth/calendar.events',
+]
+
 router.get('/google/debug', (req, res) => {
   const oauth2Client = getOAuthClient()
 
-  const scopes = [
-    'https://www.googleapis.com/auth/gmail.send',
-    'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/userinfo.profile'
-  ]
-
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
-    scope: scopes,
+    scope: GOOGLE_OAUTH_SCOPES,
     prompt: 'consent'
   })
 
@@ -53,18 +64,9 @@ router.get('/google', (req, res) => {
   const { userId } = req.query
   const oauth2Client = getOAuthClient()
 
-  const scopes = [
-    'https://www.googleapis.com/auth/gmail.send',
-    'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/userinfo.profile'
-  ]
-
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
-    scope: scopes,
+    scope: GOOGLE_OAUTH_SCOPES,
     prompt: 'consent',
     state: userId || ''
   })
