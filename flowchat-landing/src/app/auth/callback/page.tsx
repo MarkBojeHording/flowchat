@@ -4,6 +4,9 @@ import { useEffect } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3456";
+
 export default function AuthCallbackPage() {
   const router = useRouter();
 
@@ -13,18 +16,43 @@ export default function AuthCallbackPage() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
+    async function redirectAfterLogin() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      try {
+        const res = await fetch(
+          `${BACKEND_URL}/api/chat/usage?userId=${user.id}`
+        );
+        const data = await res.json();
+
+        if (data.first_login !== false) {
+          router.replace("/onboarding");
+        } else {
+          router.replace("/dashboard");
+        }
+      } catch {
+        router.replace("/dashboard");
+      }
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
-        router.replace("/dashboard");
+        redirectAfterLogin();
       }
     });
 
     const exchangeCode = async () => {
       const code = new URLSearchParams(window.location.search).get("code");
       if (code) {
-        await supabase.auth.exchangeCodeForSession(code);
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error) {
+          await redirectAfterLogin();
+        }
       }
     };
     exchangeCode();
