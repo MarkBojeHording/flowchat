@@ -1584,6 +1584,22 @@ router.patch('/profile/timezone', async (req, res) => {
   }
 })
 
+router.patch('/profile/complete-onboarding', async (req, res) => {
+  const { userId } = req.body
+  if (!userId) return res.status(400).json({ error: 'userId required' })
+
+  try {
+    await supabase
+      .from('profiles')
+      .update({ first_login: false })
+      .eq('id', userId)
+
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 router.get('/usage', async (req, res) => {
   const { userId } = req.query
 
@@ -1593,7 +1609,7 @@ router.get('/usage', async (req, res) => {
     const { data: profile, error } = await supabase
       .from('profiles')
       .select(
-        'plan_id, runs_used, test_runs_used, topup_runs, billing_period_start, cancel_at_period_end, current_period_end, timezone'
+        'plan_id, runs_used, test_runs_used, topup_runs, billing_period_start, cancel_at_period_end, current_period_end, timezone, first_login'
       )
       .eq('id', userId)
       .single()
@@ -1614,6 +1630,7 @@ router.get('/usage', async (req, res) => {
         cancelAtPeriodEnd: false,
         currentPeriodEnd: null,
         timezone: 'UTC',
+        first_login: true,
       })
     }
 
@@ -1692,6 +1709,7 @@ router.get('/usage', async (req, res) => {
       cancelAtPeriodEnd: profile.cancel_at_period_end || false,
       currentPeriodEnd: profile.current_period_end || null,
       timezone: profile.timezone || 'UTC',
+      first_login: profile.first_login !== false,
     })
   } catch (err) {
     console.error('Usage error:', err)
