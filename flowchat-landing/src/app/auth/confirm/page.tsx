@@ -11,7 +11,7 @@ export default function AuthConfirmPage() {
     let redirecting = false;
     let subscription: { unsubscribe: () => void } | null = null;
 
-    async function goNext(source: string) {
+    async function goNext() {
       if (redirecting) return;
       redirecting = true;
 
@@ -53,7 +53,7 @@ export default function AuthConfirmPage() {
           session &&
           (event === "SIGNED_IN" || event === "INITIAL_SESSION")
         ) {
-          goNext(`auth-event-${event}`);
+          goNext();
         }
       });
       subscription = data.subscription;
@@ -64,7 +64,7 @@ export default function AuthConfirmPage() {
           data: { session },
         } = await supabase.auth.getSession();
         if (session) {
-          goNext("code-exchange");
+          goNext();
           return;
         }
         if (error) {
@@ -85,7 +85,7 @@ export default function AuthConfirmPage() {
           token_hash,
         });
         if (!error) {
-          goNext("email-otp");
+          goNext();
           return;
         }
         window.location.href = "/login?error=confirmation_failed";
@@ -96,7 +96,7 @@ export default function AuthConfirmPage() {
         data: { session },
       } = await supabase.auth.getSession();
       if (session) {
-        goNext("existing-session");
+        goNext();
       }
     }
 
