@@ -3,39 +3,43 @@
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
-function debugLog(
-  location: string,
-  message: string,
-  data: Record<string, unknown>
-) {
-  const entry = { location, message, data, timestamp: Date.now() };
-  try {
-    sessionStorage.setItem("flowchat_oauth_debug", JSON.stringify(entry));
-  } catch {
-    // ignore
-  }
-  // #region agent log
-  fetch("http://127.0.0.1:7402/ingest/66dfec1a-1cd9-44c7-8573-5fb3fdc9feac", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "119215",
-    },
-    body: JSON.stringify({ sessionId: "119215", ...entry, hypothesisId: "E" }),
-  }).catch(() => {});
-  // #endregion
-}
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3456";
 
 export default function AuthConfirmPage() {
   useEffect(() => {
     let redirecting = false;
     let subscription: { unsubscribe: () => void } | null = null;
 
-    function goDashboard(source: string) {
+    async function goNext(source: string) {
       if (redirecting) return;
       redirecting = true;
-      debugLog("auth/confirm/page.tsx:goDashboard", "redirecting", { source });
-      window.location.replace("/dashboard");
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          window.location.replace("/login");
+          return;
+        }
+
+        const res = await fetch(
+          `${BACKEND_URL}/api/chat/usage?userId=${user.id}`
+        );
+        const data = await res.json();
+
+        const needsOnboarding =
+          (data.firstLogin ?? data.first_login) !== false;
+
+        if (needsOnboarding) {
+          window.location.replace("/onboarding");
+        } else {
+          window.location.replace("/dashboard");
+        }
+      } catch {
+        window.location.replace("/dashboard");
+      }
     }
 
     async function confirmAuth() {
@@ -44,30 +48,23 @@ export default function AuthConfirmPage() {
       const type = params.get("type");
       const code = params.get("code");
 
-      debugLog("auth/confirm/page.tsx:entry", "confirm page loaded", {
-        hasCode: Boolean(code),
-        hasTokenHash: Boolean(token_hash),
-        type,
-      });
-
       const { data } = supabase.auth.onAuthStateChange((event, session) => {
         if (
           session &&
           (event === "SIGNED_IN" || event === "INITIAL_SESSION")
         ) {
-          goDashboard(`auth-event-${event}`);
+          goNext(`auth-event-${event}`);
         }
       });
       subscription = data.subscription;
 
-      // OAuth fallback if Supabase still redirects here
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         const {
           data: { session },
         } = await supabase.auth.getSession();
         if (session) {
-          goDashboard("code-exchange");
+          goNext("code-exchange");
           return;
         }
         if (error) {
@@ -88,7 +85,7 @@ export default function AuthConfirmPage() {
           token_hash,
         });
         if (!error) {
-          goDashboard("email-otp");
+          goNext("email-otp");
           return;
         }
         window.location.href = "/login?error=confirmation_failed";
@@ -99,7 +96,7 @@ export default function AuthConfirmPage() {
         data: { session },
       } = await supabase.auth.getSession();
       if (session) {
-        goDashboard("existing-session");
+        goNext("existing-session");
       }
     }
 
