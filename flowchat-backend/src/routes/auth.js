@@ -90,8 +90,6 @@ router.get('/callback/google', async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
     const { data: userInfo } = await oauth2.userinfo.get()
 
-    console.log('✅ Google OAuth successful for user:', userId)
-
     const { data: existingAccount } = await supabase
       .from('platform_accounts')
       .select('id')
@@ -112,15 +110,11 @@ router.get('/callback/google', async (req, res) => {
 
     if (dbError) {
       console.error('❌ Supabase save error:', dbError)
-    } else {
-      console.log('✅ Google tokens saved for Supabase user:', userId)
-
-      if (!existingAccount) {
-        await sendWelcomeEmail({
-          email: userInfo.email,
-          user_metadata: { full_name: userInfo.name },
-        })
-      }
+    } else if (!existingAccount) {
+      await sendWelcomeEmail({
+        email: userInfo.email,
+        user_metadata: { full_name: userInfo.name },
+      })
     }
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
@@ -174,12 +168,6 @@ router.get('/callback/slack', async (req, res) => {
 
     const accessToken = data.access_token
     const teamName = data.team?.name
-    const slackUserId = data.authed_user?.id
-
-    console.log('✅ Slack OAuth successful')
-    console.log('Team:', teamName)
-    console.log('Slack user ID:', slackUserId)
-    console.log('Supabase user ID:', supabaseUserId)
 
     // Save to Supabase
     const { error: dbError } = await supabase
@@ -195,8 +183,6 @@ router.get('/callback/slack', async (req, res) => {
 
     if (dbError) {
       console.error('❌ Supabase save error:', dbError)
-    } else {
-      console.log('✅ Slack tokens saved to Supabase')
     }
 
     res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?connected=slack`)
@@ -251,8 +237,6 @@ router.get('/credentials/:userId/:platform', async (req, res) => {
           })
           .eq('user_id', userId)
           .eq('platform', platform)
-
-        console.log('✅ Google token refreshed for user:', userId)
 
         return res.json({
           access_token: newAccessToken,
