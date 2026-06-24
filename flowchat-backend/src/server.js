@@ -35,6 +35,9 @@ app.use('/api/chat', chatRoutes)
 const executionsRouter = require('./routes/executions')
 app.use('/api/executions', executionsRouter)
 
+const n8nProxy = require('./routes/n8n-proxy')
+app.use('/api/n8n', n8nProxy)
+
 app.use('/api/billing', billingRouter)
 
 const PORT = process.env.PORT || 3456
