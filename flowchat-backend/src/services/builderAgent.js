@@ -2,6 +2,7 @@
 
 const Anthropic = require('@anthropic-ai/sdk')
 const { getMetadataForAgent } = require('./integrations')
+const triggerSchemas = require('../data/trigger-schemas')
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -112,6 +113,36 @@ Return a JSON object with this exact structure:
 }
 `
 
+const schemaSection = `
+
+## Trigger data schemas
+When the automation passes data from a trigger into an action, use these exact n8n expression paths. Never invent expression paths — only use what is listed here.
+
+### typeform
+${Object.entries(triggerSchemas.typeform.fields).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
+Note: ${triggerSchemas.typeform.notes}
+
+### stripe
+${Object.entries(triggerSchemas.stripe.fields).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
+Note: ${triggerSchemas.stripe.notes}
+
+### calendly
+${Object.entries(triggerSchemas.calendly.fields).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
+Note: ${triggerSchemas.calendly.notes}
+
+### gmail
+${Object.entries(triggerSchemas.gmail.fields).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
+Note: ${triggerSchemas.gmail.notes}
+
+### google_sheets
+${Object.entries(triggerSchemas.google_sheets.fields).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
+Note: ${triggerSchemas.google_sheets.notes}
+
+When building a Google Sheets append node, set each column value to the matching trigger field expression above.
+When building a Gmail send node, interpolate trigger field expressions directly into the email subject and body before base64 encoding.
+When building a Slack message node, interpolate trigger field expressions into the message text.
+`
+
 function sanitizeCredentialUrls(nodes, userId) {
   if (!Array.isArray(nodes)) return
 
@@ -153,6 +184,7 @@ function injectNotifyNode(workflowJson, userId) {
         userId: userId,
         n8nWorkflowId: '={{ $workflow.id }}',
         status: 'success',
+        mode: '={{ $execution.mode }}',
       }),
       options: {},
     },
@@ -218,10 +250,12 @@ ${integrationMetadata}
 
   console.log('Builder Agent generating workflow for:', trigger_app, '→', actionList.map(a => a.app).join(', '))
 
+  const systemPrompt = BUILDER_SYSTEM_PROMPT + schemaSection
+
   const response = await anthropic.messages.create({
     model: 'claude-opus-4-6',
     max_tokens: 4096,
-    system: BUILDER_SYSTEM_PROMPT,
+    system: systemPrompt,
     messages: [
       {
         role: 'user',

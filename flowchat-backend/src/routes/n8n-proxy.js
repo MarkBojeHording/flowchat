@@ -28,9 +28,27 @@ router.get('/workflows', async (req, res) => {
   }
 })
 
+router.post('/workflows', async (req, res) => {
+  try {
+    const result = await n8nClient.post('/api/v1/workflows', req.body)
+    res.json(result.data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 router.get('/workflows/:id', async (req, res) => {
   try {
     const result = await n8nClient.get(`/api/v1/workflows/${req.params.id}`)
+    res.json(result.data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.put('/workflows/:id', async (req, res) => {
+  try {
+    const result = await n8nClient.put(`/api/v1/workflows/${req.params.id}`, req.body)
     res.json(result.data)
   } catch (err) {
     res.status(500).json({ error: err.message })

@@ -19,13 +19,13 @@
 
 html {
   scroll-behavior: smooth;
-  background-color: #060b15;
+  background-color: #0f0f1a;
   overscroll-behavior: none;
 }
 
 body {
   color: var(--foreground);
-  background-color: #0a0f1e;
+  background-color: #0f0f1a;
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 

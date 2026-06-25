@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useRef, useState } from "react";
+import React, { Fragment, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
@@ -169,12 +169,6 @@ const TEMPLATES = [
   },
 ];
 
-const PREVIEW_FLOW = [
-  { label: "Typeform", sub: "New form response", borderColor: "border-l-[#262ead]" },
-  { label: "Google Sheets", sub: "Add row to Contacts", borderColor: "border-l-[#0f9d58]" },
-  { label: "Slack", sub: "Notify #team-leads", borderColor: "border-l-[#4a154b]" },
-];
-
 function scrollToSection(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 }
@@ -189,112 +183,197 @@ function handleTemplateClick(prompt: string) {
   window.location.href = "/signup";
 }
 
-function BuildingDots() {
+function BotMessage({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-1 px-1 py-2">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="h-1.5 w-1.5 rounded-full bg-[#00d4aa] animate-bounce-dot"
-          style={{ animationDelay: `${i * 0.16}s` }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function MacWindowBar() {
-  return (
-    <div className="relative flex items-center border-b border-[#2a2a4a] bg-[#0f0f1a] px-4 py-3">
-      <div className="flex items-center gap-2">
-        <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-        <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-        <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+    <div className="flex flex-col gap-1">
+      <span className="pl-1 text-xs font-semibold text-[#00d4aa]">Flowchat</span>
+      <div className="max-w-[80%] rounded-2xl rounded-tl-sm border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-2.5 text-sm text-[#e8e8f0]">
+        {text}
       </div>
-      <span className="absolute left-1/2 -translate-x-1/2 text-sm font-medium text-[#8888aa]">
-        flowchat assistant
-      </span>
     </div>
-  );
+  )
 }
 
-function HeroPreviewCard() {
-  const [phase, setPhase] = useState(0);
+function UserMessage({ text }: { text: string }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[80%] rounded-2xl rounded-br-sm border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-2.5 text-sm text-[#e8e8f0]">
+        {text}
+      </div>
+    </div>
+  )
+}
+
+function HeroChatAnimation() {
+  const [messages, setMessages] = useState<React.ReactNode[]>([])
+  const [inputText, setInputText] = useState('')
+  const [showCursor, setShowCursor] = useState(true)
+  const [sendReady, setSendReady] = useState(false)
+  const [title, setTitle] = useState('New conversation')
+  const chatRef = useRef<HTMLDivElement>(null)
+  const cancelledRef = useRef(false)
 
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setPhase(1), 800),
-      setTimeout(() => setPhase(2), 2200),
-      setTimeout(() => setPhase(3), 3200),
-    ];
-    const loop = setInterval(() => {
-      setPhase(0);
-      setTimeout(() => setPhase(1), 800);
-      setTimeout(() => setPhase(2), 2200);
-      setTimeout(() => setPhase(3), 3200);
-    }, 8000);
-    return () => {
-      timers.forEach(clearTimeout);
-      clearInterval(loop);
-    };
-  }, []);
+    cancelledRef.current = false
+    const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
-  return (
-    <div className="flex max-h-[420px] flex-col overflow-hidden rounded-2xl border border-[#2a2a4a] bg-[#1a1a2e] shadow-2xl">
-      <MacWindowBar />
+    function addMessage(node: React.ReactNode) {
+      if (cancelledRef.current) return
+      setMessages(prev => [...prev, node])
+      setTimeout(() => {
+        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+      }, 50)
+    }
 
-      <div className="min-h-0 flex-1 overflow-hidden p-3">
-        <div className="space-y-3">
-          {phase >= 1 && (
-            <div className="flex justify-end animate-fade-slide-up">
-              <div className="max-w-[90%] rounded-2xl bg-[#2a2a4a] px-4 py-3 text-sm leading-relaxed text-[#e8e8f0]">
-                When someone fills my Typeform, add to Google Sheets and notify
-                Slack
-              </div>
-            </div>
-          )}
+    async function run() {
+      while (!cancelledRef.current) {
 
-          {phase === 2 && (
-            <div className="flex justify-start animate-fade-slide-up">
-              <div className="rounded-2xl border border-[#2a2a4a] border-l-4 border-l-[#00d4aa] bg-[#1a1a2e] px-4 py-3">
-                <BuildingDots />
-              </div>
-            </div>
-          )}
+        // reset
+        setMessages([])
+        setInputText('')
+        setShowCursor(true)
+        setSendReady(false)
+        setTitle('New conversation')
+        await sleep(600)
 
-          {phase >= 3 && (
-            <div className="flex justify-start animate-fade-slide-up">
-              <div className="max-w-[90%] rounded-2xl border border-[#2a2a4a] border-l-4 border-l-[#00d4aa] bg-[#1a1a2e] px-4 py-3 text-sm leading-relaxed text-[#e8e8f0]">
-                ✅ Automation ready! Here&apos;s what I&apos;ve built for you.
-              </div>
-            </div>
-          )}
-        </div>
+        // phase 1 — bot greeting
+        addMessage(<div key="typing-1" className="flex flex-col gap-1">
+          <span className="pl-1 text-xs font-semibold text-[#00d4aa]">Flowchat</span>
+          <div className="flex w-fit gap-1.5 rounded-2xl rounded-tl-sm border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-3">
+            {[0,1,2].map(i => <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#8888aa]" style={{animationDelay:`${i*0.16}s`}}/>)}
+          </div>
+        </div>)
+        await sleep(900)
+        if (cancelledRef.current) return
+        setMessages([])
+        addMessage(<BotMessage key="greet" text="Hey! Describe what you want to set up and I'll handle everything 👋" />)
+        await sleep(900)
 
-        <div
-          className={`mt-3 space-y-1 transition-opacity duration-500 ${
-            phase >= 3 ? "opacity-100" : "opacity-40"
-          }`}
-        >
-          {PREVIEW_FLOW.map((step, i) => (
-            <Fragment key={step.label}>
-              <div
-                className={`mx-3 flex items-start gap-2 rounded-2xl border border-[#2a2a4a] border-l-2 bg-[#0f0f1a] px-3 py-2 ${step.borderColor}`}
-              >
-                <div>
-                  <p className="text-sm font-medium text-[#e8e8f0]">{step.label}</p>
-                  <p className="text-xs text-[#8888aa]">{step.sub}</p>
+        // phase 2 — typewriter in input
+        const msg = "When someone fills my Typeform, add them to Google Sheets and send a Gmail"
+        for (let i = 0; i <= msg.length; i++) {
+          if (cancelledRef.current) return
+          setInputText(msg.slice(0, i))
+          await sleep(44)
+        }
+        setSendReady(true)
+        await sleep(400)
+        if (cancelledRef.current) return
+        setInputText('')
+        setShowCursor(false)
+        setSendReady(false)
+
+        // phase 3 — user message
+        addMessage(<UserMessage key="user" text={msg} />)
+        setTitle(msg.slice(0, 38) + '...')
+        await sleep(400)
+
+        // phase 4 — bot thinking + response
+        addMessage(<div key="typing-2" className="flex flex-col gap-1">
+          <span className="pl-1 text-xs font-semibold text-[#00d4aa]">Flowchat</span>
+          <div className="flex w-fit gap-1.5 rounded-2xl rounded-tl-sm border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-3">
+            {[0,1,2].map(i => <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#8888aa]" style={{animationDelay:`${i*0.16}s`}}/>)}
+          </div>
+        </div>)
+        await sleep(1600)
+        if (cancelledRef.current) return
+        setMessages(prev => prev.filter((_, i) => i !== prev.length - 1))
+        addMessage(<BotMessage key="onit" text="On it! Setting this up for you now ⚡" />)
+        await sleep(400)
+
+        // phase 5 — tool card builds row by row
+        const tools = [
+          { icon:'📋', name:'Typeform', action:'New form response', bg:'rgba(255,107,53,.08)' },
+          { icon:'📊', name:'Google Sheets', action:'Add row to Contacts', bg:'rgba(52,168,83,.08)' },
+          { icon:'📧', name:'Gmail', action:'Send welcome email', bg:'rgba(234,67,53,.08)' },
+        ]
+
+        for (let count = 1; count <= tools.length; count++) {
+          if (cancelledRef.current) return
+          const showLive = count === tools.length
+
+          const card = (
+            <div key="card" className="flex flex-col gap-1">
+              <span className="pl-1 text-xs font-semibold text-[#00d4aa]">Flowchat</span>
+              <div className="max-w-[88%] overflow-hidden rounded-xl border border-[#2a2a4a]">
+                <div className="flex items-center justify-between border-b border-[#2a2a4a] bg-[#0f0f1a] px-3 py-2">
+                  <span className="text-xs font-semibold text-[#8888aa]">Typeform → Sheets → Gmail</span>
+                  {showLive && (
+                    <span className="flex items-center gap-1.5 rounded-full border border-[#00d4aa]/25 bg-[#00d4aa]/10 px-2.5 py-0.5 text-xs font-bold text-[#00d4aa]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#00d4aa] animate-pulse" />Live
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5 bg-[#1a1a2e] p-3">
+                  {tools.slice(0, count).map((tool, i) => (
+                    <div key={tool.name}>
+                      <div className="flex items-center gap-2.5 rounded-lg border border-[#2a2a4a] px-3 py-2" style={{ background: tool.bg }}>
+                        <span className="text-base">{tool.icon}</span>
+                        <div className="flex-1">
+                          <div className="text-xs font-semibold text-[#e8e8f0]">{tool.name}</div>
+                          <div className="text-[10px] text-[#8888aa]">{tool.action}</div>
+                        </div>
+                        <div className="flex h-4 w-4 items-center justify-center rounded-full border border-[#00d4aa]/30 bg-[#00d4aa]/10 text-[10px] text-[#00d4aa]">✓</div>
+                      </div>
+                      {i < count - 1 && <div className="py-0.5 text-center text-xs text-[#2a2a4a]">↓</div>}
+                    </div>
+                  ))}
                 </div>
               </div>
-              {i < PREVIEW_FLOW.length - 1 && (
-                <div className="flex justify-center text-xs text-[#00d4aa]">↓</div>
-              )}
-            </Fragment>
-          ))}
+            </div>
+          )
+
+          // replace previous card or append
+          setMessages(prev => {
+            const last = prev[prev.length - 1]
+            const isCard = last && (last as React.ReactElement).key === 'card'
+            return isCard ? [...prev.slice(0, -1), card] : [...prev, card]
+          })
+
+          setTimeout(() => { if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight }, 50)
+          await sleep(380)
+        }
+
+        await sleep(350)
+
+        // phase 6 — final message
+        addMessage(<BotMessage key="done" text="All done! Want me to set something else up?" />)
+        await sleep(4000)
+      }
+    }
+
+    run()
+    return () => { cancelledRef.current = true }
+  }, [])
+
+  return (
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-[#2a2a4a] shadow-2xl" style={{height:'480px'}}>
+      <div className="flex items-center justify-between border-b border-[#2a2a4a] bg-[#111827] px-4 py-3 flex-shrink-0">
+        <span className="text-xs font-medium text-[#8888aa]">{title}</span>
+        <div className="flex gap-2">
+          <span className="rounded-md border border-[#374151] bg-[#1f2937] px-3 py-1 text-xs text-[#e8e8f0]">Chat</span>
+          <span className="rounded-md border border-[#374151] px-3 py-1 text-xs text-[#6b7280]">History</span>
+        </div>
+      </div>
+
+      <div ref={chatRef} className="flex flex-1 flex-col gap-3 overflow-y-auto bg-[#0f0f1a] px-4 py-4">
+        {messages}
+      </div>
+
+      <div className="flex-shrink-0 border-t border-[#2a2a4a] bg-[#1a1a2e] px-4 py-3">
+        <div className="relative">
+          <div className="flex min-h-[40px] items-center rounded-xl border border-[#2a2a4a] bg-[#0f0f1a] px-4 py-2.5 text-sm">
+            {inputText
+              ? <span className="text-[#e8e8f0]">{inputText}</span>
+              : <span className="text-[#8888aa]">Type a message...</span>
+            }
+            {showCursor && <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-[#e8e8f0]"/>}
+          </div>
+          <div className={`absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-[#00d4aa] text-xs font-bold text-[#0f0f1a] transition-opacity ${sendReady ? 'opacity-100' : 'opacity-30'}`}>↑</div>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 /** Preserved for reuse — templates section replaced the inline demo section. */
@@ -684,7 +763,7 @@ export default function Home() {
                 </p>
               </div>
               <div>
-                <HeroPreviewCard />
+                <HeroChatAnimation />
               </div>
             </div>
           </div>
