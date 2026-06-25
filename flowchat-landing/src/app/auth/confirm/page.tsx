@@ -85,18 +85,24 @@ export default function AuthConfirmPage() {
           token_hash,
         });
         if (!error) {
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/confirm/email-confirmed`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': process.env.NEXT_PUBLIC_INTERNAL_API_KEY as string
-            } as HeadersInit,
-            body: JSON.stringify({
-              userId: data.user?.id,
-              email: data.user?.email,
-              name: data.user?.user_metadata?.full_name || null
-            })
-          }).catch(() => {})
+          const user = data.user
+          if (user) {
+            await fetch(
+              `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/emails/welcome`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': process.env.NEXT_PUBLIC_INTERNAL_API_KEY as string,
+                } as HeadersInit,
+                body: JSON.stringify({
+                  userId: user.id,
+                  email: user.email,
+                  name: user.user_metadata?.full_name,
+                }),
+              }
+            ).catch(() => {})
+          }
 
           goNext();
           return;
