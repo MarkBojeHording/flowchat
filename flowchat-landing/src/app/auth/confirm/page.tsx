@@ -74,7 +74,7 @@ export default function AuthConfirmPage() {
       }
 
       if (token_hash && type) {
-        const { error } = await supabase.auth.verifyOtp({
+        const { data, error } = await supabase.auth.verifyOtp({
           type: type as
             | "signup"
             | "invite"
@@ -85,6 +85,19 @@ export default function AuthConfirmPage() {
           token_hash,
         });
         if (!error) {
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/confirm/email-confirmed`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': process.env.NEXT_PUBLIC_INTERNAL_API_KEY
+            },
+            body: JSON.stringify({
+              userId: data.user?.id,
+              email: data.user?.email,
+              name: data.user?.user_metadata?.full_name || null
+            })
+          }).catch(() => {})
+
           goNext();
           return;
         }
