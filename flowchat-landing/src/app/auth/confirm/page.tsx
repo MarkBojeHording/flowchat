@@ -85,12 +85,12 @@ export default function AuthConfirmPage() {
           token_hash,
         });
         if (!error) {
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/emails/welcome`, {
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/confirm/email-confirmed`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-api-key': process.env.NEXT_PUBLIC_INTERNAL_API_KEY
-            },
+              'x-api-key': process.env.NEXT_PUBLIC_INTERNAL_API_KEY as string
+            } as HeadersInit,
             body: JSON.stringify({
               userId: data.user?.id,
               email: data.user?.email,
