@@ -356,7 +356,7 @@ function HeroChatAnimation() {
         </div>
       </div>
 
-      <div ref={chatRef} className="flex flex-1 flex-col gap-3 overflow-y-auto bg-[#0f0f1a] px-4 py-4">
+      <div ref={chatRef} className="flex flex-1 flex-col gap-3 overflow-y-auto bg-[#F9FAFB] px-4 py-4">
         {messages}
       </div>
 
@@ -369,7 +369,7 @@ function HeroChatAnimation() {
             }
             {showCursor && <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-[#e8e8f0]"/>}
           </div>
-          <div className={`absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-[#00d4aa] text-xs font-bold text-[#0f0f1a] transition-opacity ${sendReady ? 'opacity-100' : 'opacity-30'}`}>↑</div>
+          <div className={`absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-[#E8A020] text-xs font-bold text-[#0f0f1a] transition-opacity ${sendReady ? 'opacity-100' : 'opacity-30'}`}>↑</div>
         </div>
       </div>
     </div>
