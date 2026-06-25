@@ -85,7 +85,7 @@ export default function AuthConfirmPage() {
           token_hash,
         });
         if (!error) {
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/confirm/email-confirmed`, {
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/emails/welcome`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
