@@ -356,7 +356,7 @@ function HeroChatAnimation() {
         </div>
       </div>
 
-      <div ref={chatRef} className="flex flex-1 flex-col gap-3 overflow-y-auto bg-[#F9FAFB] px-4 py-4">
+      <div ref={chatRef} className="flex flex-1 flex-col gap-3 overflow-y-auto bg-[#0f0f1a] px-4 py-4">
         {messages}
       </div>
 
