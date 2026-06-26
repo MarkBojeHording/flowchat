@@ -347,7 +347,7 @@ function HeroChatAnimation() {
   }, [])
 
   return (
-    <div className="relative" style={{ perspective: '800px' }}>
+    <div className="relative" style={{ perspective: '1200px', overflow: 'visible' }}>
 
       {/* Teal glow behind window */}
       <div style={{
@@ -364,19 +364,19 @@ function HeroChatAnimation() {
         style={{
           height: '480px',
           zIndex: 1,
-          transform: 'perspective(800px) rotateY(-12deg) rotateX(3deg)',
-          boxShadow: '8px 12px 40px rgba(0,0,0,.6), 0 0 60px rgba(0,212,170,.08), 0 0 120px rgba(0,212,170,.04)',
+          transform: 'perspective(1200px) rotateY(-6deg) rotateX(2deg)',
+          boxShadow: '6px 8px 32px rgba(0,0,0,.5), 0 0 40px rgba(0,212,170,.06), 0 0 80px rgba(0,212,170,.03)',
           transition: 'transform .3s ease, box-shadow .3s ease',
         }}
         onMouseEnter={e => {
           const el = e.currentTarget as HTMLDivElement
-          el.style.transform = 'perspective(800px) rotateY(-6deg) rotateX(1deg)'
+          el.style.transform = 'perspective(1200px) rotateY(-3deg) rotateX(1deg)'
           el.style.boxShadow = '8px 12px 40px rgba(0,0,0,.6), 0 0 80px rgba(0,212,170,.14), 0 0 160px rgba(0,212,170,.07)'
         }}
         onMouseLeave={e => {
           const el = e.currentTarget as HTMLDivElement
-          el.style.transform = 'perspective(800px) rotateY(-12deg) rotateX(3deg)'
-          el.style.boxShadow = '8px 12px 40px rgba(0,0,0,.6), 0 0 60px rgba(0,212,170,.08), 0 0 120px rgba(0,212,170,.04)'
+          el.style.transform = 'perspective(1200px) rotateY(-6deg) rotateX(2deg)'
+          el.style.boxShadow = '6px 8px 32px rgba(0,0,0,.5), 0 0 40px rgba(0,212,170,.06), 0 0 80px rgba(0,212,170,.03)'
         }}
       >
       <div className="flex items-center justify-between border-b border-[#2a2a4a] bg-[#111827] px-4 py-3 flex-shrink-0">
@@ -794,7 +794,7 @@ export default function Home() {
                   No credit card · 3-day free trial
                 </p>
               </div>
-              <div>
+              <div className="w-full" style={{ overflow: 'visible' }}>
                 <HeroChatAnimation />
               </div>
             </div>
