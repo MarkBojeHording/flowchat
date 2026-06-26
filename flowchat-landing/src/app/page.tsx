@@ -347,7 +347,38 @@ function HeroChatAnimation() {
   }, [])
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-[#2a2a4a] shadow-2xl" style={{height:'480px'}}>
+    <div className="relative" style={{ perspective: '800px' }}>
+
+      {/* Teal glow behind window */}
+      <div style={{
+        position: 'absolute',
+        inset: '-40px',
+        background: 'radial-gradient(ellipse at 60% 50%, rgba(0,212,170,.1) 0%, transparent 65%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
+
+      {/* The chat window */}
+      <div
+        className="relative flex flex-col overflow-hidden rounded-2xl border border-[#2a2a4a]"
+        style={{
+          height: '480px',
+          zIndex: 1,
+          transform: 'perspective(800px) rotateY(-12deg) rotateX(3deg)',
+          boxShadow: '8px 12px 40px rgba(0,0,0,.6), 0 0 60px rgba(0,212,170,.08), 0 0 120px rgba(0,212,170,.04)',
+          transition: 'transform .3s ease, box-shadow .3s ease',
+        }}
+        onMouseEnter={e => {
+          const el = e.currentTarget as HTMLDivElement
+          el.style.transform = 'perspective(800px) rotateY(-6deg) rotateX(1deg)'
+          el.style.boxShadow = '8px 12px 40px rgba(0,0,0,.6), 0 0 80px rgba(0,212,170,.14), 0 0 160px rgba(0,212,170,.07)'
+        }}
+        onMouseLeave={e => {
+          const el = e.currentTarget as HTMLDivElement
+          el.style.transform = 'perspective(800px) rotateY(-12deg) rotateX(3deg)'
+          el.style.boxShadow = '8px 12px 40px rgba(0,0,0,.6), 0 0 60px rgba(0,212,170,.08), 0 0 120px rgba(0,212,170,.04)'
+        }}
+      >
       <div className="flex items-center justify-between border-b border-[#2a2a4a] bg-[#111827] px-4 py-3 flex-shrink-0">
         <span className="text-xs font-medium text-[#8888aa]">{title}</span>
         <div className="flex gap-2">
@@ -372,6 +403,7 @@ function HeroChatAnimation() {
           <div className={`absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-[#E8A020] text-xs font-bold text-[#0f0f1a] transition-opacity ${sendReady ? 'opacity-100' : 'opacity-30'}`}>↑</div>
         </div>
       </div>
+    </div>
     </div>
   )
 }
