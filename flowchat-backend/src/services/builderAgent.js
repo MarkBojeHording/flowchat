@@ -315,6 +315,11 @@ function sanitizeCredentialUrls(nodes, userId) {
 function injectNotifyNode(workflowJson, userId) {
   const nodes = workflowJson.nodes || []
 
+  const alreadyHasNotify = nodes.some(n => n.name === 'Notify Flowchat')
+  if (alreadyHasNotify) {
+    return workflowJson
+  }
+
   const lastNode = nodes[nodes.length - 1]
   const lastPos = lastNode?.position || [500, 300]
 

@@ -604,12 +604,46 @@ async function executeTool(name, input, userId, automationId = null) {
 
         console.log('build_workflow details object:', JSON.stringify(detailsObj))
 
-        // Parse sheet ID from agent's selected sheet
-        // Agent receives sheets as "Name (ID: abc123)" format
-        if (detailsObj.sheet_name && !detailsObj.sheet_id) {
-          const match = detailsObj.sheet_name.match(/\(ID:\s*([^)]+)\)/)
+        // Parse sheet_id from details
+        if (!detailsObj.sheet_id) {
+          const nameToCheck = detailsObj.sheet_name || detailsObj.spreadsheet || ''
+          const match = nameToCheck.match(/\(ID:\s*([^)]+)\)/)
           if (match) {
             detailsObj.sheet_id = match[1].trim()
+          }
+        }
+
+        // If still no sheet_id, fetch it from Google Drive
+        if (!detailsObj.sheet_id && (detailsObj.spreadsheet || detailsObj.sheet_name)) {
+          try {
+            const sheetName = detailsObj.spreadsheet || detailsObj.sheet_name
+            const { data: account } = await supabase
+              .from('platform_accounts')
+              .select('access_token')
+              .eq('user_id', userId)
+              .eq('platform', 'google')
+              .single()
+
+            if (account) {
+              const sheetsRes = await axios.get(
+                'https://www.googleapis.com/drive/v3/files',
+                {
+                  params: {
+                    q: `mimeType='application/vnd.google-apps.spreadsheet' and name='${sheetName.replace(/'/g, "\\'")}'`,
+                    fields: 'files(id,name)',
+                    pageSize: 5
+                  },
+                  headers: { Authorization: `Bearer ${account.access_token}` }
+                }
+              )
+              const files = sheetsRes.data.files || []
+              if (files.length > 0) {
+                detailsObj.sheet_id = files[0].id
+                console.log(`✅ Resolved sheet_id for "${sheetName}": ${detailsObj.sheet_id}`)
+              }
+            }
+          } catch (err) {
+            console.error('Sheet ID lookup error:', err.message)
           }
         }
 

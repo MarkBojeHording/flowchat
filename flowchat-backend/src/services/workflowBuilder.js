@@ -502,20 +502,17 @@ async function buildWorkflow(userId, userEmail, spec) {
   const actionApp = action_app?.toLowerCase().replace(/\s+/g, '_')
   const actionEvent = normalizeActionEvent(action_event)
 
-  console.log('buildWorkflow template check:', {
-    triggerApp,
-    actionApp,
-    actionEvent,
-    rawActionEvent: action_event,
-  })
+  console.log('Template check:', triggerApp, actionApp, actionEvent)
+
+  const isTypeformToSheets =
+    triggerApp === 'typeform' &&
+    (actionApp === 'google_sheets' || actionApp === 'sheets' || action_app?.toLowerCase() === 'google sheets')
 
   const hasTemplate =
     (triggerApp === 'schedule' &&
       actionApp === 'slack' &&
       actionEvent === 'send_message') ||
-    (triggerApp === 'typeform' &&
-      (actionApp === 'google_sheets' || actionApp === 'sheets') &&
-      actionEvent === 'append_row') ||
+    isTypeformToSheets ||
     (triggerApp === 'schedule' &&
       actionApp === 'gmail' &&
       actionEvent === 'send_email')
@@ -526,7 +523,7 @@ async function buildWorkflow(userId, userEmail, spec) {
 
     if (triggerApp === 'schedule' && actionApp === 'slack') {
       workflow = buildScheduleSlackWorkflow(userId, details)
-    } else if (triggerApp === 'typeform' && (actionApp === 'google_sheets' || actionApp === 'sheets')) {
+    } else if (isTypeformToSheets) {
       workflow = buildTypeformSheetsWorkflow(userId, details)
     } else if (triggerApp === 'schedule' && actionApp === 'gmail') {
       workflow = buildScheduleGmailWorkflow(userId, details)
