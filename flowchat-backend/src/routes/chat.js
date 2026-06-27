@@ -2067,28 +2067,34 @@ router.delete('/automations/:id', async (req, res) => {
 
     if (workflow.n8n_workflow_id) {
       try {
-        const { n8nClient } = require('../services/n8n')
-        const result = await n8nClient.delete(
-          `/api/v1/workflows/${workflow.n8n_workflow_id}`
+        await axios.delete(
+          `${process.env.BACKEND_URL}/api/n8n/workflows/${workflow.n8n_workflow_id}`,
+          { headers: { 'x-api-key': process.env.INTERNAL_API_KEY } }
         )
-        console.log('n8n delete result:', result.data)
       } catch (err) {
-        console.error('n8n delete error (continuing):', err.message)
+        if (err.response?.status !== 404) {
+          console.error('n8n delete error:', err.message)
+        }
       }
     }
 
-    const { error } = await supabase
+    await supabase
+      .from('executions')
+      .delete()
+      .eq('workflow_id', id)
+
+    const { error: deleteError } = await supabase
       .from('workflows')
       .delete()
       .eq('id', id)
       .eq('user_id', userId)
 
-    if (error) {
-      console.error('Supabase delete error:', error)
-      throw error
+    if (deleteError) {
+      console.error('Supabase delete error:', deleteError)
+      return res.status(500).json({ error: deleteError.message })
     }
 
-    console.log('Supabase delete complete')
+    console.log('✅ Workflow deleted successfully')
 
     // If n8n_workflow_id is null, try to find and delete orphaned workflows
     if (!workflow.n8n_workflow_id) {
