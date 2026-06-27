@@ -94,7 +94,7 @@ const TOOLS = [
         app: {
           type: 'string',
           description:
-            'which app to get resources for: google_sheets, slack, typeform, airtable, notion',
+            'which app to get resources for: google_sheets, slack, typeform_forms, typeform, airtable, notion',
         },
       },
       required: ['app'],
@@ -396,6 +396,24 @@ async function executeTool(name, input, userId, automationId = null) {
           return { google_sheets: sheets }
         }
 
+        if (app === 'typeform_forms') {
+          try {
+            const response = await axios.get(
+              `${process.env.BACKEND_URL}/api/integrations/typeform/forms/${userId}`,
+              { headers: { 'x-api-key': process.env.INTERNAL_API_KEY } }
+            )
+            const forms = response.data.forms || []
+            if (forms.length === 0) {
+              return { result: 'No Typeform forms found. The user may need to create a form first.' }
+            }
+            return {
+              result: forms.map(f => `${f.title} (ID: ${f.id})`).join('\n')
+            }
+          } catch (err) {
+            return { result: 'Could not fetch Typeform forms. User may need to reconnect Typeform.' }
+          }
+        }
+
         return {
           google_sheets: ['Client Leads', 'New Signups'],
           slack_channels: ['#general', '#team'],
@@ -508,20 +526,63 @@ async function executeTool(name, input, userId, automationId = null) {
 
         const testWebhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${testWebhookPath}`
 
+        const triggerApp = trigger_app?.toLowerCase().replace(/\s+/g, '_')
+        let webhookUrl = testWebhookUrl
+        let triggerConfig = null
+
+        if (triggerApp === 'typeform') {
+          const typeformTriggerNode = workflowData.nodes?.find(
+            (node) => node.name === 'Typeform Trigger'
+          )
+          const webhookPath = typeformTriggerNode?.parameters?.path
+
+          if (webhookPath) {
+            webhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${webhookPath}`
+          }
+
+          triggerConfig = { form_id: detailsObj.typeform_form_id }
+
+          const { registerTypeformWebhook } = require('./auth')
+
+          const { data: tfAccount } = await supabase
+            .from('platform_accounts')
+            .select('access_token')
+            .eq('user_id', userId)
+            .eq('platform', 'typeform')
+            .single()
+
+          if (tfAccount && detailsObj.typeform_form_id) {
+            await registerTypeformWebhook(
+              userId,
+              detailsObj.typeform_form_id,
+              tfAccount.access_token
+            )
+          }
+        }
+
         if (automationId) {
           await supabase
             .from('workflows')
             .update({
               n8n_workflow_id: created.id,
-              webhook_url: testWebhookUrl,
+              webhook_url: webhookUrl,
               name: `${userEmail} — ${trigger_app} → ${action_app}`,
               status: 'active',
               stage: 'live',
               trigger_app,
               action_apps: [action_app],
+              ...(triggerConfig ? { trigger_config: triggerConfig } : {}),
             })
             .eq('id', automationId)
             .eq('user_id', userId)
+        } else if (triggerApp === 'typeform') {
+          await supabase
+            .from('workflows')
+            .update({
+              webhook_url: webhookUrl,
+              trigger_config: triggerConfig,
+            })
+            .eq('n8n_workflow_id', created.id)
         }
 
         return {
