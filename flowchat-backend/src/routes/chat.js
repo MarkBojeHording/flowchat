@@ -2036,6 +2036,42 @@ router.delete('/automations/:id', async (req, res) => {
     }
 
     console.log('Supabase delete complete')
+
+    // If n8n_workflow_id is null, try to find and delete orphaned workflows
+    if (!workflow.n8n_workflow_id) {
+      try {
+        const { data: n8nWorkflows } = await axios.get(
+          `${process.env.BACKEND_URL}/api/n8n/workflows`,
+          { headers: { 'x-api-key': process.env.INTERNAL_API_KEY } }
+        )
+
+        const { data: trackedWorkflows } = await supabase
+          .from('workflows')
+          .select('n8n_workflow_id')
+          .eq('user_id', userId)
+          .not('n8n_workflow_id', 'is', null)
+
+        const trackedIds = trackedWorkflows.map(w => w.n8n_workflow_id)
+
+        const { data: userData } = await supabase.auth.admin.getUserById(userId)
+        const userEmail = userData?.user?.email
+
+        const orphans = n8nWorkflows.data?.filter(w =>
+          userEmail && w.name.includes(userEmail) && !trackedIds.includes(w.id)
+        ) || []
+
+        for (const orphan of orphans) {
+          await axios.delete(
+            `${process.env.BACKEND_URL}/api/n8n/workflows/${orphan.id}`,
+            { headers: { 'x-api-key': process.env.INTERNAL_API_KEY } }
+          )
+          console.log(`🧹 Deleted orphaned n8n workflow: ${orphan.id}`)
+        }
+      } catch (err) {
+        console.error('Orphan cleanup error:', err.message)
+      }
+    }
+
     res.json({ success: true })
   } catch (err) {
     console.error('Delete automation error:', err)
