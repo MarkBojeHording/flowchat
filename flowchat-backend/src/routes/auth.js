@@ -25,21 +25,12 @@ function getOAuthClient() {
 }
 
 const GOOGLE_OAUTH_SCOPES = [
-  // Identity
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile',
-
-  // Gmail
   'https://www.googleapis.com/auth/gmail.send',
   'https://www.googleapis.com/auth/gmail.readonly',
-
-  // Google Sheets
   'https://www.googleapis.com/auth/spreadsheets',
-
-  // Google Drive
   'https://www.googleapis.com/auth/drive.readonly',
-
-  // Google Calendar
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
   'https://www.googleapis.com/auth/calendar.events',
 ]
 
