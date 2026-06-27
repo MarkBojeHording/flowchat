@@ -1,14 +1,14 @@
 module.exports = {
   typeform: {
-    description: 'Typeform webhook payload',
+    description: 'Typeform webhook payload — fired when a form is submitted',
     fields: {
-      submitter_email: "{{ $json.form_response.answers.find(a => a.type === 'email')?.email }}",
-      submitter_name: "{{ $json.form_response.answers.find(a => a.field.type === 'short_text')?.text }}",
-      form_id: '{{ $json.form_response.form_id }}',
-      submitted_at: '{{ $json.form_response.submitted_at }}',
-      all_answers: '{{ JSON.stringify($json.form_response.answers) }}',
+      submitter_email: "{{ $json.submitter_email }}",
+      submitter_name: "{{ $json.submitter_name }}",
+      form_id: "{{ $json.form_id }}",
+      submitted_at: "{{ $json.submitted_at }}",
+      all_answers: "{{ $json.all_answers }}"
     },
-    notes: 'Answers are in $json.form_response.answers array. Each answer has a field.ref and type-specific value property (text, email, number, choice.label etc).'
+    notes: 'Data is pre-normalized by the Flowchat backend before reaching n8n. Use $json.submitter_email, $json.submitter_name etc directly — no need to parse raw Typeform payload.'
   },
   stripe: {
     description: 'Stripe webhook payload (payment_intent.succeeded)',

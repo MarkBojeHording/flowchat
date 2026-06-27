@@ -95,6 +95,117 @@ Every day at 9am: 0 9 * * *
 Every hour: 0 * * * *
 First of month at 9am: 0 9 1 * *
 
+## Typeform → Google Sheets workflow structure
+
+When building a Typeform → Google Sheets automation, use this exact 
+node structure:
+
+Trigger node — Webhook (receives data from Flowchat's Typeform receiver):
+{
+  id: 'typeform-trigger',
+  name: 'Typeform Trigger',
+  type: 'n8n-nodes-base.webhook',
+  typeVersion: 2,
+  position: [256, 304],
+  parameters: {
+    path: \`flowchat-typeform-\${userId}-\${Date.now()}\`,
+    responseMode: 'responseNode',
+    options: {}
+  }
+}
+
+Fetch Google Credentials node:
+{
+  id: 'fetch-google-creds',
+  name: 'Fetch Google Credentials',
+  type: 'n8n-nodes-base.httpRequest',
+  typeVersion: 4.2,
+  position: [512, 304],
+  parameters: {
+    url: \`\${BACKEND_URL}/api/auth/credentials/\${userId}/google\`,
+    sendHeaders: true,
+    headerParameters: {
+      parameters: [{ name: 'x-api-key', value: INTERNAL_API_KEY }]
+    },
+    options: {}
+  }
+}
+
+Append to Google Sheets node — uses trigger data dynamically:
+{
+  id: 'append-sheets',
+  name: 'Append to Google Sheets',
+  type: 'n8n-nodes-base.httpRequest',
+  typeVersion: 4.2,
+  position: [752, 304],
+  parameters: {
+    method: 'POST',
+    url: \`https://sheets.googleapis.com/v4/spreadsheets/\${SHEET_ID}/values/\${SHEET_NAME}!A1:append?valueInputOption=USER_ENTERED\`,
+    sendHeaders: true,
+    headerParameters: {
+      parameters: [{ name: 'Authorization', value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}' }]
+    },
+    sendBody: true,
+    specifyBody: 'json',
+    jsonBody: \`={
+      "values": [[
+        "{{ $("Typeform Trigger").item.json.submitter_name }}",
+        "{{ $("Typeform Trigger").item.json.submitter_email }}",
+        "{{ $("Typeform Trigger").item.json.submitted_at }}"
+      ]]
+    }\`,
+    options: {}
+  }
+}
+
+Notify Flowchat node — same pattern as all other workflows:
+{
+  id: 'notify-success',
+  name: 'Notify Flowchat',
+  type: 'n8n-nodes-base.httpRequest',
+  typeVersion: 4.2,
+  position: [1002, 304],
+  parameters: {
+    method: 'POST',
+    url: \`\${BACKEND_URL}/api/executions/log\`,
+    sendHeaders: true,
+    headerParameters: {
+      parameters: [{ name: 'x-api-key', value: INTERNAL_API_KEY }]
+    },
+    sendBody: true,
+    specifyBody: 'json',
+    jsonBody: \`={{ JSON.stringify({ 
+      userId: "\${userId}", 
+      n8nWorkflowId: $workflow.id, 
+      status: "success",
+      mode: $execution.mode,
+      details: { 
+        type: "typeform_to_sheets",
+        form_id: $("Typeform Trigger").item.json.form_id,
+        submitted_at: $("Typeform Trigger").item.json.submitted_at
+      }
+    }) }}\`,
+    options: {}
+  }
+}
+
+Respond to Webhook node:
+{
+  id: 'respond-webhook',
+  name: 'Respond to Webhook',
+  type: 'n8n-nodes-base.respondToWebhook',
+  typeVersion: 1.1,
+  position: [1252, 304],
+  parameters: {
+    respondWith: 'json',
+    responseBody: '={{ JSON.stringify({ success: true }) }}',
+    options: {}
+  }
+}
+
+Connections:
+Typeform Trigger → Fetch Google Credentials → Append to Google Sheets → Notify Flowchat → Respond to Webhook
+
 ## Important rules
 - ALWAYS include a Test Webhook node
 - ALWAYS fetch credentials before calling any external API

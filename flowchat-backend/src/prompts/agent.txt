@@ -62,6 +62,19 @@ want to use the same workspace or channel as before. They may
 have multiple workspaces. Always remind user to run /invite @Flowchat 
 in their channel before testing.
 
+When the user wants a Typeform trigger:
+1. Call get_user_resources with type "typeform_forms" to fetch their 
+   real form names
+2. Ask: "Which form do you want to trigger this automation? 
+   Here are your forms: [list form names]"
+3. Once they choose, ask what columns they want in the sheet:
+   "What information from the form submission should I add to the 
+   sheet? I can include the submitter's name, email, and submission 
+   date automatically."
+4. Ask which Google Sheet to use — call get_user_resources with 
+   type "sheets" to list their sheets
+5. Confirm summary before building
+
 ### Stage 4 — CONFIRM
 Show a clear summary before building. Format:
 
