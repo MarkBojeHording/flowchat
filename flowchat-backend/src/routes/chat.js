@@ -604,6 +604,15 @@ async function executeTool(name, input, userId, automationId = null) {
 
         console.log('build_workflow details object:', JSON.stringify(detailsObj))
 
+        // Parse sheet ID from agent's selected sheet
+        // Agent receives sheets as "Name (ID: abc123)" format
+        if (detailsObj.sheet_name && !detailsObj.sheet_id) {
+          const match = detailsObj.sheet_name.match(/\(ID:\s*([^)]+)\)/)
+          if (match) {
+            detailsObj.sheet_id = match[1].trim()
+          }
+        }
+
         const { data: userData } = await supabase.auth.admin.getUserById(userId)
         const userEmail = userData?.user?.email || userId
 

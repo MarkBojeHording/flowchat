@@ -259,9 +259,11 @@ function buildScheduleSlackWorkflow(userId, details) {
 }
 
 function buildTypeformSheetsWorkflow(userId, details) {
-  const webhookPath = `flowchat-${userId}-${Date.now()}`
-  const testWebhookPath = createTestWebhookPath(userId)
-  const sheetName = details.sheet_name || 'Sheet1'
+  const sheetId = details.sheet_id || details.sheetId || details.spreadsheet_id
+  const sheetTab = details.sheet_tab || details.sheetTab || details.sheet_name?.replace(/\s*\(ID:\s*[^)]+\)\s*$/, '').trim() || 'Sheet1'
+  const webhookPath = `flowchat-typeform-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
 
   const nodes = [
     {
@@ -270,7 +272,6 @@ function buildTypeformSheetsWorkflow(userId, details) {
       type: 'n8n-nodes-base.webhook',
       typeVersion: 2,
       position: [256, 304],
-      webhookId: webhookPath,
       parameters: {
         path: webhookPath,
         responseMode: 'responseNode',
@@ -283,7 +284,6 @@ function buildTypeformSheetsWorkflow(userId, details) {
       type: 'n8n-nodes-base.webhook',
       typeVersion: 2,
       position: [256, 512],
-      webhookId: testWebhookPath,
       parameters: {
         path: testWebhookPath,
         responseMode: 'responseNode',
@@ -297,7 +297,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
       typeVersion: 4.2,
       position: [512, 304],
       parameters: {
-        url: credentialsUrl(userId, 'google'),
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
         sendHeaders: true,
         headerParameters: {
           parameters: [{ name: 'x-api-key', value: getInternalApiKey() }]
@@ -313,23 +313,36 @@ function buildTypeformSheetsWorkflow(userId, details) {
       position: [752, 304],
       parameters: {
         method: 'POST',
-        url: `https://sheets.googleapis.com/v4/spreadsheets/{{ $json.sheet_id }}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED`,
+        url: `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetTab)}!A1:append?valueInputOption=USER_ENTERED`,
         sendHeaders: true,
         headerParameters: {
-          parameters: [
-            { name: 'Authorization', value: '=Bearer {{ $json.access_token }}' }
-          ]
+          parameters: [{
+            name: 'Authorization',
+            value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}'
+          }]
         },
         sendBody: true,
         specifyBody: 'json',
-        jsonBody: JSON.stringify({
-          values: [
-            [
-              "={{ $('Typeform Trigger').item.json.form_response.answers[0].text }}",
-              '={{ new Date().toISOString() }}',
-            ],
-          ],
-        }),
+        jsonBody: '={"values":[["={{ $("Typeform Trigger").item.json.submitter_name }}","={{ $("Typeform Trigger").item.json.submitter_email }}","={{ $("Typeform Trigger").item.json.submitted_at }}"]]}',
+        options: {}
+      }
+    },
+    {
+      id: 'notify-success',
+      name: 'Notify Flowchat',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1002, 304],
+      parameters: {
+        method: 'POST',
+        url: `${backendUrl}/api/executions/log`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }]
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode, details: { type: "typeform_to_sheets", submitted_at: $("Typeform Trigger").item.json.submitted_at } }) }}`,
         options: {}
       }
     },
@@ -338,7 +351,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
       name: 'Respond to Webhook',
       type: 'n8n-nodes-base.respondToWebhook',
       typeVersion: 1.1,
-      position: [1008, 304],
+      position: [1252, 304],
       parameters: {
         respondWith: 'json',
         responseBody: '={{ JSON.stringify({ success: true }) }}',
@@ -348,13 +361,22 @@ function buildTypeformSheetsWorkflow(userId, details) {
   ]
 
   const connections = {
-    'Typeform Trigger': { main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]] },
-    'Test Webhook': { main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]] },
-    'Fetch Google Credentials': { main: [[{ node: 'Append to Google Sheets', type: 'main', index: 0 }]] },
-    'Append to Google Sheets': { main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]] }
+    'Typeform Trigger': {
+      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]]
+    },
+    'Test Webhook': {
+      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]]
+    },
+    'Fetch Google Credentials': {
+      main: [[{ node: 'Append to Google Sheets', type: 'main', index: 0 }]]
+    },
+    'Append to Google Sheets': {
+      main: [[{ node: 'Notify Flowchat', type: 'main', index: 0 }]]
+    },
+    'Notify Flowchat': {
+      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]]
+    }
   }
-
-  wireNotifySuccess(nodes, connections, 'Append to Google Sheets', userId)
 
   return {
     humanName: 'Typeform → Google Sheet',
@@ -492,7 +514,7 @@ async function buildWorkflow(userId, userEmail, spec) {
       actionApp === 'slack' &&
       actionEvent === 'send_message') ||
     (triggerApp === 'typeform' &&
-      actionApp === 'google_sheets' &&
+      (actionApp === 'google_sheets' || actionApp === 'sheets') &&
       actionEvent === 'append_row') ||
     (triggerApp === 'schedule' &&
       actionApp === 'gmail' &&
@@ -504,7 +526,7 @@ async function buildWorkflow(userId, userEmail, spec) {
 
     if (triggerApp === 'schedule' && actionApp === 'slack') {
       workflow = buildScheduleSlackWorkflow(userId, details)
-    } else if (triggerApp === 'typeform' && actionApp === 'google_sheets') {
+    } else if (triggerApp === 'typeform' && (actionApp === 'google_sheets' || actionApp === 'sheets')) {
       workflow = buildTypeformSheetsWorkflow(userId, details)
     } else if (triggerApp === 'schedule' && actionApp === 'gmail') {
       workflow = buildScheduleGmailWorkflow(userId, details)
