@@ -424,20 +424,32 @@ ${integrationMetadata}
     ],
   })
 
-  const responseText = response.content[0]?.text || ''
-  
-  // Clean the response — remove any markdown if present
-  const jsonText = responseText
-    .replace(/^```(?:json)?\n?/i, '')
-    .replace(/\n?```$/i, '')
+  const raw = (response.content[0]?.text || '').trim()
+
+  // Strip all possible code fence formats
+  const clean = raw
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
     .trim()
 
+  // If still not valid JSON, try to extract JSON object/array
   let workflowJson
   try {
-    workflowJson = JSON.parse(jsonText)
-  } catch (err) {
-    console.error('Builder Agent returned invalid JSON:', jsonText.slice(0, 500))
-    throw new Error('Builder Agent failed to generate valid workflow JSON')
+    workflowJson = JSON.parse(clean)
+  } catch (e) {
+    const jsonMatch = clean.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      try {
+        workflowJson = JSON.parse(jsonMatch[0])
+      } catch (e2) {
+        console.error('Builder Agent raw response:', raw)
+        throw new Error('Builder Agent failed to generate valid workflow JSON')
+      }
+    } else {
+      console.error('Builder Agent raw response:', raw)
+      throw new Error('Builder Agent failed to generate valid workflow JSON')
+    }
   }
 
   // Validate the response has required fields
