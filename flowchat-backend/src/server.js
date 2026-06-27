@@ -41,6 +41,9 @@ app.use('/api/n8n', n8nProxy)
 const emailsRouter = require('./routes/emails')
 app.use('/api/emails', emailsRouter)
 
+const typeformIntegration = require('./routes/integrations/typeform')
+app.use('/api/integrations/typeform', typeformIntegration)
+
 app.use('/api/billing', billingRouter)
 
 const PORT = process.env.PORT || 3456

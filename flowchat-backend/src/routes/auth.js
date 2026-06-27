@@ -260,4 +260,100 @@ router.get('/credentials/:userId/:platform', async (req, res) => {
   }
 })
 
+// ─── TYPEFORM OAUTH ───────────────────────────────────────────
+
+// Step 1: Redirect user to Typeform OAuth
+router.get('/typeform', (req, res) => {
+  const { userId, formId } = req.query
+  const state = Buffer.from(JSON.stringify({ userId, formId })).toString('base64')
+
+  const params = new URLSearchParams({
+    client_id: process.env.TYPEFORM_CLIENT_ID,
+    redirect_uri: `${process.env.BACKEND_URL}/api/auth/callback/typeform`,
+    scope: 'offline accounts:read forms:read responses:read webhooks:read webhooks:write workspaces:read',
+    state
+  })
+
+  res.redirect(`https://api.typeform.com/oauth/authorize?${params.toString()}`)
+})
+
+// Step 2: Handle Typeform OAuth callback
+router.get('/callback/typeform', async (req, res) => {
+  const { code, state, error } = req.query
+
+  if (error) {
+    return res.redirect(`${process.env.FRONTEND_URL}/dashboard?error=typeform_denied`)
+  }
+
+  try {
+    const { userId, formId } = JSON.parse(Buffer.from(state, 'base64').toString())
+
+    // Exchange code for tokens
+    const tokenRes = await axios.post('https://api.typeform.com/oauth/token', 
+      new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        client_id: process.env.TYPEFORM_CLIENT_ID,
+        client_secret: process.env.TYPEFORM_CLIENT_SECRET,
+        redirect_uri: `${process.env.BACKEND_URL}/api/auth/callback/typeform`
+      }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    )
+
+    const { access_token, refresh_token } = tokenRes.data
+
+    // Get user info
+    const meRes = await axios.get('https://api.typeform.com/me', {
+      headers: { Authorization: `Bearer ${access_token}` }
+    })
+    const email = meRes.data.email
+
+    // Save tokens to Supabase
+    await supabase.from('platform_accounts').upsert({
+      user_id: userId,
+      platform: 'typeform',
+      email,
+      access_token,
+      refresh_token: refresh_token || null,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,platform' })
+
+    console.log(`✅ Typeform OAuth successful for user ${userId}`)
+
+    // If formId passed, register webhook on that form
+    if (formId) {
+      await registerTypeformWebhook(userId, formId, access_token)
+    }
+
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard?typeform=connected`)
+
+  } catch (err) {
+    console.error('Typeform OAuth error:', err.response?.data || err.message)
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard?error=typeform_failed`)
+  }
+})
+
+// Helper: Register webhook on a Typeform form
+async function registerTypeformWebhook(userId, formId, accessToken) {
+  try {
+    const tag = `flowchat-${userId}`
+    const webhookUrl = `${process.env.BACKEND_URL}/api/integrations/typeform/webhook/${userId}`
+
+    await axios.put(
+      `https://api.typeform.com/forms/${formId}/webhooks/${tag}`,
+      {
+        url: webhookUrl,
+        enabled: true,
+        verify_ssl: true
+      },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+
+    console.log(`✅ Typeform webhook registered for form ${formId}`)
+  } catch (err) {
+    console.error('Typeform webhook registration error:', err.response?.data || err.message)
+  }
+}
+
 module.exports = router
+module.exports.registerTypeformWebhook = registerTypeformWebhook
