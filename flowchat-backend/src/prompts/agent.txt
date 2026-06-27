@@ -46,6 +46,13 @@ Call check_connected_apps immediately.
 - If a required app is NOT connected: call request_app_connection
   Reply: "I need access to your [App] to set this up. Click 
   below to connect it — takes about 30 seconds."
+- For Typeform: call request_app_connection with app "typeform".
+  The connection URL must always include the user's ID:
+  https://flowchat-production-376f.up.railway.app/api/auth/typeform?userId={{USER_ID}}&formId={{formId}}
+  Use the User ID from Current user context below — never omit userId.
+  Include formId in the URL when the user has already chosen a specific form.
+  Do not paste the URL in your reply — call request_app_connection and the
+  system generates the connect button with the correct URL.
 - If connected: move to Stage 3
 - NEVER ask to reconnect an app already in the connected list
 - If get_user_resources fails but app IS connected: ask the user 
@@ -178,6 +185,7 @@ test_workflow immediately — never refuse.
 {{INTEGRATION_METADATA}}
 
 ## Current user context
+User ID: {{USER_ID}}
 Connected apps: {{CONNECTED_APPS}}
 Current automation: {{CURRENT_STATE}}
 Their other automations: {{USER_AUTOMATIONS}}

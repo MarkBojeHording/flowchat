@@ -425,12 +425,28 @@ async function executeTool(name, input, userId, automationId = null) {
       }
     }
 
-    case 'request_app_connection':
+    case 'request_app_connection': {
+      const app = (input.app || '').toLowerCase()
+
+      if (app === 'typeform') {
+        const formId = input.formId || input.form_id
+        let url = `${process.env.BACKEND_URL}/api/auth/typeform?userId=${encodeURIComponent(userId)}`
+        if (formId) {
+          url += `&formId=${encodeURIComponent(formId)}`
+        }
+        return {
+          app: 'typeform',
+          url,
+          message: 'I need access to your Typeform account to set this up — click below to connect it, it takes about 30 seconds.',
+        }
+      }
+
       return {
         app: input.app,
-        url: `${process.env.BACKEND_URL}/api/auth/${input.app}`,
+        url: `${process.env.BACKEND_URL}/api/auth/${input.app}?userId=${encodeURIComponent(userId)}`,
         message: `Click below to connect ${input.app}`,
       }
+    }
 
     case 'build_workflow': {
       console.log('build_workflow called with:', JSON.stringify(input, null, 2))
@@ -888,7 +904,11 @@ async function executeTool(name, input, userId, automationId = null) {
 
     case 'request_reconnection': {
       const { app, reason } = input
-      const reconnectUrl = `${process.env.BACKEND_URL}/api/auth/${app}`
+      const normalizedApp = (app || '').toLowerCase()
+      let reconnectUrl = `${process.env.BACKEND_URL}/api/auth/${normalizedApp}?userId=${encodeURIComponent(userId)}`
+      if (normalizedApp === 'typeform' && (input.formId || input.form_id)) {
+        reconnectUrl += `&formId=${encodeURIComponent(input.formId || input.form_id)}`
+      }
       return {
         success: true,
         action: 'request_connection',
@@ -1058,7 +1078,7 @@ async function loadUserContext(userId) {
 
 function populateSystemPrompt(
   template,
-  { connectedPlatforms, automationNames, workflow, automationId, timezone }
+  { connectedPlatforms, automationNames, workflow, automationId, timezone, userId }
 ) {
   const currentState = workflow
     ? `
@@ -1084,6 +1104,7 @@ Name: ${workflow.auto_name || 'Untitled'}
 
   return template
     .replace('{{USER_CONTEXT}}', 'New user. No previous automations. Name unknown.')
+    .replace('{{USER_ID}}', userId || '')
     .replace('{{USER_AUTOMATIONS}}', automationNames.length ? automationNames.join(', ') : 'None yet.')
     .replace('{{CURRENT_STATE}}', currentState)
     .replace('{{CONNECTED_APPS}}', connectedPlatforms.length > 0 ? connectedPlatforms.join(', ') : 'None connected yet')
@@ -1098,6 +1119,7 @@ function buildSystemPrompt({
   automationNames,
   automationId,
   timezone,
+  userId,
 }) {
   const isErrorResolution = workflow?.status === 'broken'
 
@@ -1142,6 +1164,7 @@ function buildSystemPrompt({
     workflow,
     automationId,
     timezone: timezone || 'UTC',
+    userId,
   })
 }
 
@@ -1220,6 +1243,7 @@ router.post('/message/stream', async (req, res) => {
       automationNames,
       automationId,
       timezone: timezone || 'UTC',
+      userId,
     })
 
     const effectiveMessage =
@@ -1443,6 +1467,7 @@ router.post('/message', async (req, res) => {
       automationNames,
       automationId,
       timezone: timezone || 'UTC',
+      userId,
     })
 
     const effectiveMessage =
