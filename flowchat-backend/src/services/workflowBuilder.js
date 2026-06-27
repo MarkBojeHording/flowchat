@@ -313,7 +313,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
       position: [752, 304],
       parameters: {
         method: 'POST',
-        url: `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetTab)}!A1:append?valueInputOption=USER_ENTERED`,
+        url: `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetTab}!A1:append?valueInputOption=USER_ENTERED`,
         sendHeaders: true,
         headerParameters: {
           parameters: [{
@@ -322,8 +322,13 @@ function buildTypeformSheetsWorkflow(userId, details) {
           }]
         },
         sendBody: true,
+        contentType: 'json',
         specifyBody: 'json',
-        jsonBody: '={"values":[["={{ $("Typeform Trigger").item.json.submitter_name }}","={{ $("Typeform Trigger").item.json.submitter_email }}","={{ $("Typeform Trigger").item.json.submitted_at }}"]]}',
+        jsonBody: `={{ JSON.stringify({"values": [[
+    $("Typeform Trigger").item.json.submitter_name ?? "",
+    $("Typeform Trigger").item.json.submitter_email ?? "",
+    $("Typeform Trigger").item.json.submitted_at ?? ""
+  ]]}) }}`,
         options: {}
       }
     },
