@@ -74,8 +74,10 @@ Gmail — send email:
   Platform key: google
 
 Google Sheets — append row:
-  POST https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}/values/{range}:append?valueInputOption=USER_ENTERED
-  typeVersion: 4.2, specifyBody: "json", jsonBody: JSON.stringify({ values: [[col1, col2, ...]] })
+  POST https://sheets.googleapis.com/v4/spreadsheets/ACTUAL_SHEET_ID/values/SHEET_TAB!A1:append?valueInputOption=USER_ENTERED
+  ACTUAL_SHEET_ID and SHEET_TAB must be hardcoded literal strings from automation details (details.spreadsheet_id or details.sheet_id, details.sheet_name).
+  NEVER put the spreadsheet ID in an n8n expression — NEVER use {{ $json.sheet_id }} in the URL.
+  typeVersion: 4.2, specifyBody: "json", jsonBody uses ={ expression prefix for column values
   Platform key: google
 
 Airtable — create record:
@@ -131,7 +133,12 @@ Fetch Google Credentials node:
   }
 }
 
-Append to Google Sheets node — uses trigger data dynamically:
+Append to Google Sheets node — hardcode sheet ID from automation details:
+IMPORTANT: Read spreadsheet_id (or sheet_id) and sheet_name from the automation 
+details object passed in the spec. Hardcode them as plain strings in the URL.
+NEVER use {{ $json.sheet_id }} or any n8n expression for the spreadsheet ID.
+
+Example when details.spreadsheet_id is "abc123xyz" and details.sheet_name is "Sheet1":
 {
   id: 'append-sheets',
   name: 'Append to Google Sheets',
@@ -140,7 +147,7 @@ Append to Google Sheets node — uses trigger data dynamically:
   position: [752, 304],
   parameters: {
     method: 'POST',
-    url: \`https://sheets.googleapis.com/v4/spreadsheets/\${SHEET_ID}/values/\${SHEET_NAME}!A1:append?valueInputOption=USER_ENTERED\`,
+    url: 'https://sheets.googleapis.com/v4/spreadsheets/abc123xyz/values/Sheet1!A1:append?valueInputOption=USER_ENTERED',
     sendHeaders: true,
     headerParameters: {
       parameters: [{ name: 'Authorization', value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}' }]
@@ -148,15 +155,22 @@ Append to Google Sheets node — uses trigger data dynamically:
     sendBody: true,
     specifyBody: 'json',
     jsonBody: \`={
-      "values": [[
-        "{{ $("Typeform Trigger").item.json.submitter_name }}",
-        "{{ $("Typeform Trigger").item.json.submitter_email }}",
-        "{{ $("Typeform Trigger").item.json.submitted_at }}"
-      ]]
-    }\`,
+  "values": [[
+    "={{ $('Typeform Trigger').item.json.submitter_name }}",
+    "={{ $('Typeform Trigger').item.json.submitter_email }}",
+    "={{ $('Typeform Trigger').item.json.submitted_at }}"
+  ]]
+}\`,
     options: {}
   }
 }
+
+Typeform trigger data is PRE-NORMALIZED by Flowchat before reaching n8n.
+Use ONLY these fields — NEVER use form_response.answers paths:
+- $('Typeform Trigger').item.json.submitter_name
+- $('Typeform Trigger').item.json.submitter_email
+- $('Typeform Trigger').item.json.submitted_at
+- $('Typeform Trigger').item.json.form_id
 
 Notify Flowchat node — same pattern as all other workflows:
 {
@@ -211,6 +225,8 @@ Typeform Trigger → Fetch Google Credentials → Append to Google Sheets → No
 - ALWAYS fetch credentials before calling any external API
 - ALWAYS add a Respond to Webhook node connected after the last action node
 - NEVER hardcode access tokens
+- Google Sheets spreadsheet ID MUST be a hardcoded literal from automation details — never {{ $json.sheet_id }}
+- Typeform webhook data uses pre-normalized fields: submitter_name, submitter_email, submitted_at — never form_response.answers
 - Use n8n expressions like {{ $json.access_token }} to reference previous node output
 - For multiple actions, connect them in sequence after the credential fetch
 - Return ONLY valid JSON — no markdown, no explanation, no backticks
@@ -249,10 +265,38 @@ Note: ${triggerSchemas.gmail.notes}
 ${Object.entries(triggerSchemas.google_sheets.fields).map(([k, v]) => `- ${k}: ${v}`).join('\n')}
 Note: ${triggerSchemas.google_sheets.notes}
 
-When building a Google Sheets append node, set each column value to the matching trigger field expression above.
+When building a Google Sheets append node, hardcode the spreadsheet ID and tab name from automation details in the URL. Set each column value using the matching trigger field expression above.
 When building a Gmail send node, interpolate trigger field expressions directly into the email subject and body before base64 encoding.
 When building a Slack message node, interpolate trigger field expressions into the message text.
 `
+
+function sanitizeSheetsNodes(nodes, details) {
+  if (!Array.isArray(nodes)) return
+
+  const sheetId = details.spreadsheet_id || details.sheet_id || details.google_sheet_id
+  const sheetTab = details.sheet_name || details.sheet_tab || 'Sheet1'
+
+  for (const node of nodes) {
+    const url = node.parameters?.url
+    if (typeof url === 'string' && url.includes('sheets.googleapis.com') && sheetId) {
+      node.parameters.url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetTab)}!A1:append?valueInputOption=USER_ENTERED`
+      console.log('Builder Agent sheet URL sanitized:', node.parameters.url)
+    }
+
+    if (typeof node.parameters?.jsonBody === 'string') {
+      let body = node.parameters.jsonBody
+      body = body.replace(/\{\{\s*\$json\.sheet_id\s*\}\}/g, sheetId || '')
+      body = body.replace(/form_response\.answers\[\d+\]\.text/g, 'submitter_name')
+      body = body.replace(/form_response\.answers\.find[^"']+/g, 'submitter_name')
+      body = body.replace(/\$\("Typeform Trigger"\)/g, "$('Typeform Trigger')")
+      body = body.replace(
+        /"\{\{\s*\$\('Typeform Trigger'\)\.item\.json\.(\w+)\s*\}\}"/g,
+        '"={{ $(\'Typeform Trigger\').item.json.$1 }}"'
+      )
+      node.parameters.jsonBody = body
+    }
+  }
+}
 
 function sanitizeCredentialUrls(nodes, userId) {
   if (!Array.isArray(nodes)) return
@@ -343,11 +387,16 @@ async function buildWorkflowWithAI(userId, userEmail, spec) {
   const testWebhookPath = `flowchat-test-${userId}-${Date.now()}`
   const credentialsBaseUrl = `${N8N_BACKEND_URL}/api/auth/credentials/${userId}`
 
+  const sheetId = details.spreadsheet_id || details.sheet_id || details.google_sheet_id
+  const sheetTab = details.sheet_name || details.sheet_tab || 'Sheet1'
+
   const specDescription = `
 Automation spec:
 - Trigger: ${trigger_app} (${trigger_event || 'default'})
 - Actions: ${actionList.map(a => `${a.app} (${a.event || 'default'})`).join(', ')}
 - Details: ${JSON.stringify(details, null, 2)}
+${sheetId ? `- Google Sheet ID (hardcode in URL): ${sheetId}` : ''}
+${sheetTab ? `- Google Sheet tab name (hardcode in URL): ${sheetTab}` : ''}
 
 User ID: ${userId}
 Credentials base URL: ${credentialsBaseUrl}
@@ -397,6 +446,7 @@ ${integrationMetadata}
   }
 
   sanitizeCredentialUrls(workflowJson.nodes, userId)
+  sanitizeSheetsNodes(workflowJson.nodes, details)
 
   const workflowWithNotify = injectNotifyNode(workflowJson, userId)
 
