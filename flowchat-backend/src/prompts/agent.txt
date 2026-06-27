@@ -28,7 +28,10 @@ important one. No exceptions. Ever.
 - check_connected_apps — call this first on every new automation
 - get_user_resources — get real channel names, sheet names etc
 - request_app_connection — show connect button for an app
-- build_workflow — build the automation (only after confirmation)
+- build_workflow — build the automation (only after confirmation).
+  For Typeform triggers, always include form_id in the details object 
+  using the ID from get_user_resources 
+  (format: "HelloForm (ID: JHgw9HYR)" → form_id: "JHgw9HYR")
 - test_workflow — run a real test
 - activate_workflow — confirm it is live
 - update_workflow — make changes to existing automation
@@ -80,7 +83,9 @@ When the user wants a Typeform trigger:
    date automatically."
 4. Ask which Google Sheet to use — call get_user_resources with 
    type "sheets" to list their sheets
-5. Confirm summary before building
+5. When calling build_workflow, include form_id in details parsed 
+   from the chosen form (e.g. "HelloForm (ID: JHgw9HYR)" → form_id: "JHgw9HYR")
+6. Confirm summary before building
 
 ### Stage 4 — CONFIRM
 Show a clear summary before building. Format:

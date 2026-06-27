@@ -647,6 +647,15 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         }
 
+        // Parse form_id from details
+        if (!detailsObj.form_id && !detailsObj.typeform_form_id) {
+          const formNameToCheck = detailsObj.form_name || detailsObj.typeform_form || detailsObj.form || ''
+          const formMatch = formNameToCheck.match(/\(ID:\s*([^)]+)\)/)
+          if (formMatch) {
+            detailsObj.form_id = formMatch[1].trim()
+          }
+        }
+
         const { data: userData } = await supabase.auth.admin.getUserById(userId)
         const userEmail = userData?.user?.email || userId
 
@@ -681,28 +690,7 @@ async function executeTool(name, input, userId, automationId = null) {
             webhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${webhookPath}`
           }
 
-          triggerConfig = { form_id: detailsObj.typeform_form_id }
-
-          const { registerTypeformWebhook } = require('./auth')
-
-          const { data: tfAccount } = await supabase
-            .from('platform_accounts')
-            .select('access_token')
-            .eq('user_id', userId)
-            .eq('platform', 'typeform')
-            .single()
-
-          if (tfAccount && detailsObj.typeform_form_id) {
-            try {
-              await registerTypeformWebhook(
-                userId,
-                detailsObj.typeform_form_id,
-                tfAccount.access_token
-              )
-            } catch (webhookErr) {
-              console.error('Typeform webhook registration failed:', webhookErr.response?.data || webhookErr.message)
-            }
-          }
+          triggerConfig = { form_id: detailsObj.form_id || detailsObj.typeform_form_id }
         }
 
         const workflowName = `${userEmail} — ${trigger_app} → ${action_app}`
@@ -728,6 +716,38 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         } else {
           console.error('build_workflow: no automationId — could not save workflow to Supabase')
+        }
+
+        if (trigger_app === 'typeform') {
+          try {
+            const formId = detailsObj.form_id || detailsObj.typeform_form_id
+
+            if (!formId) {
+              console.error('No form_id in details for Typeform webhook registration:', detailsObj)
+            } else {
+              const { data: tfAccount } = await supabase
+                .from('platform_accounts')
+                .select('access_token')
+                .eq('user_id', userId)
+                .eq('platform', 'typeform')
+                .single()
+
+              if (tfAccount) {
+                const { registerTypeformWebhook } = require('./auth')
+                await registerTypeformWebhook(userId, formId, tfAccount.access_token)
+                console.log(`✅ Typeform webhook registered for form ${formId}`)
+
+                if (automationId) {
+                  await supabase
+                    .from('workflows')
+                    .update({ trigger_config: { form_id: formId } })
+                    .eq('id', automationId)
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Typeform webhook registration error:', err.message)
+          }
         }
 
         return {
