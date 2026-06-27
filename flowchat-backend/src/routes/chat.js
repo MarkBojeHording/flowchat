@@ -310,6 +310,38 @@ async function getConnectedPlatforms(userId) {
   }
 }
 
+async function waitForExecution(workflowId, timeoutMs = 15000) {
+  const start = Date.now()
+
+  while (Date.now() - start < timeoutMs) {
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
+    try {
+      const res = await axios.get(
+        `${process.env.BACKEND_URL}/api/n8n/executions?workflowId=${workflowId}&limit=1`,
+        { headers: { 'x-api-key': process.env.INTERNAL_API_KEY } }
+      )
+
+      const executions = res.data?.data || []
+      const latest = executions[0]
+
+      if (!latest) continue
+      if (latest.status === 'running') continue
+
+      return {
+        success: latest.status === 'success',
+        status: latest.status,
+        executionId: latest.id,
+        error: latest.data?.resultData?.error?.message || null
+      }
+    } catch (err) {
+      console.error('Execution poll error:', err.message)
+    }
+  }
+
+  return { success: false, status: 'timeout', error: 'Execution timed out' }
+}
+
 async function executeTool(name, input, userId, automationId = null) {
   switch (name) {
     case 'check_connected_apps': {
@@ -685,18 +717,39 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         }
 
+        if (!workflow.n8n_workflow_id) {
+          return {
+            success: false,
+            summary: 'No n8n workflow linked. Please rebuild this automation.',
+          }
+        }
+
         await axios.get(workflow.webhook_url, { timeout: 10000 })
+
+        const testResult = await waitForExecution(workflow.n8n_workflow_id)
+
+        if (testResult.success) {
+          await logExecution(userId, workflow.id, {
+            mode: 'webhook',
+            status: 'success',
+            id: testResult.executionId,
+          })
+
+          return {
+            success: true,
+            summary: 'Test completed successfully — check your apps now.',
+          }
+        }
 
         await logExecution(userId, workflow.id, {
           mode: 'webhook',
-          status: 'success',
-          id: null,
-        })
+          status: 'error',
+          id: testResult.executionId,
+        }).catch(() => {})
 
         return {
-          success: true,
-          summary:
-            'The n8n workflow just executed successfully. Check your apps now — you should see the result of the automation running for real.',
+          success: false,
+          summary: `The test ran but hit an issue: ${testResult.error || testResult.status || 'unknown error'}. Let me fix this.`,
         }
       } catch (err) {
         console.error('test_workflow error:', err.message)
