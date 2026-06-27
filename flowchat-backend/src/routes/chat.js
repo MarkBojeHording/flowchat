@@ -594,7 +594,7 @@ async function executeTool(name, input, userId, automationId = null) {
 
         const triggerApp = trigger_app?.toLowerCase().replace(/\s+/g, '_')
         let webhookUrl = testWebhookUrl
-        let triggerConfig = null
+        let triggerConfig = {}
 
         if (triggerApp === 'typeform') {
           const typeformTriggerNode = workflowData.nodes?.find(
@@ -618,37 +618,41 @@ async function executeTool(name, input, userId, automationId = null) {
             .single()
 
           if (tfAccount && detailsObj.typeform_form_id) {
-            await registerTypeformWebhook(
-              userId,
-              detailsObj.typeform_form_id,
-              tfAccount.access_token
-            )
+            try {
+              await registerTypeformWebhook(
+                userId,
+                detailsObj.typeform_form_id,
+                tfAccount.access_token
+              )
+            } catch (webhookErr) {
+              console.error('Typeform webhook registration failed:', webhookErr.response?.data || webhookErr.message)
+            }
           }
         }
 
+        const workflowName = `${userEmail} — ${trigger_app} → ${action_app}`
+
         if (automationId) {
-          await supabase
+          const { error: updateError } = await supabase
             .from('workflows')
             .update({
               n8n_workflow_id: created.id,
-              webhook_url: webhookUrl,
-              name: `${userEmail} — ${trigger_app} → ${action_app}`,
+              name: workflowName,
               status: 'active',
               stage: 'live',
+              webhook_url: webhookUrl,
               trigger_app,
               action_apps: [action_app],
-              ...(triggerConfig ? { trigger_config: triggerConfig } : {}),
+              trigger_config: triggerConfig,
             })
             .eq('id', automationId)
             .eq('user_id', userId)
-        } else if (triggerApp === 'typeform') {
-          await supabase
-            .from('workflows')
-            .update({
-              webhook_url: webhookUrl,
-              trigger_config: triggerConfig,
-            })
-            .eq('n8n_workflow_id', created.id)
+
+          if (updateError) {
+            console.error('Failed to update workflow in Supabase:', updateError)
+          }
+        } else {
+          console.error('build_workflow: no automationId — could not save workflow to Supabase')
         }
 
         return {
@@ -657,7 +661,8 @@ async function executeTool(name, input, userId, automationId = null) {
           summary: 'Automation built and activated successfully.',
         }
       } catch (err) {
-        console.error('build_workflow error:', err)
+        console.error('build_workflow error:', err.response?.data || err.message)
+        console.error('build_workflow stack:', err.stack)
         return {
           success: false,
           summary: `Failed to build: ${err.message}`,
