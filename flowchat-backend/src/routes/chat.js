@@ -94,7 +94,7 @@ const TOOLS = [
         app: {
           type: 'string',
           description:
-            'which app to get resources for: google_sheets, slack, typeform_forms, typeform, airtable, notion',
+            'which app to get resources for: sheets, slack, typeform_forms, typeform, airtable, notion',
         },
       },
       required: ['app'],
@@ -366,34 +366,84 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         }
 
-        if (app === 'google_sheets') {
-          const { data: googleAccount } = await supabase
-            .from('platform_accounts')
-            .select('access_token')
-            .eq('platform', 'google')
-            .eq('user_id', userId)
-            .single()
+        if (app === 'sheets') {
+          try {
+            const { data: account } = await supabase
+              .from('platform_accounts')
+              .select('access_token, refresh_token')
+              .eq('user_id', userId)
+              .eq('platform', 'google')
+              .single()
 
-          if (!googleAccount?.access_token) {
-            return { error: 'Google not connected' }
-          }
-
-          const response = await axios.get(
-            'https://www.googleapis.com/drive/v3/files',
-            {
-              headers: {
-                Authorization: `Bearer ${googleAccount.access_token}`,
-              },
-              params: {
-                q: "mimeType='application/vnd.google-apps.spreadsheet'",
-                fields: 'files(id,name)',
-                pageSize: 20,
-              },
+            if (!account) {
+              return { result: 'Google account not connected.' }
             }
-          )
 
-          const sheets = response.data.files?.map((f) => f.name) || []
-          return { google_sheets: sheets }
+            let accessToken = account.access_token
+
+            const fetchSheets = async (token) => {
+              return axios.get(
+                'https://www.googleapis.com/drive/v3/files',
+                {
+                  params: {
+                    q: "mimeType='application/vnd.google-apps.spreadsheet'",
+                    fields: 'files(id,name)',
+                    pageSize: 20
+                  },
+                  headers: { Authorization: `Bearer ${token}` }
+                }
+              )
+            }
+
+            let sheetsRes
+            try {
+              sheetsRes = await fetchSheets(accessToken)
+            } catch (err) {
+              if (err.response?.status === 401 && account.refresh_token) {
+                console.log('Google token expired, refreshing...')
+
+                const refreshRes = await axios.post(
+                  'https://oauth2.googleapis.com/token',
+                  new URLSearchParams({
+                    client_id: process.env.GOOGLE_CLIENT_ID,
+                    client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                    refresh_token: account.refresh_token,
+                    grant_type: 'refresh_token'
+                  }).toString(),
+                  { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+                )
+
+                accessToken = refreshRes.data.access_token
+
+                await supabase
+                  .from('platform_accounts')
+                  .update({
+                    access_token: accessToken,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('user_id', userId)
+                  .eq('platform', 'google')
+
+                console.log('✅ Google token refreshed successfully')
+                sheetsRes = await fetchSheets(accessToken)
+              } else {
+                throw err
+              }
+            }
+
+            const files = sheetsRes.data.files || []
+            if (files.length === 0) {
+              return { result: 'No Google Sheets found in your account.' }
+            }
+
+            return {
+              result: files.map(f => `${f.name} (ID: ${f.id})`).join('\n')
+            }
+
+          } catch (err) {
+            console.error('Sheets fetch error:', err.response?.data || err.message)
+            return { result: 'Could not fetch Google Sheets. Please try again.' }
+          }
         }
 
         if (app === 'typeform_forms') {
