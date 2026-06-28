@@ -273,6 +273,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
       typeVersion: 2,
       position: [256, 304],
       parameters: {
+        httpMethod: 'POST',
         path: webhookPath,
         responseMode: 'responseNode',
         options: {}
@@ -285,6 +286,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
       typeVersion: 2,
       position: [256, 512],
       parameters: {
+        httpMethod: 'POST',
         path: testWebhookPath,
         responseMode: 'responseNode',
         options: {}
