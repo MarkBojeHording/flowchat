@@ -704,6 +704,7 @@ async function executeTool(name, input, userId, automationId = null) {
               status: 'active',
               stage: 'live',
               webhook_url: webhookUrl,
+              test_webhook_url: testWebhookUrl,
               trigger_app,
               action_apps: [action_app],
               trigger_config: triggerConfig,
@@ -769,15 +770,12 @@ async function executeTool(name, input, userId, automationId = null) {
       try {
         const { data: workflow } = await supabase
           .from('workflows')
-          .select('webhook_url, n8n_workflow_id, id')
+          .select('*')
           .eq('id', automationId)
           .single()
 
-        if (!workflow?.webhook_url) {
-          return {
-            success: false,
-            summary: 'No test webhook found. Please rebuild this automation.',
-          }
+        if (!workflow) {
+          return { success: false, summary: 'Automation not found' }
         }
 
         if (!workflow.n8n_workflow_id) {
@@ -787,32 +785,64 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         }
 
-        await axios.get(workflow.webhook_url, { timeout: 10000 })
+        let testUrl = workflow.test_webhook_url || workflow.webhook_url
 
-        const testResult = await waitForExecution(workflow.n8n_workflow_id)
+        // For Typeform workflows, get the test webhook URL from n8n if not stored
+        if (workflow.trigger_app === 'typeform' && workflow.n8n_workflow_id && !workflow.test_webhook_url) {
+          const n8nRes = await axios.get(
+            `${process.env.BACKEND_URL}/api/n8n/workflows/${workflow.n8n_workflow_id}`,
+            { headers: { 'x-api-key': process.env.INTERNAL_API_KEY } }
+          )
+          const nodes = n8nRes.data?.nodes || []
+          const testNode = nodes.find(n => n.name === 'Test Webhook')
+          if (testNode?.parameters?.path) {
+            testUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${testNode.parameters.path}`
+          }
+        }
 
-        if (testResult.success) {
+        if (!testUrl) {
+          return {
+            success: false,
+            summary: 'No test webhook found. Please rebuild this automation.',
+          }
+        }
+
+        const testPayload = {
+          submitter_name: 'Test User',
+          submitter_email: 'test@flowchat.now',
+          submitted_at: new Date().toISOString(),
+          form_id: workflow.trigger_config?.form_id || 'test'
+        }
+
+        await axios.post(testUrl, testPayload, {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10000,
+        })
+
+        const result = await waitForExecution(workflow.n8n_workflow_id)
+
+        if (result.success) {
           await logExecution(userId, workflow.id, {
             mode: 'webhook',
             status: 'success',
-            id: testResult.executionId,
+            id: result.executionId,
           })
 
           return {
             success: true,
-            summary: 'Test completed successfully — check your apps now.',
+            summary: 'Test completed successfully — check your sheet for a new row.',
           }
         }
 
         await logExecution(userId, workflow.id, {
           mode: 'webhook',
           status: 'error',
-          id: testResult.executionId,
+          id: result.executionId,
         }).catch(() => {})
 
         return {
           success: false,
-          summary: `The test ran but hit an issue: ${testResult.error || testResult.status || 'unknown error'}. Let me fix this.`,
+          summary: `Test failed: ${result.error || result.status || 'unknown error'}`,
         }
       } catch (err) {
         console.error('test_workflow error:', err.message)
@@ -825,10 +855,7 @@ async function executeTool(name, input, userId, automationId = null) {
           }).catch(() => {})
         }
 
-        return {
-          success: false,
-          summary: `The test failed: ${err.message}. Check your n8n dashboard for details.`,
-        }
+        return { success: false, summary: `The test failed: ${err.message}` }
       }
     }
 
