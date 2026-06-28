@@ -260,7 +260,7 @@ function buildScheduleSlackWorkflow(userId, details) {
 
 function buildTypeformSheetsWorkflow(userId, details) {
   const sheetId = details.sheet_id || details.sheetId || details.spreadsheet_id
-  const sheetTab = details.sheet_tab || details.sheetTab || details.sheet_name?.replace(/\s*\(ID:\s*[^)]+\)\s*$/, '').trim() || 'Sheet1'
+  const sheetTab = details.sheet_tab || details.sheetTab || 'Sheet1'
   const webhookPath = `flowchat-typeform-${userId}-${Date.now()}`
   const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
   const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
@@ -271,7 +271,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
       name: 'Typeform Trigger',
       type: 'n8n-nodes-base.webhook',
       typeVersion: 2,
-      position: [256, 304],
+      position: [256, 200],
       parameters: {
         httpMethod: 'POST',
         path: webhookPath,
@@ -284,7 +284,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
       name: 'Test Webhook',
       type: 'n8n-nodes-base.webhook',
       typeVersion: 2,
-      position: [256, 512],
+      position: [256, 400],
       parameters: {
         httpMethod: 'POST',
         path: testWebhookPath,
@@ -293,11 +293,45 @@ function buildTypeformSheetsWorkflow(userId, details) {
       }
     },
     {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.set',
+      typeVersion: 3,
+      position: [512, 304],
+      parameters: {
+        mode: 'manual',
+        duplicateItem: false,
+        assignments: {
+          assignments: [
+            {
+              id: 'field-name',
+              name: 'submitter_name',
+              value: '={{ $json.submitter_name ?? "" }}',
+              type: 'string'
+            },
+            {
+              id: 'field-email',
+              name: 'submitter_email',
+              value: '={{ $json.submitter_email ?? "" }}',
+              type: 'string'
+            },
+            {
+              id: 'field-date',
+              name: 'submitted_at',
+              value: '={{ $json.submitted_at ?? new Date().toISOString() }}',
+              type: 'string'
+            }
+          ]
+        },
+        options: {}
+      }
+    },
+    {
       id: 'fetch-google-creds',
       name: 'Fetch Google Credentials',
       type: 'n8n-nodes-base.httpRequest',
       typeVersion: 4.2,
-      position: [512, 304],
+      position: [768, 304],
       parameters: {
         url: `${backendUrl}/api/auth/credentials/${userId}/google`,
         sendHeaders: true,
@@ -312,7 +346,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
       name: 'Append to Google Sheets',
       type: 'n8n-nodes-base.httpRequest',
       typeVersion: 4.2,
-      position: [752, 304],
+      position: [1024, 304],
       parameters: {
         method: 'POST',
         url: `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetTab}!A1:append?valueInputOption=USER_ENTERED`,
@@ -324,13 +358,12 @@ function buildTypeformSheetsWorkflow(userId, details) {
           }]
         },
         sendBody: true,
-        contentType: 'json',
         specifyBody: 'json',
-        jsonBody: `={{ JSON.stringify({"values": [[
-  ($items("Typeform Trigger", 0, 0)[0]?.json?.submitter_name || $items("Test Webhook", 0, 0)[0]?.json?.submitter_name || ""),
-  ($items("Typeform Trigger", 0, 0)[0]?.json?.submitter_email || $items("Test Webhook", 0, 0)[0]?.json?.submitter_email || ""),
-  ($items("Typeform Trigger", 0, 0)[0]?.json?.submitted_at || $items("Test Webhook", 0, 0)[0]?.json?.submitted_at || "")
-]]}) }}`,
+        jsonBody: '={{ JSON.stringify({"values": [[' +
+          '$("Set Submission Data").item.json.submitter_name,' +
+          '$("Set Submission Data").item.json.submitter_email,' +
+          '$("Set Submission Data").item.json.submitted_at' +
+          ']]}) }}',
         options: {}
       }
     },
@@ -339,7 +372,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
       name: 'Notify Flowchat',
       type: 'n8n-nodes-base.httpRequest',
       typeVersion: 4.2,
-      position: [1002, 304],
+      position: [1280, 304],
       parameters: {
         method: 'POST',
         url: `${backendUrl}/api/executions/log`,
@@ -349,7 +382,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
         },
         sendBody: true,
         specifyBody: 'json',
-        jsonBody: `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode, details: { type: "typeform_to_sheets", submitted_at: $("Typeform Trigger").item.json.submitted_at } }) }}`,
+        jsonBody: `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode, details: { type: "typeform_to_sheets", submitted_at: $("Set Submission Data").item.json.submitted_at } }) }}`,
         options: {}
       }
     },
@@ -358,7 +391,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
       name: 'Respond to Webhook',
       type: 'n8n-nodes-base.respondToWebhook',
       typeVersion: 1.1,
-      position: [1252, 304],
+      position: [1536, 304],
       parameters: {
         respondWith: 'json',
         responseBody: '={{ JSON.stringify({ success: true }) }}',
@@ -369,9 +402,12 @@ function buildTypeformSheetsWorkflow(userId, details) {
 
   const connections = {
     'Typeform Trigger': {
-      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]]
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]]
     },
     'Test Webhook': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]]
+    },
+    'Set Submission Data': {
       main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]]
     },
     'Fetch Google Credentials': {
