@@ -526,10 +526,11 @@ async function executeTool(name, input, userId, automationId = null) {
         }
 
         if (app === 'typeform_fields') {
+          console.log('typeform_fields params:', JSON.stringify(input))
           try {
-            const { form_id } = input
+            const form_id = input?.form_id || input?.formId
             if (!form_id) {
-              return { result: 'No form_id provided' }
+              return { result: 'No form_id provided — please pass form_id parameter.' }
             }
 
             const response = await axios.get(
@@ -547,7 +548,7 @@ async function executeTool(name, input, userId, automationId = null) {
               fields: fields
             }
           } catch (err) {
-            console.error('typeform_fields error:', err.message)
+            console.error('typeform_fields error:', err.response?.data || err.message)
             return { result: 'Could not fetch form fields.' }
           }
         }
