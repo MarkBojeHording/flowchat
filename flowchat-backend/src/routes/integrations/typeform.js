@@ -10,6 +10,23 @@ const supabase = createClient(
   { realtime: { transport: ws } }
 )
 
+function extractAnswer(answer) {
+  if (!answer) return ''
+  switch (answer.type) {
+    case 'text': return answer.text || ''
+    case 'email': return answer.email || ''
+    case 'number': return answer.number?.toString() || ''
+    case 'boolean': return answer.boolean ? 'Yes' : 'No'
+    case 'choice': return answer.choice?.label || ''
+    case 'choices': return (answer.choices?.labels || []).join(', ')
+    case 'date': return answer.date || ''
+    case 'phone_number': return answer.phone_number || ''
+    case 'url': return answer.url || ''
+    case 'file_url': return answer.file_url || ''
+    default: return ''
+  }
+}
+
 // Webhook receiver — called by Typeform on every form submission
 router.post('/webhook/:userId', async (req, res) => {
   const { userId } = req.params
@@ -19,22 +36,10 @@ router.post('/webhook/:userId', async (req, res) => {
   res.status(200).json({ received: true })
 
   try {
-    const formId = payload.form_response?.form_id
-    const submittedAt = payload.form_response?.submitted_at
-    const answers = payload.form_response?.answers || []
-
-    // Extract common fields
-    const emailAnswer = answers.find(a => a.type === 'email')
-    const textAnswers = answers.filter(a => a.type === 'text' || a.type === 'short_text')
-
-    const normalizedData = {
-      form_id: formId,
-      submitted_at: submittedAt,
-      submitter_email: emailAnswer?.email || null,
-      submitter_name: textAnswers[0]?.text || null,
-      all_answers: JSON.stringify(answers),
-      raw: payload
-    }
+    const formResponse = payload.form_response
+    const answers = formResponse?.answers || []
+    const submittedAt = formResponse?.submitted_at || new Date().toISOString()
+    const formId = formResponse?.form_id
 
     // Find active Typeform → Sheets workflows for this user
     const { data: workflows } = await supabase
@@ -49,14 +54,48 @@ router.post('/webhook/:userId', async (req, res) => {
       return
     }
 
-    // Trigger each matching workflow via its test webhook URL
+    const answersMap = {}
+    for (const answer of answers) {
+      answersMap[answer.field.id] = answer
+    }
+
+    const emailAnswer = answers.find(a => a.type === 'email')
+    const nameAnswer = answers.find(a =>
+      a.type === 'text' || a.field?.type === 'short_text'
+    )
+
     for (const workflow of workflows) {
       if (!workflow.webhook_url) continue
+
+      const fieldMapping = workflow.trigger_config?.field_mapping || []
+
+      let columns = []
+      if (fieldMapping.length > 0) {
+        columns = fieldMapping.map(f => ({
+          title: f.title,
+          value: extractAnswer(answersMap[f.id])
+        }))
+      } else {
+        columns = answers.map(a => ({
+          title: a.field?.id || 'field',
+          value: extractAnswer(a)
+        }))
+      }
+
+      const normalizedData = {
+        form_id: formId,
+        submitted_at: submittedAt,
+        submitter_email: emailAnswer?.email || null,
+        submitter_name: nameAnswer?.text || null,
+        columns: columns,
+        column_values: columns.map(c => c.value),
+        column_headers: columns.map(c => c.title),
+        all_answers: JSON.stringify(answers)
+      }
 
       await axios.post(workflow.webhook_url, normalizedData)
       console.log(`✅ Triggered workflow ${workflow.id} for Typeform submission`)
 
-      // Log execution
       await supabase.from('executions').insert({
         user_id: userId,
         workflow_id: workflow.id,
@@ -204,23 +243,6 @@ router.post('/sync/:userId/:formId', async (req, res) => {
     }
 
     const headers = ['Submitted At', ...fieldMapping.map(f => f.title)]
-
-    function extractAnswer(answer) {
-      if (!answer) return ''
-      switch (answer.type) {
-        case 'text': return answer.text || ''
-        case 'email': return answer.email || ''
-        case 'number': return answer.number?.toString() || ''
-        case 'boolean': return answer.boolean ? 'Yes' : 'No'
-        case 'choice': return answer.choice?.label || ''
-        case 'choices': return (answer.choices?.labels || []).join(', ')
-        case 'date': return answer.date || ''
-        case 'phone_number': return answer.phone_number || ''
-        case 'url': return answer.url || ''
-        case 'file_url': return answer.file_url || ''
-        default: return JSON.stringify(answer) || ''
-      }
-    }
 
     const rows = responses.map(response => {
       const answersMap = {}
