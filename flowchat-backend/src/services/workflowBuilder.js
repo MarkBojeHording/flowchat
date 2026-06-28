@@ -327,10 +327,10 @@ function buildTypeformSheetsWorkflow(userId, details) {
         contentType: 'json',
         specifyBody: 'json',
         jsonBody: `={{ JSON.stringify({"values": [[
-    $("Typeform Trigger").item.json.submitter_name ?? "",
-    $("Typeform Trigger").item.json.submitter_email ?? "",
-    $("Typeform Trigger").item.json.submitted_at ?? ""
-  ]]}) }}`,
+  ($("Typeform Trigger").isExecuted ? $("Typeform Trigger").item.json.submitter_name : $("Test Webhook").item.json.submitter_name) ?? "",
+  ($("Typeform Trigger").isExecuted ? $("Typeform Trigger").item.json.submitter_email : $("Test Webhook").item.json.submitter_email) ?? "",
+  ($("Typeform Trigger").isExecuted ? $("Typeform Trigger").item.json.submitted_at : $("Test Webhook").item.json.submitted_at) ?? ""
+]]}) }}`,
         options: {}
       }
     },
