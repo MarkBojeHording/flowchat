@@ -319,6 +319,11 @@ router.post('/sync/:userId/:formId', async (req, res) => {
         answersMap[answer.field.id] = answer
       }
 
+      if (responses.length > 0) {
+        console.log('First response answersMap keys:', Object.keys(answersMap))
+        console.log('fieldMapping IDs:', fieldMapping.map(f => f.id))
+      }
+
       return [
         response.submitted_at || '',
         ...fieldMapping.map(f => extractAnswer(answersMap[f.id]))
