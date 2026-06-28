@@ -306,19 +306,19 @@ function buildTypeformSheetsWorkflow(userId, details) {
             {
               id: 'field-name',
               name: 'submitter_name',
-              value: '={{ $json.submitter_name ?? "" }}',
+              value: '={{ $json.body?.submitter_name ?? $json.submitter_name ?? "" }}',
               type: 'string'
             },
             {
               id: 'field-email',
               name: 'submitter_email',
-              value: '={{ $json.submitter_email ?? "" }}',
+              value: '={{ $json.body?.submitter_email ?? $json.submitter_email ?? "" }}',
               type: 'string'
             },
             {
               id: 'field-date',
               name: 'submitted_at',
-              value: '={{ $json.submitted_at ?? new Date().toISOString() }}',
+              value: '={{ $json.body?.submitted_at ?? $json.submitted_at ?? new Date().toISOString() }}',
               type: 'string'
             }
           ]
