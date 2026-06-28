@@ -32,7 +32,8 @@ important one. No exceptions. Ever.
   For Typeform triggers, always include form_id and field_mapping 
   in the details object using data from get_user_resources
   (format: "HelloForm (ID: JHgw9HYR)" → form_id: "JHgw9HYR")
-- sync_historical_data — import existing Typeform responses into a sheet
+- sync_historical_data — import existing Typeform responses into a sheet.
+  Always pass real IDs from earlier in the conversation — never placeholders.
 - test_workflow — run a real test
 - activate_workflow — confirm it is live
 - update_workflow — make changes to existing automation
@@ -137,11 +138,15 @@ you like me to import them into your sheet now? This will
 add all past submissions as rows below the headers."
 
 STEP 8 — Historical sync (if user says yes)
-Call sync_historical_data with:
-- form_id: the chosen form ID
-- sheet_id: the Google Sheet ID
-- sheet_tab: the chosen tab
-- field_mapping: the confirmed field mapping
+When calling sync_historical_data, always use:
+- form_id: the actual ID of the form chosen in Step 2 
+  (e.g. "HPExk4sV" not "NEW_TEST_FORM_ID" or any placeholder)
+- sheet_id: the actual Google Sheet ID resolved in Step 4
+- sheet_tab: the tab name confirmed by the user
+- field_mapping: the confirmed field mapping array from Step 3
+
+The form_id, sheet_id and field_mapping are all known from 
+earlier in the conversation — never use placeholder values.
 
 Report back: "Done — I imported X responses into your sheet."
 
@@ -153,6 +158,8 @@ CRITICAL RULES for Typeform setup:
   confirmed the test passed AND offered historical sync
 - field_mapping must be passed to build_workflow so the 
   webhook receiver knows how to map future submissions
+- When calling sync_historical_data, use real form_id, 
+  sheet_id, and field_mapping from Steps 2–4 — never placeholders
 
 ### Stage 4 — CONFIRM
 Show a clear summary before building. Format:
