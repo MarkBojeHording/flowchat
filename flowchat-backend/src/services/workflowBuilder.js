@@ -295,27 +295,37 @@ function buildTypeformSheetsWorkflow(userId, details) {
     {
       id: 'set-data',
       name: 'Set Submission Data',
-      type: 'n8n-nodes-base.set',
-      typeVersion: 1,
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
       position: [512, 304],
       parameters: {
-        values: {
-          string: [
-            {
-              name: 'submitter_name',
-              value: '={{ $json.body.submitter_name || "" }}'
-            },
-            {
-              name: 'submitter_email',
-              value: '={{ $json.body.submitter_email || "" }}'
-            },
-            {
-              name: 'submitted_at',
-              value: '={{ $json.body.submitted_at || new Date().toISOString() }}'
-            }
-          ]
-        },
-        options: {}
+        jsCode: `
+// Get data from whichever trigger fired
+const body = $input.first().json.body || $input.first().json;
+
+// Extract column values — use column_values if present,
+// otherwise fall back to basic fields
+let columnValues = body.column_values || [];
+let columnHeaders = body.column_headers || [];
+
+if (columnValues.length === 0) {
+  columnValues = [
+    body.submitter_name || '',
+    body.submitter_email || '',
+    body.submitted_at || ''
+  ];
+  columnHeaders = ['Name', 'Email', 'Submitted At'];
+}
+
+return [{
+  json: {
+    submitted_at: body.submitted_at || new Date().toISOString(),
+    column_values: columnValues,
+    column_headers: columnHeaders,
+    row: columnValues
+  }
+}];
+`
       }
     },
     {
@@ -341,7 +351,7 @@ function buildTypeformSheetsWorkflow(userId, details) {
       position: [1024, 304],
       parameters: {
         method: 'POST',
-        url: `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetTab}!A1:append?valueInputOption=USER_ENTERED`,
+        url: `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetTab}!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
         sendHeaders: true,
         headerParameters: {
           parameters: [{
@@ -350,12 +360,8 @@ function buildTypeformSheetsWorkflow(userId, details) {
           }]
         },
         sendBody: true,
-        specifyBody: 'json',
-        jsonBody: '={{ JSON.stringify({"values": [[' +
-          '$("Set Submission Data").item.json.submitter_name,' +
-          '$("Set Submission Data").item.json.submitter_email,' +
-          '$("Set Submission Data").item.json.submitted_at' +
-          ']]}) }}',
+        specifyBody: 'string',
+        body: '={{ JSON.stringify({ "values": [$("Set Submission Data").item.json.row] }) }}',
         options: {}
       }
     },
@@ -374,7 +380,17 @@ function buildTypeformSheetsWorkflow(userId, details) {
         },
         sendBody: true,
         specifyBody: 'json',
-        jsonBody: `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode, details: { type: "typeform_to_sheets", submitted_at: $("Set Submission Data").item.json.submitted_at } }) }}`,
+        jsonBody: `={{ JSON.stringify({ 
+  userId: "${userId}", 
+  n8nWorkflowId: $workflow.id, 
+  status: "success", 
+  mode: $execution.mode, 
+  details: { 
+    type: "typeform_to_sheets", 
+    submitted_at: $("Set Submission Data").item.json.submitted_at,
+    columns: $("Set Submission Data").item.json.column_values.length
+  } 
+}) }}`,
         options: {}
       }
     },
