@@ -12,18 +12,87 @@ const supabase = createClient(
 
 function extractAnswer(answer) {
   if (!answer) return ''
+
   switch (answer.type) {
-    case 'text': return answer.text || ''
-    case 'email': return answer.email || ''
-    case 'number': return answer.number?.toString() || ''
-    case 'boolean': return answer.boolean ? 'Yes' : 'No'
-    case 'choice': return answer.choice?.label || ''
-    case 'choices': return (answer.choices?.labels || []).join(', ')
-    case 'date': return answer.date || ''
-    case 'phone_number': return answer.phone_number || ''
-    case 'url': return answer.url || ''
-    case 'file_url': return answer.file_url || ''
-    default: return ''
+    // Text-based answers
+    case 'text':
+      return answer.text || ''
+
+    // Email
+    case 'email':
+      return answer.email || ''
+
+    // Phone number
+    case 'phone_number':
+      return answer.phone_number || ''
+
+    // Numbers — rating, opinion_scale, nps, number fields
+    case 'number':
+      return answer.number != null ? answer.number.toString() : ''
+
+    // Boolean — yes_no, legal, checkbox fields
+    case 'boolean':
+      return answer.boolean === true ? 'Yes' : answer.boolean === false ? 'No' : ''
+
+    // Single choice — multiple_choice, dropdown, picture_choice (single)
+    case 'choice':
+      return answer.choice?.label || answer.choice?.other || ''
+
+    // Multiple choices — picture_choice (multi), ranking
+    case 'choices':
+      if (answer.choices?.labels?.length > 0) {
+        return answer.choices.labels.join(', ')
+      }
+      if (answer.choices?.other) {
+        return answer.choices.other
+      }
+      return ''
+
+    // Date
+    case 'date':
+      return answer.date || ''
+
+    // File upload
+    case 'file_url':
+      return answer.file_url || ''
+
+    // URL / website
+    case 'url':
+      return answer.url || ''
+
+    // Payment
+    case 'payment':
+      if (answer.payment) {
+        return `${answer.payment.amount} ${answer.payment.currency}`
+      }
+      return ''
+
+    // Matrix — returns object with row/column selections
+    // Stored as JSON string since it's multi-dimensional
+    case 'matrix':
+      return answer.matrix ? JSON.stringify(answer.matrix) : ''
+
+    // Ranking — ordered list of choices
+    case 'ranking':
+      if (answer.choices?.labels?.length > 0) {
+        return answer.choices.labels.join(' > ')
+      }
+      return ''
+
+    // Fallback — stringify whatever is there
+    default:
+      // Try common value properties in order
+      return answer.text
+        || answer.email
+        || answer.phone_number
+        || (answer.number != null ? answer.number.toString() : '')
+        || (answer.boolean != null ? (answer.boolean ? 'Yes' : 'No') : '')
+        || answer.choice?.label
+        || answer.choices?.labels?.join(', ')
+        || answer.date
+        || answer.file_url
+        || answer.url
+        || ''
   }
 }
 
