@@ -94,7 +94,11 @@ const TOOLS = [
         app: {
           type: 'string',
           description:
-            'which app to get resources for: sheets, slack, typeform_forms, typeform, airtable, notion',
+            'which app to get resources for: sheets, slack, typeform_forms, typeform_fields, typeform, airtable, notion',
+        },
+        form_id: {
+          type: 'string',
+          description: 'Typeform form ID (required when app is typeform_fields)',
         },
       },
       required: ['app'],
@@ -275,6 +279,31 @@ const TOOLS = [
         },
       },
       required: ['summary'],
+    },
+  },
+  {
+    name: 'sync_historical_data',
+    description:
+      'Import existing Typeform responses into the connected Google Sheet',
+    input_schema: {
+      type: 'object',
+      properties: {
+        form_id: { type: 'string' },
+        sheet_id: { type: 'string' },
+        sheet_tab: { type: 'string' },
+        field_mapping: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              title: { type: 'string' },
+              type: { type: 'string' },
+            },
+          },
+        },
+      },
+      required: ['form_id', 'sheet_id'],
     },
   },
 ]
@@ -496,6 +525,33 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         }
 
+        if (app === 'typeform_fields') {
+          try {
+            const { form_id } = input
+            if (!form_id) {
+              return { result: 'No form_id provided' }
+            }
+
+            const response = await axios.get(
+              `${process.env.BACKEND_URL}/api/integrations/typeform/fields/${userId}/${form_id}`,
+              { headers: { 'x-api-key': process.env.INTERNAL_API_KEY } }
+            )
+
+            const fields = response.data.fields || []
+            if (fields.length === 0) {
+              return { result: 'No fields found on this form.' }
+            }
+
+            return {
+              result: fields.map((f, i) => `${i + 1}. ${f.title} (ID: ${f.id}, type: ${f.type})`).join('\n'),
+              fields: fields
+            }
+          } catch (err) {
+            console.error('typeform_fields error:', err.message)
+            return { result: 'Could not fetch form fields.' }
+          }
+        }
+
         return {
           google_sheets: ['Client Leads', 'New Signups'],
           slack_channels: ['#general', '#team'],
@@ -656,6 +712,16 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         }
 
+        // Parse field_mapping from details
+        // Agent passes it as array of {id, title, type}
+        let typeformTriggerConfig = null
+        if (detailsObj.field_mapping && Array.isArray(detailsObj.field_mapping)) {
+          typeformTriggerConfig = {
+            form_id: detailsObj.form_id || detailsObj.typeform_form_id,
+            field_mapping: detailsObj.field_mapping
+          }
+        }
+
         const { data: userData } = await supabase.auth.admin.getUserById(userId)
         const userEmail = userData?.user?.email || userId
 
@@ -690,7 +756,9 @@ async function executeTool(name, input, userId, automationId = null) {
             webhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${webhookPath}`
           }
 
-          triggerConfig = { form_id: detailsObj.form_id || detailsObj.typeform_form_id }
+          triggerConfig = typeformTriggerConfig || {
+            form_id: detailsObj.form_id || detailsObj.typeform_form_id
+          }
         }
 
         const workflowName = `${userEmail} — ${trigger_app} → ${action_app}`
@@ -741,7 +809,7 @@ async function executeTool(name, input, userId, automationId = null) {
                 if (automationId) {
                   await supabase
                     .from('workflows')
-                    .update({ trigger_config: { form_id: formId } })
+                    .update({ trigger_config: triggerConfig })
                     .eq('id', automationId)
                 }
               }
@@ -1165,6 +1233,31 @@ async function executeTool(name, input, userId, automationId = null) {
         return { success: true, summary }
       } catch (err) {
         return { success: false, message: err.message }
+      }
+    }
+
+    case 'sync_historical_data': {
+      try {
+        const { form_id, sheet_id, sheet_tab, field_mapping } = input
+
+        const response = await axios.post(
+          `${process.env.BACKEND_URL}/api/integrations/typeform/sync/${userId}/${form_id}`,
+          {
+            sheetId: sheet_id,
+            sheetTab: sheet_tab || 'Sheet1',
+            fieldMapping: field_mapping || []
+          },
+          { headers: { 'x-api-key': process.env.INTERNAL_API_KEY } }
+        )
+
+        const { imported } = response.data
+        return {
+          success: true,
+          summary: `Imported ${imported} existing response${imported !== 1 ? 's' : ''} into your sheet.`
+        }
+      } catch (err) {
+        console.error('sync_historical_data error:', err.message)
+        return { success: false, summary: 'Could not import existing responses.' }
       }
     }
 
