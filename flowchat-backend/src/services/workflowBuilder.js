@@ -296,30 +296,22 @@ function buildTypeformSheetsWorkflow(userId, details) {
       id: 'set-data',
       name: 'Set Submission Data',
       type: 'n8n-nodes-base.set',
-      typeVersion: 3,
+      typeVersion: 1,
       position: [512, 304],
       parameters: {
-        mode: 'manual',
-        duplicateItem: false,
-        assignments: {
-          assignments: [
+        values: {
+          string: [
             {
-              id: 'field-name',
               name: 'submitter_name',
-              value: '={{ $json.body?.submitter_name ?? $json.submitter_name ?? "" }}',
-              type: 'string'
+              value: '={{ $json.body.submitter_name || "" }}'
             },
             {
-              id: 'field-email',
               name: 'submitter_email',
-              value: '={{ $json.body?.submitter_email ?? $json.submitter_email ?? "" }}',
-              type: 'string'
+              value: '={{ $json.body.submitter_email || "" }}'
             },
             {
-              id: 'field-date',
               name: 'submitted_at',
-              value: '={{ $json.body?.submitted_at ?? $json.submitted_at ?? new Date().toISOString() }}',
-              type: 'string'
+              value: '={{ $json.body.submitted_at || new Date().toISOString() }}'
             }
           ]
         },
