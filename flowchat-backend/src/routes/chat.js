@@ -86,23 +86,22 @@ const TOOLS = [
   },
   {
     name: 'get_user_resources',
-    description:
-      "Get the user's actual resource names — Google Sheet names, Slack channels, Typeform form names",
+    description: "Get the user's actual resource names — Google Sheet names, Slack channels, Typeform form names and fields. When app is typeform_fields, you MUST pass the real form_id from the typeform_forms result. For example if typeform_forms returned 'My new form (ID: HPExk4sV)', then call typeform_fields with form_id: 'HPExk4sV'. Never invent or guess a form_id.",
     input_schema: {
       type: 'object',
       properties: {
         app: {
           type: 'string',
-          description:
-            'which app to get resources for: sheets, slack, typeform_forms, typeform_fields, typeform, airtable, notion',
+          enum: ['sheets', 'slack', 'typeform_forms', 'typeform_fields'],
+          description: 'Which app to get resources for. Use typeform_fields only after calling typeform_forms and receiving a real form ID from the result.'
         },
         form_id: {
           type: 'string',
-          description: 'Typeform form ID (required when app is typeform_fields)',
-        },
+          description: 'The real Typeform form ID — only used when app is typeform_fields. Must be copied exactly from the typeform_forms result e.g. "HPExk4sV". Never use placeholder values.'
+        }
       },
-      required: ['app'],
-    },
+      required: ['app']
+    }
   },
   {
     name: 'request_app_connection',
