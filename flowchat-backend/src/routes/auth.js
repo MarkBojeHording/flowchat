@@ -327,7 +327,7 @@ router.get('/callback/typeform', async (req, res) => {
 // Helper: Register webhook on a Typeform form
 async function registerTypeformWebhook(userId, formId, accessToken) {
   try {
-    const tag = `flowchat-${userId}`
+    const tag = `flowchat-${userId}-${formId}`
     const webhookUrl = `${process.env.BACKEND_URL}/api/integrations/typeform/webhook/${userId}`
 
     await axios.put(

@@ -2237,7 +2237,7 @@ router.delete('/automations/:id', async (req, res) => {
   try {
     const { data: workflow, error: fetchError } = await supabase
       .from('workflows')
-      .select('n8n_workflow_id')
+      .select('n8n_workflow_id, trigger_app, trigger_config')
       .eq('id', id)
       .eq('user_id', userId)
       .single()
@@ -2258,6 +2258,28 @@ router.delete('/automations/:id', async (req, res) => {
         if (err.response?.status !== 404) {
           console.error('n8n delete error:', err.message)
         }
+      }
+    }
+
+    if (workflow.trigger_app === 'typeform' && workflow.trigger_config?.form_id) {
+      try {
+        const { data: tfAccount } = await supabase
+          .from('platform_accounts')
+          .select('access_token')
+          .eq('user_id', userId)
+          .eq('platform', 'typeform')
+          .single()
+
+        if (tfAccount) {
+          const { deregisterTypeformWebhook } = require('./integrations/typeform')
+          await deregisterTypeformWebhook(
+            userId,
+            workflow.trigger_config.form_id,
+            tfAccount.access_token
+          )
+        }
+      } catch (err) {
+        console.error('Typeform webhook deregister error:', err.message)
       }
     }
 

@@ -118,8 +118,13 @@ router.post('/webhook/:userId', async (req, res) => {
       .eq('trigger_app', 'typeform')
       .eq('status', 'active')
 
-    if (!workflows || workflows.length === 0) {
-      console.log(`No active Typeform workflows for user ${userId}`)
+    // Filter by form_id from trigger_config
+    const matchingWorkflows = workflows?.filter(w =>
+      w.trigger_config?.form_id === formId
+    ) || []
+
+    if (matchingWorkflows.length === 0) {
+      console.log(`No active Typeform workflows for user ${userId} form ${formId}`)
       return
     }
 
@@ -133,7 +138,7 @@ router.post('/webhook/:userId', async (req, res) => {
       a.type === 'text' || a.field?.type === 'short_text'
     )
 
-    for (const workflow of workflows) {
+    for (const workflow of matchingWorkflows) {
       if (!workflow.webhook_url) continue
 
       const fieldMapping = workflow.trigger_config?.field_mapping || []
@@ -351,4 +356,18 @@ router.post('/sync/:userId/:formId', async (req, res) => {
   }
 })
 
+async function deregisterTypeformWebhook(userId, formId, accessToken) {
+  try {
+    const tag = `flowchat-${userId}-${formId}`
+    await axios.delete(
+      `https://api.typeform.com/forms/${formId}/webhooks/${tag}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    console.log(`✅ Typeform webhook deregistered for form ${formId}`)
+  } catch (err) {
+    console.error('Typeform webhook deregister error:', err.response?.data || err.message)
+  }
+}
+
 module.exports = router
+module.exports.deregisterTypeformWebhook = deregisterTypeformWebhook
