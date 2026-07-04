@@ -87,22 +87,29 @@ const TOOLS = [
   },
   {
     name: 'get_user_resources',
-    description: "Get the user's actual resource names. When app is typeform_fields, you MUST pass the real form_id extracted from the typeform_forms result — for example if typeform_forms returned 'My new form (ID: HPExk4sV)' then call typeform_fields with form_id 'HPExk4sV'. Never invent or guess a form_id.",
+    description: 'Fetch real data from connected apps. Always call this before asking the user to pick anything. Each app type returns a list with exact IDs in parentheses - copy these IDs character-for-character when using them in subsequent calls.',
     input_schema: {
       type: 'object',
       properties: {
         app: {
           type: 'string',
-          enum: ['sheets', 'sheet_tabs', 'slack', 'typeform_forms', 'typeform_fields', 'typeform_response_count'],
-          description: 'Which resource to fetch. Use sheet_tabs with sheet_id to list tabs within a specific sheet.'
-        },
-        sheet_id: {
-          type: 'string',
-          description: 'The exact Google Sheet ID copied character-for-character from the sheets result. Example: if sheets returned "Mark Tester (ID: 1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8)" then sheet_id is exactly "1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8". Never shorten, truncate, or modify the ID.'
+          enum: [
+            'sheets',
+            'sheet_tabs',
+            'slack',
+            'typeform_forms',
+            'typeform_fields',
+            'typeform_response_count'
+          ],
+          description: 'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds.'
         },
         form_id: {
           type: 'string',
-          description: 'Real Typeform form ID from typeform_forms result e.g. "HPExk4sV". Only for typeform_fields. Never use placeholder values.'
+          description: 'Required for typeform_fields and typeform_response_count. Copy the exact ID from typeform_forms result - the string between "(ID: " and ")". Example: from "My new form (ID: HPExk4sV)" copy exactly "HPExk4sV" - every character including hyphens and underscores.'
+        },
+        sheet_id: {
+          type: 'string',
+          description: 'Required for sheet_tabs. Copy the exact ID from sheets result - the string between "(ID: " and ")". Example: from "Mark Tester (ID: 1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8)" copy exactly "1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8" - every character.'
         }
       },
       required: ['app']
