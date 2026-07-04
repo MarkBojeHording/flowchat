@@ -113,6 +113,11 @@ type ChatMessage =
   | { type: "connect"; app: string; url: string; message: string }
   | { type: "test_result"; summary: string }
   | { type: "live"; summary: string }
+  | {
+      type: "quick_replies";
+      text: string;
+      options: { label: string; value: string }[];
+    }
   | { type: "error"; text: string };
 
 function getDisplayName(automation: Automation): string {
@@ -419,6 +424,17 @@ export default function DashboardPage() {
               const { action, actionData, updatedState } = event;
               const savedAutomationId = updatedState?.automationId;
               const savedAutoName = updatedState?.autoName;
+
+              if (action === "quick_replies" && actionData?.options) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    type: "quick_replies",
+                    text: actionData.text || "",
+                    options: actionData.options,
+                  },
+                ]);
+              }
 
               if (action === "request_connection" && actionData) {
                 setMessages((prev) => [
@@ -866,57 +882,71 @@ export default function DashboardPage() {
     loadAutomation(id, user.id);
   };
 
+  const sendMessage = useCallback(
+    async (userMessage: string) => {
+      if (!userMessage.trim() || loading || !user) return;
+
+      const automationIdForRequest = isTempAutomationId(selectedId)
+        ? null
+        : currentAutomationId ?? selectedId;
+      setLoading(true);
+
+      flushSync(() => {
+        setMessages((prev) => [...prev, { type: "user", text: userMessage }]);
+      });
+
+      flushSync(() => {
+        setMessages((prev) => [
+          ...prev,
+          { type: "assistant", text: "", thinking: true },
+        ]);
+      });
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/chat/message/stream`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.id,
+            automationId: automationIdForRequest,
+            message: userMessage,
+            conversationHistory: [],
+            timezone: userTimezone,
+          }),
+        });
+
+        await processChatStream(response, user.id);
+      } catch (err) {
+        const text = err instanceof Error ? err.message : "Something went wrong";
+        setMessages((prev) => {
+          const updated = prev.filter(
+            (m, i) =>
+              !(i === prev.length - 1 && m.type === "assistant" && !m.text)
+          );
+          return [...updated, { type: "error", text }];
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loading, user, selectedId, currentAutomationId, processChatStream, userTimezone]
+  );
+
   const handleSubmit = useCallback(async () => {
     if (!input.trim() || loading || !user) return;
 
     const userMessage = input.trim();
-    const automationIdForRequest = isTempAutomationId(selectedId)
-      ? null
-      : currentAutomationId ?? selectedId;
     setInput("");
-    setLoading(true);
+    await sendMessage(userMessage);
+  }, [input, loading, user, sendMessage]);
 
-    // Add user message immediately (optimistic)
-    flushSync(() => {
-      setMessages((prev) => [...prev, { type: "user", text: userMessage }]);
-    });
-
-    // Add assistant message with thinking dots immediately — before fetch
-    flushSync(() => {
-      setMessages((prev) => [
-        ...prev,
-        { type: "assistant", text: "", thinking: true },
-      ]);
-    });
-
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/chat/message/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          automationId: automationIdForRequest,
-          message: userMessage,
-          conversationHistory: [],
-          timezone: userTimezone,
-        }),
-      });
-
-      await processChatStream(response, user.id);
-    } catch (err) {
-      const text = err instanceof Error ? err.message : "Something went wrong";
-      // Remove the empty assistant message and show error
-      setMessages((prev) => {
-        const updated = prev.filter(
-          (m, i) =>
-            !(i === prev.length - 1 && m.type === "assistant" && !m.text)
-        );
-        return [...updated, { type: "error", text }];
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [input, loading, user, selectedId, currentAutomationId, processChatStream, userTimezone]);
+  const handleQuickReply = useCallback(
+    async (value: string) => {
+      if (loading || !user) return;
+      await sendMessage(value);
+    },
+    [loading, user, sendMessage]
+  );
 
   useEffect(() => {
     const handleAutoSubmit = () => {
@@ -1641,6 +1671,29 @@ export default function DashboardPage() {
                                 🎉 Automation is live!
                               </p>
                               <p className="text-sm text-[#374151]">{msg.summary}</p>
+                            </div>
+                          </div>
+                        )}
+                        {msg.type === "quick_replies" && (
+                          <div className="flex justify-start">
+                            <div className="max-w-[85%] sm:max-w-md">
+                              {msg.text && (
+                                <div className="mb-3 rounded-2xl border border-[#2a2a4a] border-l-4 border-l-[#00d4aa] bg-[#1a1a2e] px-4 py-3 text-sm text-[#e8e8f0]">
+                                  {msg.text}
+                                </div>
+                              )}
+                              <div className="flex flex-wrap gap-2">
+                                {msg.options.map((option, i) => (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => handleQuickReply(option.value)}
+                                    className="rounded-full border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:border-[#00d4aa] hover:text-[#00d4aa] active:scale-[0.98]"
+                                  >
+                                    {option.label}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         )}
