@@ -511,6 +511,7 @@ async function executeTool(name, input, userId, automationId = null) {
         }
 
         if (app === 'sheet_tabs') {
+          console.log('sheet_tabs input:', JSON.stringify(input))
           try {
             const { sheet_id } = input
             if (!sheet_id) {
