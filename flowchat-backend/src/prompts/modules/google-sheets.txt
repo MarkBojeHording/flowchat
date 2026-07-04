@@ -1,0 +1,9 @@
+GOOGLE SHEETS ACTION MODULE
+
+Google Sheets receives data as new rows.
+
+Always call get_user_resources "sheets" before asking which sheet.
+Always call get_user_resources "sheet_tabs" immediately after
+sheet is selected - in the same turn, before responding.
+Never ask the user to type a tab name.
+sheet_id must be copied exactly from the sheets result.

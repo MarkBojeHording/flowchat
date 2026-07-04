@@ -1,0 +1,7 @@
+GMAIL ACTION MODULE
+
+Gmail sends emails to a recipient.
+
+Ask for: recipient email address, subject line, message content.
+Never assume the recipient - always ask explicitly.
+For scheduled emails, confirm timezone (use user's stored timezone).

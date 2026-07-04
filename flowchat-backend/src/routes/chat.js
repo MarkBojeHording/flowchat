@@ -73,7 +73,8 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-const AGENT_PROMPT_PATH = path.join(__dirname, '../prompts/agent.txt')
+const PROMPTS_DIR = path.join(__dirname, '../prompts')
+const AGENT_PROMPT_PATH = path.join(PROMPTS_DIR, 'agent.txt')
 const MAX_AGENT_ITERATIONS = 15
 const MAX_HISTORY = 20
 const MAX_STORED = 50
@@ -92,7 +93,7 @@ const TOOLS = [
       properties: {
         app: {
           type: 'string',
-          enum: ['sheets', 'sheet_tabs', 'slack', 'typeform_forms', 'typeform_fields'],
+          enum: ['sheets', 'sheet_tabs', 'slack', 'typeform_forms', 'typeform_fields', 'typeform_response_count'],
           description: 'Which resource to fetch. Use sheet_tabs with sheet_id to list tabs within a specific sheet.'
         },
         sheet_id: {
@@ -629,6 +630,40 @@ async function executeTool(name, input, userId, automationId = null) {
           } catch (err) {
             console.error('typeform_fields error:', err.response?.data || err.message)
             return { result: 'Could not fetch form fields.' }
+          }
+        }
+
+        if (app === 'typeform_response_count') {
+          try {
+            const form_id = input?.form_id || input?.formId
+            if (!form_id) {
+              return { result: 'No form_id provided - please pass form_id parameter.' }
+            }
+
+            const { data: account } = await supabase
+              .from('platform_accounts')
+              .select('access_token')
+              .eq('user_id', userId)
+              .eq('platform', 'typeform')
+              .single()
+
+            if (!account?.access_token) {
+              return { result: 'Typeform account not connected.' }
+            }
+
+            const response = await axios.get(
+              `https://api.typeform.com/forms/${form_id}/responses?page_size=1`,
+              { headers: { Authorization: `Bearer ${account.access_token}` } }
+            )
+
+            const count = response.data?.total_items ?? response.data?.items?.length ?? 0
+            return {
+              result: `This form has ${count} existing response${count === 1 ? '' : 's'}.`,
+              count,
+            }
+          } catch (err) {
+            console.error('typeform_response_count error:', err.response?.data || err.message)
+            return { result: 'Could not fetch existing response count.' }
           }
         }
 
@@ -1447,11 +1482,8 @@ async function loadUserContext(userId) {
   return { connectedPlatforms, automationNames }
 }
 
-function populateSystemPrompt(
-  template,
-  { connectedPlatforms, automationNames, workflow, automationId, timezone, userId }
-) {
-  const currentState = workflow
+function buildCurrentState(workflow, automationId) {
+  return workflow
     ? `
 Automation ID: ${automationId}
 Status: ${workflow.status || 'draft'}
@@ -1460,6 +1492,13 @@ N8N Workflow: ${workflow.n8n_workflow_id ? 'Already built - ID: ' + workflow.n8n
 Name: ${workflow.auto_name || 'Untitled'}
 `
     : 'None. User is starting fresh.'
+}
+
+function populateLegacySystemPrompt(
+  template,
+  { connectedPlatforms, automationNames, workflow, automationId, timezone, userId }
+) {
+  const currentState = buildCurrentState(workflow, automationId)
 
   const integrationMetadata = getMetadataForAgent([
     'schedule',
@@ -1483,9 +1522,136 @@ Name: ${workflow.auto_name || 'Untitled'}
     .replace('{{TIMEZONE}}', timezone || 'UTC')
 }
 
-function buildSystemPrompt({
-  systemTemplate,
+function buildContextSection({
+  connectedPlatforms,
+  automationNames,
   workflow,
+  automationId,
+  timezone,
+  userId,
+}) {
+  const currentState = workflow
+    ? buildCurrentState(workflow, automationId).trim()
+    : 'None. User is starting fresh.'
+
+  const integrationMetadata = getMetadataForAgent([
+    'schedule',
+    'typeform',
+    'stripe',
+    'calendly',
+    'google_sheets',
+    'gmail',
+    'slack',
+    'airtable',
+    'notion',
+  ])
+
+  return [
+    '## Integration metadata',
+    integrationMetadata,
+    '',
+    '## Current user context',
+    `User ID: ${userId || ''}`,
+    `Connected apps: ${connectedPlatforms.length > 0 ? connectedPlatforms.join(', ') : 'None connected yet'}`,
+    `Timezone: ${timezone || 'UTC'}`,
+    'Current automation:',
+    currentState,
+    `Their other automations: ${automationNames.length ? automationNames.join(', ') : 'None yet.'}`,
+  ].join('\n')
+}
+
+function normalizeAppForPromptModule(app) {
+  const value = (app || '').toLowerCase().trim()
+  if (!value) return null
+
+  if (value === 'google_sheets' || value === 'google sheets') return 'google-sheets'
+  return value.replace(/_/g, '-').replace(/\s+/g, '-')
+}
+
+function extractConversationText(conversationHistory, message) {
+  const historyText = (conversationHistory || [])
+    .map((entry) => {
+      if (typeof entry?.content === 'string') return entry.content
+      return extractTextFromContent(entry?.content)
+    })
+    .join('\n')
+
+  return `${historyText}\n${message || ''}`.toLowerCase()
+}
+
+function inferPromptApps({
+  workflow,
+  conversationHistory,
+  message,
+}) {
+  const workflowTrigger = normalizeAppForPromptModule(workflow?.trigger_app)
+  const workflowAction = normalizeAppForPromptModule(
+    Array.isArray(workflow?.action_apps) ? workflow.action_apps[0] : workflow?.action_app
+  )
+
+  if (workflowTrigger || workflowAction) {
+    return { triggerApp: workflowTrigger, actionApp: workflowAction }
+  }
+
+  const text = extractConversationText(conversationHistory, message)
+
+  const triggerApp = text.includes('typeform')
+    ? 'typeform'
+    : /\bschedule\b|\bdaily\b|\bweekly\b|\bevery day\b|\bevery monday\b/.test(text)
+      ? 'schedule'
+      : null
+
+  const actionApp = text.includes('google sheets') || text.includes('google sheet')
+    ? 'google-sheets'
+    : text.includes('slack')
+      ? 'slack'
+      : text.includes('gmail') || text.includes('send an email') || text.includes('send email')
+        ? 'gmail'
+        : null
+
+  return { triggerApp, actionApp }
+}
+
+function buildSystemPrompt(triggerApp, actionApp) {
+  const readPrompt = (filename) => {
+    const filepath = path.join(PROMPTS_DIR, filename)
+    if (!fs.existsSync(filepath)) return ''
+    return fs.readFileSync(filepath, 'utf8')
+  }
+
+  const parts = [
+    readPrompt('core-laws.txt'),
+    readPrompt('interaction-standards.txt'),
+    readPrompt('tools.txt'),
+  ]
+
+  const normalizedTrigger = normalizeAppForPromptModule(triggerApp)
+  const normalizedAction = normalizeAppForPromptModule(actionApp)
+
+  if (normalizedTrigger) {
+    const triggerModule = readPrompt(`modules/${normalizedTrigger}.txt`)
+    if (triggerModule) parts.push(triggerModule)
+  }
+  if (normalizedAction) {
+    const actionModule = readPrompt(`modules/${normalizedAction}.txt`)
+    if (actionModule && actionModule !== parts[parts.length - 1]) parts.push(actionModule)
+  }
+
+  if (normalizedTrigger === 'schedule') {
+    const scheduleModule = readPrompt('modules/schedule.txt')
+    if (scheduleModule && !parts.includes(scheduleModule)) parts.push(scheduleModule)
+  }
+
+  const assembled = parts.filter(Boolean).join('\n\n---\n\n')
+  if (assembled.trim()) return assembled
+  if (fs.existsSync(AGENT_PROMPT_PATH)) return fs.readFileSync(AGENT_PROMPT_PATH, 'utf8')
+  return ''
+}
+
+function composeSystemPrompt({
+  workflow,
+  conversationHistory,
+  message,
   connectedPlatforms,
   automationNames,
   automationId,
@@ -1496,7 +1662,7 @@ function buildSystemPrompt({
 
   if (isErrorResolution) {
     const errorTemplate = fs.readFileSync(
-      path.join(__dirname, '../prompts/error-agent.txt'),
+      path.join(PROMPTS_DIR, 'error-agent.txt'),
       'utf8'
     )
     return errorTemplate
@@ -1529,14 +1695,45 @@ function buildSystemPrompt({
       .replace('{{TIMEZONE}}', timezone || 'UTC')
   }
 
-  return populateSystemPrompt(systemTemplate, {
+  const { triggerApp, actionApp } = inferPromptApps({
+    workflow,
+    conversationHistory,
+    message,
+  })
+
+  const basePrompt = buildSystemPrompt(triggerApp, actionApp)
+  const context = {
     connectedPlatforms,
     automationNames,
     workflow,
     automationId,
     timezone: timezone || 'UTC',
     userId,
-  })
+  }
+
+  if (basePrompt.includes('{{CURRENT_STATE}}') || basePrompt.includes('{{CONNECTED_APPS}}')) {
+    return populateLegacySystemPrompt(basePrompt, context)
+  }
+
+  const populatedBase = basePrompt
+    .replace(/\{\{USER_ID\}\}/g, userId || '')
+    .replace(/\{\{CONNECTED_APPS\}\}/g, connectedPlatforms.length > 0 ? connectedPlatforms.join(', ') : 'None connected yet')
+    .replace(/\{\{CURRENT_STATE\}\}/g, buildCurrentState(workflow, automationId))
+    .replace(/\{\{USER_AUTOMATIONS\}\}/g, automationNames.length ? automationNames.join(', ') : 'None yet.')
+    .replace(/\{\{TIMEZONE\}\}/g, timezone || 'UTC')
+    .replace(/\{\{INTEGRATION_METADATA\}\}/g, getMetadataForAgent([
+      'schedule',
+      'typeform',
+      'stripe',
+      'calendly',
+      'google_sheets',
+      'gmail',
+      'slack',
+      'airtable',
+      'notion',
+    ]))
+
+  return `${populatedBase}\n\n---\n\n${buildContextSection(context)}`
 }
 
 function handleToolAction(block, result, state) {
@@ -1605,11 +1802,11 @@ router.post('/message/stream', async (req, res) => {
       }
     }
 
-    const systemTemplate = fs.readFileSync(AGENT_PROMPT_PATH, 'utf8')
     const { connectedPlatforms, automationNames } = await loadUserContext(userId)
-    const systemPrompt = buildSystemPrompt({
-      systemTemplate,
+    const systemPrompt = composeSystemPrompt({
       workflow,
+      conversationHistory,
+      message,
       connectedPlatforms,
       automationNames,
       automationId,
@@ -1829,11 +2026,11 @@ router.post('/message', async (req, res) => {
       }
     }
 
-    const systemTemplate = fs.readFileSync(AGENT_PROMPT_PATH, 'utf8')
     const { connectedPlatforms, automationNames } = await loadUserContext(userId)
-    const systemPrompt = buildSystemPrompt({
-      systemTemplate,
+    const systemPrompt = composeSystemPrompt({
       workflow,
+      conversationHistory,
+      message,
       connectedPlatforms,
       automationNames,
       automationId,

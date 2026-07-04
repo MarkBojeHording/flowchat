@@ -1,0 +1,8 @@
+SLACK ACTION MODULE
+
+Slack receives messages in a channel.
+
+Always call get_user_resources "slack" before asking which channel.
+Return channels as quick_replies buttons.
+After channel selected, remind: "Make sure to run /invite
+@Flowchat in that channel if you haven't already."

@@ -1,0 +1,16 @@
+SCHEDULE TRIGGER MODULE
+
+Schedule needs no app connection.
+
+Offer common options as quick_replies:
+["Daily at 9am", "Weekly on Monday", "Custom time"]
+
+Always ask for timezone if not stored. Use {{TIMEZONE}}.
+Convert to UTC for cron. Confirm local time in summary:
+"Every Monday at 9am (your time)"
+
+Always state when the first run will occur.
+
+Common UTC conversions for Bangkok (UTC+7): subtract 7 hours.
+Daily 9am Bangkok = "0 2 * * *"
+Monday 9am Bangkok = "0 2 * * 1"

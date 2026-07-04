@@ -1,0 +1,34 @@
+TYPEFORM TRIGGER MODULE
+
+Typeform fires when someone submits a form.
+
+SETUP (follows standard flow with these specifics):
+
+After connections confirmed:
+1. Call get_user_resources "typeform_forms"
+   -> Return results as quick_replies buttons
+
+2. User picks form. Extract form_id exactly from result.
+   "My new form (ID: HPExk4sV)" -> form_id = "HPExk4sV"
+   Call get_user_resources "typeform_fields" with that exact form_id.
+   Present fields as proposed column headers.
+   Return quick_replies: ["Use these as headers", "Rename some"]
+
+3. Call get_user_resources "sheets"
+   -> Return results as quick_replies buttons
+   User picks sheet. Extract sheet_id exactly from result.
+   In the SAME turn, call get_user_resources "sheet_tabs"
+   with that exact sheet_id.
+   If one tab: return quick_replies ["Yes, use [tab name]", "Use different tab"]
+   If multiple tabs: return as quick_replies buttons
+
+4. Show summary (Stage 4 format). Build on confirmation.
+
+5. After successful build and test: call get_user_resources
+   "typeform_response_count" with the form_id.
+   If count > 0: offer import (Stage 7).
+   If count = 0: go straight to Stage 8.
+
+PASS TO build_workflow:
+form_id (exact), form_name, sheet_id (exact), sheet_name,
+sheet_tab, field_mapping [{id, title, type}]
