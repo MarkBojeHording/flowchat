@@ -92,8 +92,12 @@ const TOOLS = [
       properties: {
         app: {
           type: 'string',
-          enum: ['sheets', 'slack', 'typeform_forms', 'typeform_fields'],
-          description: 'Which resource to fetch. Use typeform_fields only after receiving a real form_id from typeform_forms.'
+          enum: ['sheets', 'sheet_tabs', 'slack', 'typeform_forms', 'typeform_fields'],
+          description: 'Which resource to fetch. Use sheet_tabs with sheet_id to list tabs within a specific sheet.'
+        },
+        sheet_id: {
+          type: 'string',
+          description: 'Google Sheet ID — required when app is sheet_tabs. Copy from the sheets result e.g. "1G5Zx-0cuvlbyJ0R1..."'
         },
         form_id: {
           type: 'string',
@@ -503,6 +507,81 @@ async function executeTool(name, input, userId, automationId = null) {
           } catch (err) {
             console.error('Sheets fetch error:', err.response?.data || err.message)
             return { result: 'Could not fetch Google Sheets. Please try again.' }
+          }
+        }
+
+        if (app === 'sheet_tabs') {
+          try {
+            const { sheet_id } = input
+            if (!sheet_id) {
+              return { result: 'No sheet_id provided.' }
+            }
+
+            const { data: account } = await supabase
+              .from('platform_accounts')
+              .select('access_token, refresh_token')
+              .eq('user_id', userId)
+              .eq('platform', 'google')
+              .single()
+
+            if (!account) {
+              return { result: 'Google account not connected.' }
+            }
+
+            let accessToken = account.access_token
+
+            const fetchTabs = async (token) => {
+              return axios.get(
+                `https://sheets.googleapis.com/v4/spreadsheets/${sheet_id}`,
+                {
+                  params: { fields: 'sheets.properties.title' },
+                  headers: { Authorization: `Bearer ${token}` }
+                }
+              )
+            }
+
+            let res
+            try {
+              res = await fetchTabs(accessToken)
+            } catch (err) {
+              if (err.response?.status === 401 && account.refresh_token) {
+                const refreshRes = await axios.post(
+                  'https://oauth2.googleapis.com/token',
+                  new URLSearchParams({
+                    client_id: process.env.GOOGLE_CLIENT_ID,
+                    client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                    refresh_token: account.refresh_token,
+                    grant_type: 'refresh_token'
+                  }).toString(),
+                  { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+                )
+                accessToken = refreshRes.data.access_token
+                await supabase
+                  .from('platform_accounts')
+                  .update({ access_token: accessToken, updated_at: new Date().toISOString() })
+                  .eq('user_id', userId)
+                  .eq('platform', 'google')
+                res = await fetchTabs(accessToken)
+              } else {
+                throw err
+              }
+            }
+
+            const tabs = res.data.sheets?.map(s => s.properties.title) || []
+            if (tabs.length === 0) {
+              return { result: 'No tabs found in this sheet.' }
+            }
+            if (tabs.length === 1) {
+              return { result: `This sheet has one tab: ${tabs[0]}`, tabs }
+            }
+            return {
+              result: tabs.map((t, i) => `${i + 1}. ${t}`).join('\n'),
+              tabs
+            }
+
+          } catch (err) {
+            console.error('sheet_tabs error:', err.response?.data || err.message)
+            return { result: 'Could not fetch sheet tabs. Please type the tab name.' }
           }
         }
 

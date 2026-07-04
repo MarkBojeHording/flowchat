@@ -119,9 +119,16 @@ Wait for the user to confirm or rename columns before proceeding.
 Store the confirmed field mapping as field_mapping array of 
 {id, title, type} objects.
 
-STEP 4 — Get Google Sheet
-Call get_user_resources with type "sheets" to list their sheets.
-Ask which sheet to use. Ask which tab (default Sheet1).
+STEP 4 — Get Google Sheet and tab
+Call get_user_resources with type "sheets" to list the user's sheets.
+Once the user picks a sheet, immediately call get_user_resources 
+with type "sheet_tabs" and the sheet_id from the sheets result.
+Present the tabs to the user:
+"This sheet has these tabs: Sheet1, Data, Archive — which one 
+should I add the responses to?"
+If there is only one tab, confirm it automatically without asking:
+"I'll add responses to the Sheet1 tab — does that work?"
+Never ask the user to type a tab name manually.
 
 STEP 5 — Confirm summary
 Show a clear summary before building:
