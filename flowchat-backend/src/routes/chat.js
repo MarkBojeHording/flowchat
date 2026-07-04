@@ -97,7 +97,7 @@ const TOOLS = [
         },
         sheet_id: {
           type: 'string',
-          description: 'Google Sheet ID — required when app is sheet_tabs. Copy from the sheets result e.g. "1G5Zx-0cuvlbyJ0R1..."'
+          description: 'The exact Google Sheet ID copied character-for-character from the sheets result. Example: if sheets returned "Mark Tester (ID: 1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8)" then sheet_id is exactly "1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8". Never shorten, truncate, or modify the ID.'
         },
         form_id: {
           type: 'string',

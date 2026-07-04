@@ -131,6 +131,13 @@ Example: user says "Mark Tester"
 → IMMEDIATELY call sheet_tabs with sheet_id "1G5Zx-0cuvlbyJ0R1..."
 → THEN present the tabs to the user
 
+When calling sheet_tabs, the sheet_id must be copied 
+character-for-character from the sheets result — the full ID 
+including underscores and hyphens.
+Example: "Mark Tester (ID: 1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8)" 
+→ sheet_id is "1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8"
+Never shorten, truncate, or guess the ID.
+
 If sheet_tabs returns one tab, confirm it automatically:
 "I'll use the Sheet1 tab — does that work?"
 If multiple tabs, ask: "This sheet has these tabs: [list] — 
