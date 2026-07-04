@@ -1439,7 +1439,7 @@ function buildChatResponse(
 
   const stage = determineStage(action, currentWorkflowId)
 
-  return {
+  const responsePayload = {
     reply,
     action,
     actionData,
@@ -1451,6 +1451,13 @@ function buildChatResponse(
       autoName: autoName || null,
     },
   }
+
+  if (action === 'quick_replies' && actionData?.options) {
+    responsePayload.action = 'quick_replies'
+    responsePayload.actionData = actionData
+  }
+
+  return responsePayload
 }
 
 function determineStage(action, currentWorkflowId) {
@@ -1977,7 +1984,7 @@ router.post('/message/stream', async (req, res) => {
     }
 
     // Send final done event with all state
-    sendEvent('done', {
+    const responsePayload = {
       action,
       actionData,
       updatedState: {
@@ -1987,7 +1994,14 @@ router.post('/message/stream', async (req, res) => {
         automationId: savedAutomationId,
         autoName: savedAutoName,
       }
-    })
+    }
+
+    if (action === 'quick_replies' && actionData?.options) {
+      responsePayload.action = 'quick_replies'
+      responsePayload.actionData = actionData
+    }
+
+    sendEvent('done', responsePayload)
 
     res.end()
 
