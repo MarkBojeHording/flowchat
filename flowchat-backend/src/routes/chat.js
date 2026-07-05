@@ -1455,15 +1455,16 @@ function extractQuickReplies(lastToolName, lastToolResult, agentReply) {
   const lines = result.split('\n').filter(l => l.trim())
   if (lines.length < 2) return null
 
-  // Parse options — only lines that represent selectable items
+  // Match the actual structural format every get_user_resources result
+  // uses: "<name> (ID: <id>)", optionally prefixed with numbering/bullets.
+  // Do NOT filter by line length — real sheet/channel names can be long
+  // and were being silently dropped by the old <60-char heuristic.
   const listPattern = /^(\d+\.\s+|[-•*]\s+)/
-  const proseStart = /^(i |this |the |your |we |let |done|no |yes |could|sorry|great|all )/i
+  const itemPattern = /\(ID:\s*[^)]+\)/i
 
   const listItems = lines.filter(l => {
     const trimmed = l.trim()
-    if (proseStart.test(trimmed)) return false
-    if (trimmed.length > 80) return false
-    return listPattern.test(trimmed) || trimmed.length < 60
+    return itemPattern.test(trimmed)
   })
 
   if (listItems.length < 2) return null
@@ -1472,7 +1473,7 @@ function extractQuickReplies(lastToolName, lastToolResult, agentReply) {
     const cleaned = item.replace(listPattern, '').trim()
     const label = cleaned.replace(/\s*\(ID:[^)]+\)/i, '').replace(/\s*\(type:[^)]+\)/i, '').trim()
     return { label, value: label }
-  }).filter(o => o.label.length > 0 && o.label.length < 60)
+  }).filter(o => o.label.length > 0)
 
   if (options.length < 2) return null
 
@@ -1567,6 +1568,14 @@ function detectConfirmationButtons(replyText) {
   }
 
   return null
+}
+
+function stripLiteralQuickReplyText(agentReply) {
+  if (!agentReply) return agentReply
+  return agentReply
+    .replace(/\[["']([^"']+)["'],\s*["']([^"']+)["']\]/g, '')
+    .replace(/quick_replies:\s*\[.*?\]/gi, '')
+    .trim()
 }
 
 function applyAutoQuickReplies({ agentReply, lastToolName, lastToolResult, action, actionData }) {
@@ -1803,23 +1812,38 @@ function buildSystemPrompt(triggerApp, actionApp) {
     readPrompt('interaction-standards.txt'),
     readPrompt('tools.txt'),
   ]
+  const loadedModules = ['core-laws.txt', 'interaction-standards.txt', 'tools.txt']
 
   const normalizedTrigger = normalizeAppForPromptModule(triggerApp)
   const normalizedAction = normalizeAppForPromptModule(actionApp)
 
   if (normalizedTrigger) {
-    const triggerModule = readPrompt(`modules/${normalizedTrigger}.txt`)
-    if (triggerModule) parts.push(triggerModule)
+    const triggerModulePath = `modules/${normalizedTrigger}.txt`
+    const triggerModule = readPrompt(triggerModulePath)
+    if (triggerModule) {
+      parts.push(triggerModule)
+      loadedModules.push(triggerModulePath)
+    }
   }
   if (normalizedAction) {
-    const actionModule = readPrompt(`modules/${normalizedAction}.txt`)
-    if (actionModule && actionModule !== parts[parts.length - 1]) parts.push(actionModule)
+    const actionModulePath = `modules/${normalizedAction}.txt`
+    const actionModule = readPrompt(actionModulePath)
+    if (actionModule && actionModule !== parts[parts.length - 1]) {
+      parts.push(actionModule)
+      loadedModules.push(actionModulePath)
+    }
   }
 
   if (normalizedTrigger === 'schedule') {
-    const scheduleModule = readPrompt('modules/schedule.txt')
-    if (scheduleModule && !parts.includes(scheduleModule)) parts.push(scheduleModule)
+    const scheduleModulePath = 'modules/schedule.txt'
+    const scheduleModule = readPrompt(scheduleModulePath)
+    if (scheduleModule && !parts.includes(scheduleModule)) {
+      parts.push(scheduleModule)
+      loadedModules.push(scheduleModulePath)
+    }
   }
+
+  console.log('Loaded modules:', loadedModules.join(', '))
 
   const assembled = parts.filter(Boolean).join('\n\n---\n\n')
   if (assembled.trim()) return assembled
@@ -2101,6 +2125,7 @@ router.post('/message/stream', async (req, res) => {
 
     // Clean up reply text
     replyText = stripAuthUrls(replyText)
+    replyText = stripLiteralQuickReplyText(replyText)
 
     if (!replyText && action === 'request_connection' && actionData?.app) {
       const fallbackText = `I need access to your ${actionData.app} to continue. Click the button below to connect it.`
@@ -2351,6 +2376,7 @@ router.post('/message', async (req, res) => {
     }
 
     replyText = stripAuthUrls(replyText)
+    replyText = stripLiteralQuickReplyText(replyText)
 
     if (!replyText && action === 'request_connection' && actionData?.app) {
       replyText = `I need access to your ${actionData.app} to continue. Click the button below to connect it — takes about 30 seconds.`
