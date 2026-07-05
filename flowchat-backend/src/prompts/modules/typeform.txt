@@ -6,21 +6,19 @@ SETUP (follows standard flow with these specifics):
 
 After connections confirmed:
 1. Call get_user_resources "typeform_forms"
-   -> Return results as quick_replies buttons
 
 2. User picks form. Extract form_id exactly from result.
    "My new form (ID: HPExk4sV)" -> form_id = "HPExk4sV"
    Call get_user_resources "typeform_fields" with that exact form_id.
-   Present fields as proposed column headers.
-   Return quick_replies: ["Use these as headers", "Rename some"]
+   Present fields as proposed column headers and ask if they want
+   to use them or rename any.
 
 3. Call get_user_resources "sheets"
-   -> Return results as quick_replies buttons
    User picks sheet. Extract sheet_id exactly from result.
    In the SAME turn, call get_user_resources "sheet_tabs"
    with that exact sheet_id.
-   If one tab: return quick_replies ["Yes, use [tab name]", "Use different tab"]
-   If multiple tabs: return as quick_replies buttons
+   If one tab: confirm it automatically.
+   If multiple tabs: ask which one.
 
 4. Show summary (Stage 4 format). Build on confirmation.
 
