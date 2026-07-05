@@ -344,6 +344,19 @@ const TOOLS = [
       required: ['form_id', 'sheet_id'],
     },
   },
+  {
+    name: 'remove_test_row',
+    description:
+      'Removes the test row (containing test@flowchat.now) from a Google Sheet after a test run, if the user confirms they want it removed.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        sheet_id: { type: 'string', description: 'The Google Sheet ID' },
+        sheet_tab: { type: 'string', description: 'The tab name, e.g. Sheet1' },
+      },
+      required: ['sheet_id', 'sheet_tab'],
+    },
+  },
 ]
 
 function appToPlatform(app) {
@@ -1407,6 +1420,138 @@ async function executeTool(name, input, userId, automationId = null) {
       } catch (err) {
         console.error('sync_historical_data error:', err.message)
         return { success: false, summary: 'Could not import existing responses.' }
+      }
+    }
+
+    case 'remove_test_row': {
+      try {
+        const { sheet_id, sheet_tab } = input
+        if (!sheet_id || !sheet_tab) {
+          return { result: 'sheet_id and sheet_tab are required.' }
+        }
+
+        const { data: account } = await supabase
+          .from('platform_accounts')
+          .select('access_token, refresh_token')
+          .eq('user_id', userId)
+          .eq('platform', 'google')
+          .single()
+
+        if (!account) {
+          return { result: 'Google account not connected.' }
+        }
+
+        let accessToken = account.access_token
+        const tabName = sheet_tab || 'Sheet1'
+        const valuesRange =
+          tabName.includes(' ') || tabName.includes("'")
+            ? `'${tabName.replace(/'/g, "''")}'`
+            : tabName
+
+        const refreshGoogleToken = async () => {
+          const refreshRes = await axios.post(
+            'https://oauth2.googleapis.com/token',
+            new URLSearchParams({
+              client_id: process.env.GOOGLE_CLIENT_ID,
+              client_secret: process.env.GOOGLE_CLIENT_SECRET,
+              refresh_token: account.refresh_token,
+              grant_type: 'refresh_token',
+            }).toString(),
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+          )
+          accessToken = refreshRes.data.access_token
+          await supabase
+            .from('platform_accounts')
+            .update({
+              access_token: accessToken,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('user_id', userId)
+            .eq('platform', 'google')
+        }
+
+        const withGoogleAuth = async (requestFn) => {
+          try {
+            return await requestFn(accessToken)
+          } catch (err) {
+            if (err.response?.status === 401 && account.refresh_token) {
+              console.log('Google token expired, refreshing...')
+              await refreshGoogleToken()
+              console.log('✅ Google token refreshed successfully')
+              return await requestFn(accessToken)
+            }
+            throw err
+          }
+        }
+
+        const valuesRes = await withGoogleAuth((token) =>
+          axios.get(
+            `https://sheets.googleapis.com/v4/spreadsheets/${sheet_id}/values/${encodeURIComponent(valuesRange)}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+        )
+
+        const rows = valuesRes.data.values || []
+        let rowIndex = -1
+        for (let i = 0; i < rows.length; i++) {
+          if (rows[i].some((cell) => String(cell) === 'test@flowchat.now')) {
+            rowIndex = i
+            break
+          }
+        }
+
+        if (rowIndex === -1) {
+          return {
+            result: 'Could not find the test row — it may have already been removed.',
+          }
+        }
+
+        const sheetMetaRes = await withGoogleAuth((token) =>
+          axios.get(`https://sheets.googleapis.com/v4/spreadsheets/${sheet_id}`, {
+            params: { fields: 'sheets.properties(sheetId,title)' },
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        )
+
+        const sheet = sheetMetaRes.data.sheets?.find(
+          (s) => s.properties?.title === tabName
+        )
+        if (!sheet?.properties) {
+          return { result: `Tab "${tabName}" not found in this sheet.` }
+        }
+
+        const numericSheetId = sheet.properties.sheetId
+
+        await withGoogleAuth((token) =>
+          axios.post(
+            `https://sheets.googleapis.com/v4/spreadsheets/${sheet_id}:batchUpdate`,
+            {
+              requests: [
+                {
+                  deleteDimension: {
+                    range: {
+                      sheetId: numericSheetId,
+                      dimension: 'ROWS',
+                      startIndex: rowIndex,
+                      endIndex: rowIndex + 1,
+                    },
+                  },
+                },
+              ],
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          )
+        )
+
+        return { result: 'Test row removed successfully.' }
+      } catch (err) {
+        console.error('remove_test_row error:', err.response?.data || err.message)
+        return { result: `Could not remove test row: ${err.message}` }
       }
     }
 

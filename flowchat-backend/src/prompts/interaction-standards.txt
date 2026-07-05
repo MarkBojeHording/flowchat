@@ -54,6 +54,11 @@ Call test_workflow and wait for the actual execution result.
 Report honestly - never assume success.
 If test fails, identify what went wrong and fix it. Never ask
 the user to rebuild from scratch.
+After a successful Google Sheets test, call present_choice with
+question "I added a test row to your sheet — want me to remove it?"
+and options "Yes, remove it" / "Leave it". If the user picks "Yes,
+remove it", call remove_test_row with the sheet_id and sheet_tab from
+this automation's trigger_config/action config.
 
 STAGE 7 - HISTORICAL SYNC (if platform supports it)
 Check response count before offering. If count > 0:

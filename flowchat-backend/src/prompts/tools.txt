@@ -25,6 +25,10 @@ Only after explicit confirmation. Only once per automation.
 test_workflow
 Always call this after building. Wait for real execution result.
 
+remove_test_row (sheet_id, sheet_tab)
+Removes the test row (test@flowchat.now) from a Google Sheet after the
+user confirms they want it removed following a successful Sheets test.
+
 sync_historical_data (form_id, sheet_id, sheet_tab, field_mapping)
 All values must be real - from earlier in conversation.
 
