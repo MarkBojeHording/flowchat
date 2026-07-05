@@ -253,6 +253,7 @@ export default function DashboardPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const templatesRef = useRef<HTMLDivElement>(null);
   const userInitiatedNewRef = useRef(false);
+  const isSendingRef = useRef(false);
 
   function showToast(
     message: string,
@@ -884,7 +885,9 @@ export default function DashboardPage() {
 
   const sendMessage = useCallback(
     async (userMessage: string) => {
-      if (!userMessage.trim() || loading || !user) return;
+      if (!userMessage.trim() || !user) return;
+      if (isSendingRef.current) return;
+      isSendingRef.current = true;
 
       const automationIdForRequest = isTempAutomationId(selectedId)
         ? null
@@ -927,9 +930,10 @@ export default function DashboardPage() {
         });
       } finally {
         setLoading(false);
+        isSendingRef.current = false;
       }
     },
-    [loading, user, selectedId, currentAutomationId, processChatStream, userTimezone]
+    [user, selectedId, currentAutomationId, processChatStream, userTimezone]
   );
 
   const handleSubmit = useCallback(async () => {
@@ -1688,7 +1692,8 @@ export default function DashboardPage() {
                                     key={i}
                                     type="button"
                                     onClick={() => handleQuickReply(option.value)}
-                                    className="rounded-full border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:border-[#00d4aa] hover:text-[#00d4aa] active:scale-[0.98]"
+                                    disabled={loading}
+                                    className="rounded-full border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:border-[#00d4aa] hover:text-[#00d4aa] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                                   >
                                     {option.label}
                                   </button>
