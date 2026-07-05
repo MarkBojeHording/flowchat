@@ -1433,26 +1433,33 @@ function extractQuickReplies(lastToolName, lastToolResult) {
   const result = lastToolResult?.result
   if (!result || typeof result !== 'string') return null
 
-  // Parse numbered or bulleted lists from tool results
   const lines = result.split('\n').filter(l => l.trim())
+  if (lines.length < 2) return null
 
-  // Check if result looks like a list
   const listPattern = /^(\d+\.\s+|[-•*]\s+)/
-  const listItems = lines.filter(l => listPattern.test(l.trim()))
+
+  // Match numbered/bulleted OR plain newline-separated items
+  // Plain items: lines that don't start with common prose words
+  const proseStart = /^(i |this |the |your |we |let |done|no |yes )/i
+
+  const listItems = lines.filter(l => {
+    const trimmed = l.trim()
+    if (listPattern.test(trimmed)) return true
+    // Plain item: short enough to be a name, not starting with prose
+    if (trimmed.length < 80 && !proseStart.test(trimmed)) return true
+    return false
+  })
 
   if (listItems.length < 2) return null
 
-  // Extract labels — remove numbering and ID suffixes for display
   const options = listItems.map(item => {
     const cleaned = item.replace(listPattern, '').trim()
-    // For display, show just the name without the (ID: xxx) part
+    // Remove (ID: xxx) suffix for display label
     const label = cleaned.replace(/\s*\(ID:[^)]+\)/i, '').trim()
-    // For value, use the full string so IDs are preserved
-    const value = label
-    return { label, value }
+    return { label, value: label }
   })
 
-  // Cap at 8 options, add "See more" if needed
+  // Cap at 8 options
   if (options.length > 8) {
     return options.slice(0, 7).concat([{ label: 'See more...', value: 'show_more' }])
   }
