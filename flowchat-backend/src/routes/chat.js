@@ -1427,67 +1427,103 @@ function generateAutoName(message, nameFromState) {
 
 // Auto-detect quick reply opportunities from tool results
 // When get_user_resources returns a list, construct quick_replies
-function extractQuickReplies(lastToolName, lastToolResult) {
+function extractQuickReplies(lastToolName, lastToolResult, agentReply) {
   if (lastToolName !== 'get_user_resources') return null
 
+  const app = lastToolResult?.app || ''
   const result = lastToolResult?.result
   if (!result || typeof result !== 'string') return null
+
+  // ONLY generate buttons for selection tools — not for field/column lists
+  const selectionApps = [
+    'typeform_forms',
+    'sheets',
+    'sheet_tabs',
+    'slack',
+    'typeform_response_count'  // no buttons for count results
+  ]
+
+  // Get the app from the last tool INPUT not result
+  // We need to track lastToolInput as well as lastToolResult
+  // For now, detect from result content
+
+  // Do NOT generate buttons if result looks like column/field names
+  // Column results contain type annotations like "(type: short_text)"
+  if (result.includes('type:') || result.includes('(ID:') === false) {
+    // Check if this is a fields result — contains type annotations
+    if (result.includes(', type:') || result.match(/\d+\.\s+\w[\w\s]+\n/)) {
+      // Could be fields list — only generate buttons if items have IDs
+      if (!result.includes('(ID:')) return null
+    }
+  }
 
   const lines = result.split('\n').filter(l => l.trim())
   if (lines.length < 2) return null
 
+  // Parse options — only lines that represent selectable items
   const listPattern = /^(\d+\.\s+|[-•*]\s+)/
-
-  // Match numbered/bulleted OR plain newline-separated items
-  // Plain items: lines that don't start with common prose words
-  const proseStart = /^(i |this |the |your |we |let |done|no |yes )/i
+  const proseStart = /^(i |this |the |your |we |let |done|no |yes |could|sorry|great|all )/i
 
   const listItems = lines.filter(l => {
     const trimmed = l.trim()
-    if (listPattern.test(trimmed)) return true
-    // Plain item: short enough to be a name, not starting with prose
-    if (trimmed.length < 80 && !proseStart.test(trimmed)) return true
-    return false
+    if (proseStart.test(trimmed)) return false
+    if (trimmed.length > 80) return false
+    return listPattern.test(trimmed) || trimmed.length < 60
   })
 
   if (listItems.length < 2) return null
 
   const options = listItems.map(item => {
     const cleaned = item.replace(listPattern, '').trim()
-    // Remove (ID: xxx) suffix for display label
-    const label = cleaned.replace(/\s*\(ID:[^)]+\)/i, '').trim()
+    const label = cleaned.replace(/\s*\(ID:[^)]+\)/i, '').replace(/\s*\(type:[^)]+\)/i, '').trim()
     return { label, value: label }
-  })
+  }).filter(o => o.label.length > 0 && o.label.length < 60)
 
-  // Cap at 8 options
-  if (options.length > 8) {
-    return options.slice(0, 7).concat([{ label: 'See more...', value: 'show_more' }])
+  if (options.length < 2) return null
+
+  // MAX 6 BUTTONS — if more, show 5 + "See all N options"
+  const MAX_BUTTONS = 6
+  if (options.length > MAX_BUTTONS) {
+    const shown = options.slice(0, MAX_BUTTONS - 1)
+    shown.push({
+      label: `See all ${options.length} options`,
+      value: `show_all_options`
+    })
+    return shown
   }
 
-  return options.length >= 2 ? options : null
+  return options
 }
 
 // Also handle yes/no confirmations
 // When the agent asks a confirmation question, add standard buttons
 function detectConfirmationButtons(replyText) {
-  const confirmPatterns = [
-    /does this look right/i,
-    /does that work/i,
-    /should i use/i,
-    /would you like me to/i,
-    /shall i/i,
-  ]
+  if (!replyText) return null
 
   const testPatterns = [
     /run a.*test/i,
     /quick test/i,
     /test.*now/i,
+    /run.*test/i
   ]
 
   const syncPatterns = [
     /import them now/i,
     /existing responses/i,
     /import.*responses/i,
+    /would you like me to import/i
+  ]
+
+  const confirmSummaryPatterns = [
+    /does this look right/i,
+    /look right\?/i,
+  ]
+
+  // Tab confirmation — single tab auto-confirmed
+  const tabPatterns = [
+    /should i use that\?/i,
+    /use the.*tab/i,
+    /there('s| is) one tab/i
   ]
 
   if (testPatterns.some(p => p.test(replyText))) {
@@ -1504,10 +1540,32 @@ function detectConfirmationButtons(replyText) {
     ]
   }
 
-  if (confirmPatterns.some(p => p.test(replyText))) {
+  if (confirmSummaryPatterns.some(p => p.test(replyText))) {
     return [
       { label: 'Looks good', value: 'Looks good' },
       { label: 'Change something', value: 'Change something' }
+    ]
+  }
+
+  if (tabPatterns.some(p => p.test(replyText))) {
+    return [
+      { label: 'Yes, use it', value: 'Yes' },
+      { label: 'Use a different tab', value: 'Use a different tab' }
+    ]
+  }
+
+  // Column header confirmation — "do these work" / "use these as headers"
+  const columnPatterns = [
+    /do these work as/i,
+    /use these as.*headers/i,
+    /use these as your column/i,
+    /work as your column/i
+  ]
+
+  if (columnPatterns.some(p => p.test(replyText))) {
+    return [
+      { label: 'Yes, use these', value: 'Yes, use these' },
+      { label: 'Rename some', value: 'Rename some' }
     ]
   }
 
@@ -1518,7 +1576,7 @@ function applyAutoQuickReplies({ agentReply, lastToolName, lastToolResult, actio
   let quickReplyOptions = null
 
   if (lastToolName && lastToolResult) {
-    quickReplyOptions = extractQuickReplies(lastToolName, lastToolResult)
+    quickReplyOptions = extractQuickReplies(lastToolName, lastToolResult, agentReply)
   }
 
   if (!quickReplyOptions && agentReply) {
