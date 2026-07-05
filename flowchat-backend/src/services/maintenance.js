@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js')
 const { google } = require('googleapis')
+const axios = require('axios')
 const ws = require('ws')
 
 const supabase = createClient(
@@ -125,6 +126,65 @@ async function refreshGoogleTokens() {
   }
 }
 
+async function refreshTypeformTokens() {
+  console.log('🔧 Maintenance: refreshing Typeform tokens...')
+
+  try {
+    const sixDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString()
+
+    const { data: accounts } = await supabase
+      .from('platform_accounts')
+      .select('user_id, access_token, refresh_token, email, updated_at')
+      .eq('platform', 'typeform')
+      .not('refresh_token', 'is', null)
+      .lt('updated_at', sixDaysAgo)
+
+    if (!accounts?.length) {
+      console.log('No Typeform accounts need proactive refresh')
+      return
+    }
+
+    console.log(`Proactively refreshing ${accounts.length} Typeform tokens...`)
+
+    let refreshed = 0
+    let failed = 0
+
+    for (const account of accounts) {
+      try {
+        const refreshRes = await axios.post(
+          'https://api.typeform.com/oauth/token',
+          new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: account.refresh_token,
+            client_id: process.env.TYPEFORM_CLIENT_ID,
+            client_secret: process.env.TYPEFORM_CLIENT_SECRET,
+          }).toString(),
+          { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        )
+
+        await supabase
+          .from('platform_accounts')
+          .update({
+            access_token: refreshRes.data.access_token,
+            refresh_token: refreshRes.data.refresh_token || account.refresh_token,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', account.user_id)
+          .eq('platform', 'typeform')
+
+        refreshed++
+      } catch (err) {
+        console.error(`Failed to refresh Typeform token for ${account.email || account.user_id}:`, err.message)
+        failed++
+      }
+    }
+
+    console.log(`✅ Typeform token refresh complete: ${refreshed} refreshed, ${failed} failed`)
+  } catch (err) {
+    console.error('Maintenance refreshTypeformTokens error:', err)
+  }
+}
+
 async function sendDailyDigest() {
   console.log('🔧 Maintenance: generating daily digest...')
 
@@ -208,9 +268,15 @@ async function runMaintenance() {
 
   await checkAndReactivateWorkflows()
   await refreshGoogleTokens()
+  await refreshTypeformTokens()
   await sendDailyDigest()
 
   console.log(`✅ Daily maintenance complete in ${Date.now() - start}ms`)
 }
 
-module.exports = { runMaintenance, checkAndReactivateWorkflows, refreshGoogleTokens }
+module.exports = {
+  runMaintenance,
+  checkAndReactivateWorkflows,
+  refreshGoogleTokens,
+  refreshTypeformTokens,
+}

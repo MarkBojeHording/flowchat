@@ -96,6 +96,46 @@ function extractAnswer(answer) {
   }
 }
 
+async function refreshTypeformAccessToken(userId, account) {
+  console.log(`[typeform/${userId}] Token expired, refreshing...`)
+  const refreshRes = await axios.post(
+    'https://api.typeform.com/oauth/token',
+    new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: account.refresh_token,
+      client_id: process.env.TYPEFORM_CLIENT_ID,
+      client_secret: process.env.TYPEFORM_CLIENT_SECRET,
+    }).toString(),
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+  )
+  const accessToken = refreshRes.data.access_token
+  await supabase
+    .from('platform_accounts')
+    .update({
+      access_token: accessToken,
+      refresh_token: refreshRes.data.refresh_token || account.refresh_token,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+    .eq('platform', 'typeform')
+  console.log(`[typeform/${userId}] Token refreshed successfully`)
+  return accessToken
+}
+
+async function callWithTypeformToken(userId, account, apiCall) {
+  let accessToken = account.access_token
+  try {
+    return await apiCall(accessToken)
+  } catch (err) {
+    if (err.response?.status === 403 && account.refresh_token) {
+      accessToken = await refreshTypeformAccessToken(userId, account)
+      account.access_token = accessToken
+      return await apiCall(accessToken)
+    }
+    throw err
+  }
+}
+
 // Webhook receiver — called by Typeform on every form submission
 router.post('/webhook/:userId', async (req, res) => {
   const { userId } = req.params
@@ -202,7 +242,7 @@ router.get('/forms/:userId', async (req, res) => {
   try {
     const { data: account } = await supabase
       .from('platform_accounts')
-      .select('access_token')
+      .select('access_token, refresh_token')
       .eq('user_id', userId)
       .eq('platform', 'typeform')
       .single()
@@ -211,9 +251,11 @@ router.get('/forms/:userId', async (req, res) => {
       return res.status(404).json({ error: 'Typeform not connected' })
     }
 
-    const formsRes = await axios.get('https://api.typeform.com/forms', {
-      headers: { Authorization: `Bearer ${account.access_token}` }
-    })
+    const formsRes = await callWithTypeformToken(userId, account, (token) =>
+      axios.get('https://api.typeform.com/forms', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    )
 
     const forms = formsRes.data.items.map(f => ({
       id: f.id,
@@ -242,7 +284,7 @@ router.get('/fields/:userId/:formId', async (req, res) => {
   try {
     const { data: account } = await supabase
       .from('platform_accounts')
-      .select('access_token')
+      .select('access_token, refresh_token')
       .eq('user_id', userId)
       .eq('platform', 'typeform')
       .single()
@@ -251,10 +293,12 @@ router.get('/fields/:userId/:formId', async (req, res) => {
       return res.status(404).json({ error: 'Typeform not connected' })
     }
 
-    const formRes = await axios.get(
-      `https://api.typeform.com/forms/${formId}`,
-      { headers: { Authorization: `Bearer ${account.access_token}` } }
-    )
+    const fetchFields = (token) =>
+      axios.get(`https://api.typeform.com/forms/${formId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+    const formRes = await callWithTypeformToken(userId, account, fetchFields)
 
     const fields = (formRes.data.fields || []).map(f => ({
       id: f.id,
@@ -285,7 +329,7 @@ router.post('/sync/:userId/:formId', async (req, res) => {
   try {
     const { data: tfAccount } = await supabase
       .from('platform_accounts')
-      .select('access_token')
+      .select('access_token, refresh_token')
       .eq('user_id', userId)
       .eq('platform', 'typeform')
       .single()
@@ -305,9 +349,11 @@ router.post('/sync/:userId/:formId', async (req, res) => {
       return res.status(404).json({ error: 'Google not connected' })
     }
 
-    const responsesRes = await axios.get(
-      `https://api.typeform.com/forms/${formId}/responses?page_size=1000`,
-      { headers: { Authorization: `Bearer ${tfAccount.access_token}` } }
+    const responsesRes = await callWithTypeformToken(userId, tfAccount, (token) =>
+      axios.get(
+        `https://api.typeform.com/forms/${formId}/responses?page_size=1000`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
     )
 
     const responses = responsesRes.data.items || []
@@ -358,10 +404,26 @@ router.post('/sync/:userId/:formId', async (req, res) => {
 
 async function deregisterTypeformWebhook(userId, formId, accessToken) {
   try {
+    const { data: account } = await supabase
+      .from('platform_accounts')
+      .select('access_token, refresh_token')
+      .eq('user_id', userId)
+      .eq('platform', 'typeform')
+      .single()
+
+    const accountForRefresh = account || {
+      access_token: accessToken,
+      refresh_token: null,
+    }
+    if (!accountForRefresh.access_token) {
+      accountForRefresh.access_token = accessToken
+    }
+
     const tag = `flowchat-${userId}-${formId}`
-    await axios.delete(
-      `https://api.typeform.com/forms/${formId}/webhooks/${tag}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+    await callWithTypeformToken(userId, accountForRefresh, (token) =>
+      axios.delete(`https://api.typeform.com/forms/${formId}/webhooks/${tag}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
     )
     console.log(`✅ Typeform webhook deregistered for form ${formId}`)
   } catch (err) {
@@ -371,3 +433,4 @@ async function deregisterTypeformWebhook(userId, formId, accessToken) {
 
 module.exports = router
 module.exports.deregisterTypeformWebhook = deregisterTypeformWebhook
+module.exports.refreshTypeformAccessToken = refreshTypeformAccessToken
