@@ -116,6 +116,33 @@ const TOOLS = [
     }
   },
   {
+    name: 'present_choice',
+    description: 'Show the user a question with selectable options as buttons. Use this ANY time you need the user to pick from a list or confirm/deny something. NEVER write options as bullet points or ask yes/no questions in plain prose — always call this tool instead.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        question: {
+          type: 'string',
+          description: 'The question to ask the user, e.g. "Which Google Sheet should I use?" or "Does this look right?"'
+        },
+        options: {
+          type: 'array',
+          minItems: 2,
+          maxItems: 6,
+          items: {
+            type: 'object',
+            properties: {
+              label: { type: 'string', description: 'Text shown on the button' },
+              value: { type: 'string', description: 'Text sent back as the user message when clicked' }
+            },
+            required: ['label', 'value']
+          }
+        }
+      },
+      required: ['question', 'options']
+    }
+  },
+  {
     name: 'request_app_connection',
     description:
       'Initiate connecting an app. Returns the OAuth URL for the user to click.',
@@ -1425,6 +1452,7 @@ function generateAutoName(message, nameFromState) {
   return `${cleaned.slice(0, 47)}...`
 }
 
+// DEPRECATED as of 2026-07-05 — replaced by present_choice tool. Safe to delete after confirming present_choice works end-to-end.
 // Auto-detect quick reply opportunities from tool results
 // When get_user_resources returns a list, construct quick_replies
 function extractQuickReplies(lastToolName, lastToolResult, agentReply) {
@@ -1491,6 +1519,7 @@ function extractQuickReplies(lastToolName, lastToolResult, agentReply) {
   return options
 }
 
+// DEPRECATED as of 2026-07-05 — replaced by present_choice tool. Safe to delete after confirming present_choice works end-to-end.
 // Also handle yes/no confirmations
 // When the agent asks a confirmation question, add standard buttons
 function detectConfirmationButtons(replyText) {
@@ -1578,6 +1607,7 @@ function stripLiteralQuickReplyText(agentReply) {
     .trim()
 }
 
+// DEPRECATED as of 2026-07-05 — replaced by present_choice tool. Safe to delete after confirming present_choice works end-to-end.
 function applyAutoQuickReplies({ agentReply, lastToolName, lastToolResult, action, actionData }) {
   let quickReplyOptions = null
 
@@ -2043,6 +2073,7 @@ router.post('/message/stream', async (req, res) => {
     let savedAutoName = autoName
     let lastToolName = null
     let lastToolResult = null
+    let presentChoiceResult = null
 
     // Agent loop with streaming
     for (let i = 0; i < MAX_AGENT_ITERATIONS; i++) {
@@ -2084,9 +2115,18 @@ router.post('/message/stream', async (req, res) => {
         messages.push({ role: 'assistant', content: response.content })
 
         const toolResults = []
+        let presentChoiceHandled = false
 
         for (const block of response.content) {
           if (block.type !== 'tool_use') continue
+
+          if (block.name === 'present_choice') {
+            presentChoiceResult = block.input
+            presentChoiceHandled = true
+            console.log('Tool called: present_choice')
+            console.log(`Tool input: ${JSON.stringify(block.input)}`)
+            break
+          }
 
           const result = await executeTool(
             block.name,
@@ -2116,6 +2156,11 @@ router.post('/message/stream', async (req, res) => {
         }
 
         sendEvent('tool_end', {})
+
+        if (presentChoiceHandled) {
+          break
+        }
+
         messages.push({ role: 'user', content: toolResults })
         continue
       }
@@ -2127,19 +2172,25 @@ router.post('/message/stream', async (req, res) => {
     replyText = stripAuthUrls(replyText)
     replyText = stripLiteralQuickReplyText(replyText)
 
+    if (presentChoiceResult) {
+      const question = presentChoiceResult.question
+      const hadStreamedText = Boolean(replyText.trim())
+      replyText = question
+      action = 'quick_replies'
+      actionData = {
+        text: question,
+        options: presentChoiceResult.options,
+      }
+      if (!hadStreamedText) {
+        sendEvent('text', { text: question })
+      }
+    }
+
     if (!replyText && action === 'request_connection' && actionData?.app) {
       const fallbackText = `I need access to your ${actionData.app} to continue. Click the button below to connect it.`
       sendEvent('text', { text: fallbackText })
       replyText = fallbackText
     }
-
-    ;({ action, actionData } = applyAutoQuickReplies({
-      agentReply: replyText,
-      lastToolName,
-      lastToolResult,
-      action,
-      actionData,
-    }))
 
     // Save conversation to Supabase
     const updatedConversation = [
@@ -2289,6 +2340,7 @@ router.post('/message', async (req, res) => {
     let toolsWereUsed = false
     let lastToolName = null
     let lastToolResult = null
+    let presentChoiceResult = null
 
     for (let i = 0; i < MAX_AGENT_ITERATIONS; i++) {
       iterations = i + 1
@@ -2327,9 +2379,18 @@ router.post('/message', async (req, res) => {
         messages.push({ role: 'assistant', content: response.content })
 
         const toolResults = []
+        let presentChoiceHandled = false
 
         for (const block of response.content) {
           if (block.type !== 'tool_use') continue
+
+          if (block.name === 'present_choice') {
+            presentChoiceResult = block.input
+            presentChoiceHandled = true
+            console.log('Tool called: present_choice')
+            console.log(`Tool input: ${JSON.stringify(block.input)}`)
+            break
+          }
 
           const result = await executeTool(
             block.name,
@@ -2359,6 +2420,10 @@ router.post('/message', async (req, res) => {
           })
         }
 
+        if (presentChoiceHandled) {
+          break
+        }
+
         messages.push({ role: 'user', content: toolResults })
         continue
       }
@@ -2378,17 +2443,18 @@ router.post('/message', async (req, res) => {
     replyText = stripAuthUrls(replyText)
     replyText = stripLiteralQuickReplyText(replyText)
 
+    if (presentChoiceResult) {
+      replyText = presentChoiceResult.question
+      action = 'quick_replies'
+      actionData = {
+        text: presentChoiceResult.question,
+        options: presentChoiceResult.options,
+      }
+    }
+
     if (!replyText && action === 'request_connection' && actionData?.app) {
       replyText = `I need access to your ${actionData.app} to continue. Click the button below to connect it — takes about 30 seconds.`
     }
-
-    ;({ action, actionData } = applyAutoQuickReplies({
-      agentReply: replyText,
-      lastToolName,
-      lastToolResult,
-      action,
-      actionData,
-    }))
 
     const updatedConversation = [
       ...conversationHistory,

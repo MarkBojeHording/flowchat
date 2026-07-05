@@ -11,6 +11,10 @@ get_user_resources (app, form_id?, sheet_id?)
 "sheet_tabs" + sheet_id (exact, from sheets result)
 "slack" - list Slack channels
 
+present_choice (question, options) - show buttons for the user to pick
+from or confirm/deny. Use instead of writing lists or yes/no questions
+in prose.
+
 request_app_connection (app)
 Shows connect button. Use when app not connected.
 
