@@ -1430,31 +1430,26 @@ function generateAutoName(message, nameFromState) {
 function extractQuickReplies(lastToolName, lastToolResult, agentReply) {
   if (lastToolName !== 'get_user_resources') return null
 
-  const app = lastToolResult?.app || ''
   const result = lastToolResult?.result
   if (!result || typeof result !== 'string') return null
 
-  // ONLY generate buttons for selection tools — not for field/column lists
-  const selectionApps = [
-    'typeform_forms',
-    'sheets',
-    'sheet_tabs',
-    'slack',
-    'typeform_response_count'  // no buttons for count results
-  ]
+  // NEVER generate buttons for field/column lists
+  // typeform_fields returns items with type annotations
+  if (result.includes('type: short_text') ||
+      result.includes('type: email') ||
+      result.includes('type: long_text') ||
+      result.includes('type: phone_number') ||
+      result.includes('type: multiple_choice') ||
+      result.includes('type: yes_no') ||
+      result.includes('type: number') ||
+      result.includes('type: rating') ||
+      result.includes(', type:')) {
+    return null
+  }
 
-  // Get the app from the last tool INPUT not result
-  // We need to track lastToolInput as well as lastToolResult
-  // For now, detect from result content
-
-  // Do NOT generate buttons if result looks like column/field names
-  // Column results contain type annotations like "(type: short_text)"
-  if (result.includes('type:') || result.includes('(ID:') === false) {
-    // Check if this is a fields result — contains type annotations
-    if (result.includes(', type:') || result.match(/\d+\.\s+\w[\w\s]+\n/)) {
-      // Could be fields list — only generate buttons if items have IDs
-      if (!result.includes('(ID:')) return null
-    }
+  // Also skip response count results
+  if (result.includes('existing response') || result.includes('No existing')) {
+    return null
   }
 
   const lines = result.split('\n').filter(l => l.trim())
@@ -1556,10 +1551,12 @@ function detectConfirmationButtons(replyText) {
 
   // Column header confirmation — "do these work" / "use these as headers"
   const columnPatterns = [
-    /do these work as/i,
+    /use these as your headers/i,
     /use these as.*headers/i,
+    /do these work as/i,
     /use these as your column/i,
-    /work as your column/i
+    /work as your column/i,
+    /would you like to use these/i,
   ]
 
   if (columnPatterns.some(p => p.test(replyText))) {
