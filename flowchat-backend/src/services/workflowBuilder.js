@@ -360,8 +360,9 @@ return [{
           }]
         },
         sendBody: true,
-        specifyBody: 'string',
-        body: '={{ JSON.stringify({ "values": [$("Set Submission Data").item.json.row] }) }}',
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: "={{ JSON.stringify({\"values\": [$('Set Submission Data').item.json.row]}) }}",
         options: {}
       }
     },
