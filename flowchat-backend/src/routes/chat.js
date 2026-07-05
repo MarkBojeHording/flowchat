@@ -1425,6 +1425,109 @@ function generateAutoName(message, nameFromState) {
   return `${cleaned.slice(0, 47)}...`
 }
 
+// Auto-detect quick reply opportunities from tool results
+// When get_user_resources returns a list, construct quick_replies
+function extractQuickReplies(lastToolName, lastToolResult) {
+  if (lastToolName !== 'get_user_resources') return null
+
+  const result = lastToolResult?.result
+  if (!result || typeof result !== 'string') return null
+
+  // Parse numbered or bulleted lists from tool results
+  const lines = result.split('\n').filter(l => l.trim())
+
+  // Check if result looks like a list
+  const listPattern = /^(\d+\.\s+|[-•*]\s+)/
+  const listItems = lines.filter(l => listPattern.test(l.trim()))
+
+  if (listItems.length < 2) return null
+
+  // Extract labels — remove numbering and ID suffixes for display
+  const options = listItems.map(item => {
+    const cleaned = item.replace(listPattern, '').trim()
+    // For display, show just the name without the (ID: xxx) part
+    const label = cleaned.replace(/\s*\(ID:[^)]+\)/i, '').trim()
+    // For value, use the full string so IDs are preserved
+    const value = label
+    return { label, value }
+  })
+
+  // Cap at 8 options, add "See more" if needed
+  if (options.length > 8) {
+    return options.slice(0, 7).concat([{ label: 'See more...', value: 'show_more' }])
+  }
+
+  return options.length >= 2 ? options : null
+}
+
+// Also handle yes/no confirmations
+// When the agent asks a confirmation question, add standard buttons
+function detectConfirmationButtons(replyText) {
+  const confirmPatterns = [
+    /does this look right/i,
+    /does that work/i,
+    /should i use/i,
+    /would you like me to/i,
+    /shall i/i,
+  ]
+
+  const testPatterns = [
+    /run a.*test/i,
+    /quick test/i,
+    /test.*now/i,
+  ]
+
+  const syncPatterns = [
+    /import them now/i,
+    /existing responses/i,
+    /import.*responses/i,
+  ]
+
+  if (testPatterns.some(p => p.test(replyText))) {
+    return [
+      { label: 'Yes, test it', value: 'Yes, test it' },
+      { label: 'Skip for now', value: 'Skip for now' }
+    ]
+  }
+
+  if (syncPatterns.some(p => p.test(replyText))) {
+    return [
+      { label: 'Yes, import them', value: 'Yes, import them' },
+      { label: 'No thanks', value: 'No thanks' }
+    ]
+  }
+
+  if (confirmPatterns.some(p => p.test(replyText))) {
+    return [
+      { label: 'Looks good', value: 'Looks good' },
+      { label: 'Change something', value: 'Change something' }
+    ]
+  }
+
+  return null
+}
+
+function applyAutoQuickReplies({ agentReply, lastToolName, lastToolResult, action, actionData }) {
+  let quickReplyOptions = null
+
+  if (lastToolName && lastToolResult) {
+    quickReplyOptions = extractQuickReplies(lastToolName, lastToolResult)
+  }
+
+  if (!quickReplyOptions && agentReply) {
+    quickReplyOptions = detectConfirmationButtons(agentReply)
+  }
+
+  if (quickReplyOptions) {
+    return {
+      action: 'quick_replies',
+      actionData: { options: quickReplyOptions },
+    }
+  }
+
+  return { action, actionData }
+}
+
 function buildChatResponse(
   replyText,
   { action, actionData, connectedApps, currentWorkflowId, automationId, autoName }
@@ -1852,6 +1955,8 @@ router.post('/message/stream', async (req, res) => {
     let replyText = ''
     let savedAutomationId = automationId
     let savedAutoName = autoName
+    let lastToolName = null
+    let lastToolResult = null
 
     // Agent loop with streaming
     for (let i = 0; i < MAX_AGENT_ITERATIONS; i++) {
@@ -1904,6 +2009,9 @@ router.post('/message/stream', async (req, res) => {
             automationId
           )
 
+          lastToolName = block.name
+          lastToolResult = result
+
           console.log(`Tool called: ${block.name}`)
           console.log(`Tool result: ${JSON.stringify(result)}`)
 
@@ -1937,6 +2045,14 @@ router.post('/message/stream', async (req, res) => {
       sendEvent('text', { text: fallbackText })
       replyText = fallbackText
     }
+
+    ;({ action, actionData } = applyAutoQuickReplies({
+      agentReply: replyText,
+      lastToolName,
+      lastToolResult,
+      action,
+      actionData,
+    }))
 
     // Save conversation to Supabase
     const updatedConversation = [
@@ -2084,6 +2200,8 @@ router.post('/message', async (req, res) => {
     let iterations = 0
     let replyText = ''
     let toolsWereUsed = false
+    let lastToolName = null
+    let lastToolResult = null
 
     for (let i = 0; i < MAX_AGENT_ITERATIONS; i++) {
       iterations = i + 1
@@ -2133,6 +2251,9 @@ router.post('/message', async (req, res) => {
             automationId
           )
 
+          lastToolName = block.name
+          lastToolResult = result
+
           console.log(`Tool called: ${block.name}`)
           console.log(`Tool input: ${JSON.stringify(block.input)}`)
           console.log(`Tool result: ${JSON.stringify(result)}`)
@@ -2172,6 +2293,14 @@ router.post('/message', async (req, res) => {
     if (!replyText && action === 'request_connection' && actionData?.app) {
       replyText = `I need access to your ${actionData.app} to continue. Click the button below to connect it — takes about 30 seconds.`
     }
+
+    ;({ action, actionData } = applyAutoQuickReplies({
+      agentReply: replyText,
+      lastToolName,
+      lastToolResult,
+      action,
+      actionData,
+    }))
 
     const updatedConversation = [
       ...conversationHistory,

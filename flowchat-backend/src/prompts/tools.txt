@@ -29,14 +29,3 @@ For changes to existing automations. Specific values only.
 
 pause_workflow / activate_workflow
 Toggle pause state.
-
-RETURNING STRUCTURED ACTIONS
-When you need to show clickable buttons, include this in your
-response alongside your reply text:
-
-action: "quick_replies"
-actionData: { options: [{label: "Text", value: "text"}] }
-
-Your reply text should introduce the choice naturally:
-"Which form should trigger this?" — then the buttons appear below.
-Do not list the options in your reply text.
