@@ -1569,6 +1569,23 @@ function extractTextFromContent(content) {
     .join('')
 }
 
+function joinStreamText(existing, chunk) {
+  if (!chunk) return existing
+  if (!existing) return chunk
+
+  const trimmedEnd = existing.trimEnd()
+  if (/[.!?]["']?$/.test(trimmedEnd) && !/^\s/.test(chunk)) {
+    return existing + ' ' + chunk
+  }
+
+  return existing + chunk
+}
+
+function normalizePunctuationSpacing(text) {
+  if (!text) return text
+  return text.replace(/([.!?])([A-Za-z])/g, '$1 $2')
+}
+
 function stripAuthUrls(text) {
   if (!text) return text
 
@@ -2237,10 +2254,15 @@ router.post('/message/stream', async (req, res) => {
       // Stream text chunks to client
       stream.on('text', (text) => {
         if (text) {
-          iterationText += text
-          replyText += text
+          const spaced = normalizePunctuationSpacing(joinStreamText(replyText, text))
+          const prefix =
+            spaced.length > replyText.length
+              ? spaced.slice(replyText.length)
+              : text
+          iterationText += prefix
+          replyText = spaced
           streamedThisIteration = true
-          sendEvent('text', { text })
+          sendEvent('text', { text: prefix })
         }
       })
 
@@ -2314,20 +2336,25 @@ router.post('/message/stream', async (req, res) => {
     }
 
     // Clean up reply text
-    replyText = stripAuthUrls(replyText)
+    replyText = normalizePunctuationSpacing(stripAuthUrls(replyText))
     replyText = stripLiteralQuickReplyText(replyText)
 
     if (presentChoiceResult) {
       const question = presentChoiceResult.question
       const hadStreamedText = Boolean(replyText.trim())
-      replyText = question
+
+      // Question belongs in the assistant bubble only — never a second copy.
+      // If nothing was streamed yet, send the present_choice question as the bubble text.
+      // If text was already streamed (incl. the question in prose), keep it as-is.
+      if (!hadStreamedText) {
+        sendEvent('text', { text: question })
+        replyText = question
+      }
+
       action = 'quick_replies'
       actionData = {
         text: question,
         options: presentChoiceResult.options,
-      }
-      if (!hadStreamedText) {
-        sendEvent('text', { text: question })
       }
     }
 

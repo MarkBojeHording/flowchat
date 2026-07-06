@@ -115,10 +115,23 @@ type ChatMessage =
   | { type: "live"; summary: string }
   | {
       type: "quick_replies";
-      text: string;
       options: { label: string; value: string }[];
     }
   | { type: "error"; text: string };
+
+function joinStreamText(existing: string, chunk: string): string {
+  if (!chunk) return existing;
+  if (!existing) return chunk;
+  const trimmedEnd = existing.trimEnd();
+  if (/[.!?]["']?$/.test(trimmedEnd) && !/^\s/.test(chunk)) {
+    return existing + " " + chunk;
+  }
+  return existing + chunk;
+}
+
+function normalizePunctuationSpacing(text: string): string {
+  return text.replace(/([.!?])([A-Za-z])/g, "$1 $2");
+}
 
 function getDisplayName(automation: Automation): string {
   return automation.auto_name || automation.name || "New automation";
@@ -375,22 +388,21 @@ export default function DashboardPage() {
             const event = JSON.parse(jsonStr);
 
             if (event.type === "text") {
-              const chars = event.text.split("");
-              for (let i = 0; i < chars.length; i++) {
-                await new Promise((resolve) => setTimeout(resolve, 8));
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last?.type === "assistant") {
-                    updated[updated.length - 1] = {
-                      ...last,
-                      text: last.text + chars[i],
-                      thinking: false,
-                    };
-                  }
-                  return updated;
-                });
-              }
+              const chunk = event.text;
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.type === "assistant") {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    text: normalizePunctuationSpacing(
+                      joinStreamText(last.text, chunk)
+                    ),
+                    thinking: false,
+                  };
+                }
+                return updated;
+              });
             }
 
             if (event.type === "tool_start") {
@@ -431,7 +443,6 @@ export default function DashboardPage() {
                   ...prev,
                   {
                     type: "quick_replies",
-                    text: actionData.text || "",
                     options: actionData.options,
                   },
                 ]);
@@ -1681,11 +1692,6 @@ export default function DashboardPage() {
                         {msg.type === "quick_replies" && (
                           <div className="flex justify-start">
                             <div className="max-w-[85%] sm:max-w-md">
-                              {msg.text && (
-                                <div className="mb-3 rounded-2xl border border-[#2a2a4a] border-l-4 border-l-[#00d4aa] bg-[#1a1a2e] px-4 py-3 text-sm text-[#e8e8f0]">
-                                  {msg.text}
-                                </div>
-                              )}
                               <div className="flex flex-wrap gap-2">
                                 {msg.options.map((option, i) => (
                                   <button
