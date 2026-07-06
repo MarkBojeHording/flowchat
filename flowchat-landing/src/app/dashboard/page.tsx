@@ -1692,14 +1692,14 @@ export default function DashboardPage() {
                         {msg.type === "quick_replies" && (
                           <div className="flex justify-start">
                             <div className="max-w-[85%] sm:max-w-md">
-                              <div className="flex flex-wrap gap-2">
+                              <div className="mt-2 flex flex-wrap gap-2">
                                 {msg.options.map((option, i) => (
                                   <button
                                     key={i}
                                     type="button"
                                     onClick={() => handleQuickReply(option.value)}
                                     disabled={loading}
-                                    className="rounded-full border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:border-[#00d4aa] hover:text-[#00d4aa] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="rounded-full border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 text-sm font-medium text-[#374151] shadow-sm transition-all hover:border-[#00d4aa] hover:bg-[#f0fdfa] hover:text-[#00d4aa] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                                   >
                                     {option.label}
                                   </button>
