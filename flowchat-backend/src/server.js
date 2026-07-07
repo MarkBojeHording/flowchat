@@ -44,6 +44,9 @@ app.use('/api/emails', emailsRouter)
 const typeformIntegration = require('./routes/integrations/typeform')
 app.use('/api/integrations/typeform', typeformIntegration)
 
+const integrationReceiver = require('./integrations/webhook/receiver')
+app.use('/api/integrations/webhook', integrationReceiver)
+
 app.use('/api/billing', billingRouter)
 
 const PORT = process.env.PORT || 3456
