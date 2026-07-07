@@ -5,7 +5,8 @@ const axios = require('axios')
 const Anthropic = require('@anthropic-ai/sdk')
 const { createClient } = require('@supabase/supabase-js')
 const ws = require('ws')
-const { getMetadataForAgent } = require('../services/integrations')
+const { getMetadataForAgent } = require('../services/integration-metadata')
+const { callWithTokenRefresh } = require('../integrations/core/execute')
 
 const router = express.Router()
 
@@ -480,68 +481,16 @@ async function executeTool(name, input, userId, automationId = null) {
 
         if (app === 'sheets') {
           try {
-            const { data: account } = await supabase
-              .from('platform_accounts')
-              .select('access_token, refresh_token')
-              .eq('user_id', userId)
-              .eq('platform', 'google')
-              .single()
-
-            if (!account) {
-              return { result: 'Google account not connected.' }
-            }
-
-            let accessToken = account.access_token
-
-            const fetchSheets = async (token) => {
-              return axios.get(
-                'https://www.googleapis.com/drive/v3/files',
-                {
-                  params: {
-                    q: "mimeType='application/vnd.google-apps.spreadsheet'",
-                    fields: 'files(id,name)',
-                    pageSize: 20
-                  },
-                  headers: { Authorization: `Bearer ${token}` }
-                }
-              )
-            }
-
-            let sheetsRes
-            try {
-              sheetsRes = await fetchSheets(accessToken)
-            } catch (err) {
-              if (err.response?.status === 401 && account.refresh_token) {
-                console.log('Google token expired, refreshing...')
-
-                const refreshRes = await axios.post(
-                  'https://oauth2.googleapis.com/token',
-                  new URLSearchParams({
-                    client_id: process.env.GOOGLE_CLIENT_ID,
-                    client_secret: process.env.GOOGLE_CLIENT_SECRET,
-                    refresh_token: account.refresh_token,
-                    grant_type: 'refresh_token'
-                  }).toString(),
-                  { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-                )
-
-                accessToken = refreshRes.data.access_token
-
-                await supabase
-                  .from('platform_accounts')
-                  .update({
-                    access_token: accessToken,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('user_id', userId)
-                  .eq('platform', 'google')
-
-                console.log('✅ Google token refreshed successfully')
-                sheetsRes = await fetchSheets(accessToken)
-              } else {
-                throw err
-              }
-            }
+            const sheetsRes = await callWithTokenRefresh(userId, 'google', (token) =>
+              axios.get('https://www.googleapis.com/drive/v3/files', {
+                params: {
+                  q: "mimeType='application/vnd.google-apps.spreadsheet'",
+                  fields: 'files(id,name)',
+                  pageSize: 20,
+                },
+                headers: { Authorization: `Bearer ${token}` },
+              })
+            )
 
             const files = sheetsRes.data.files || []
             if (files.length === 0) {
@@ -553,6 +502,9 @@ async function executeTool(name, input, userId, automationId = null) {
             }
 
           } catch (err) {
+            if (err.code === 'NOT_CONNECTED') {
+              return { result: 'Google account not connected.' }
+            }
             console.error('Sheets fetch error:', err.response?.data || err.message)
             return { result: 'Could not fetch Google Sheets. Please try again.' }
           }
@@ -566,55 +518,12 @@ async function executeTool(name, input, userId, automationId = null) {
               return { result: 'No sheet_id provided.' }
             }
 
-            const { data: account } = await supabase
-              .from('platform_accounts')
-              .select('access_token, refresh_token')
-              .eq('user_id', userId)
-              .eq('platform', 'google')
-              .single()
-
-            if (!account) {
-              return { result: 'Google account not connected.' }
-            }
-
-            let accessToken = account.access_token
-
-            const fetchTabs = async (token) => {
-              return axios.get(
-                `https://sheets.googleapis.com/v4/spreadsheets/${sheet_id}`,
-                {
-                  params: { fields: 'sheets.properties.title' },
-                  headers: { Authorization: `Bearer ${token}` }
-                }
-              )
-            }
-
-            let res
-            try {
-              res = await fetchTabs(accessToken)
-            } catch (err) {
-              if (err.response?.status === 401 && account.refresh_token) {
-                const refreshRes = await axios.post(
-                  'https://oauth2.googleapis.com/token',
-                  new URLSearchParams({
-                    client_id: process.env.GOOGLE_CLIENT_ID,
-                    client_secret: process.env.GOOGLE_CLIENT_SECRET,
-                    refresh_token: account.refresh_token,
-                    grant_type: 'refresh_token'
-                  }).toString(),
-                  { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-                )
-                accessToken = refreshRes.data.access_token
-                await supabase
-                  .from('platform_accounts')
-                  .update({ access_token: accessToken, updated_at: new Date().toISOString() })
-                  .eq('user_id', userId)
-                  .eq('platform', 'google')
-                res = await fetchTabs(accessToken)
-              } else {
-                throw err
-              }
-            }
+            const res = await callWithTokenRefresh(userId, 'google', (token) =>
+              axios.get(`https://sheets.googleapis.com/v4/spreadsheets/${sheet_id}`, {
+                params: { fields: 'sheets.properties.title' },
+                headers: { Authorization: `Bearer ${token}` },
+              })
+            )
 
             const tabs = res.data.sheets?.map(s => s.properties.title) || []
             if (tabs.length === 0) {
@@ -629,6 +538,9 @@ async function executeTool(name, input, userId, automationId = null) {
             }
 
           } catch (err) {
+            if (err.code === 'NOT_CONNECTED') {
+              return { result: 'Google account not connected.' }
+            }
             console.error('sheet_tabs error:', err.response?.data || err.message)
             return { result: 'Could not fetch sheet tabs. Please type the tab name.' }
           }
@@ -1430,59 +1342,14 @@ async function executeTool(name, input, userId, automationId = null) {
           return { result: 'sheet_id and sheet_tab are required.' }
         }
 
-        const { data: account } = await supabase
-          .from('platform_accounts')
-          .select('access_token, refresh_token')
-          .eq('user_id', userId)
-          .eq('platform', 'google')
-          .single()
-
-        if (!account) {
-          return { result: 'Google account not connected.' }
-        }
-
-        let accessToken = account.access_token
         const tabName = sheet_tab || 'Sheet1'
         const valuesRange =
           tabName.includes(' ') || tabName.includes("'")
             ? `'${tabName.replace(/'/g, "''")}'`
             : tabName
 
-        const refreshGoogleToken = async () => {
-          const refreshRes = await axios.post(
-            'https://oauth2.googleapis.com/token',
-            new URLSearchParams({
-              client_id: process.env.GOOGLE_CLIENT_ID,
-              client_secret: process.env.GOOGLE_CLIENT_SECRET,
-              refresh_token: account.refresh_token,
-              grant_type: 'refresh_token',
-            }).toString(),
-            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-          )
-          accessToken = refreshRes.data.access_token
-          await supabase
-            .from('platform_accounts')
-            .update({
-              access_token: accessToken,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', userId)
-            .eq('platform', 'google')
-        }
-
-        const withGoogleAuth = async (requestFn) => {
-          try {
-            return await requestFn(accessToken)
-          } catch (err) {
-            if (err.response?.status === 401 && account.refresh_token) {
-              console.log('Google token expired, refreshing...')
-              await refreshGoogleToken()
-              console.log('✅ Google token refreshed successfully')
-              return await requestFn(accessToken)
-            }
-            throw err
-          }
-        }
+        const withGoogleAuth = (requestFn) =>
+          callWithTokenRefresh(userId, 'google', requestFn)
 
         const valuesRes = await withGoogleAuth((token) =>
           axios.get(
@@ -1550,6 +1417,9 @@ async function executeTool(name, input, userId, automationId = null) {
 
         return { result: 'Test row removed successfully.' }
       } catch (err) {
+        if (err.code === 'NOT_CONNECTED') {
+          return { result: 'Google account not connected.' }
+        }
         console.error('remove_test_row error:', err.response?.data || err.message)
         return { result: `Could not remove test row: ${err.message}` }
       }
@@ -1574,8 +1444,16 @@ function joinStreamText(existing, chunk) {
   if (!existing) return chunk
 
   const trimmedEnd = existing.trimEnd()
-  if (/[.!?]["']?$/.test(trimmedEnd) && !/^\s/.test(chunk)) {
-    return existing + ' ' + chunk
+  if (/^\s/.test(chunk)) {
+    return existing + chunk
+  }
+
+  if (/[.!?]["']?$/.test(trimmedEnd)) {
+    const rest = chunk.trimStart()
+    if (/^[A-Z]/.test(rest)) {
+      return `${trimmedEnd}\n\n${rest}`
+    }
+    return `${existing} ${chunk}`
   }
 
   return existing + chunk

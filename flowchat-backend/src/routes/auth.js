@@ -5,6 +5,7 @@ const axios = require('axios')
 const { createClient } = require('@supabase/supabase-js')
 const ws = require('ws')
 const { sendWelcomeEmail } = require('../services/email')
+const { callWithTokenRefresh } = require('../integrations/core/execute')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -204,30 +205,14 @@ router.get('/credentials/:userId/:platform', async (req, res) => {
       return res.status(404).json({ error: 'Credentials not found' })
     }
 
-    // For Google: automatically refresh the token
     if (platform === 'google' && data.refresh_token) {
       try {
-        const oauth2Client = new google.auth.OAuth2(
-          process.env.GOOGLE_CLIENT_ID,
-          process.env.GOOGLE_CLIENT_SECRET,
-          process.env.GOOGLE_REDIRECT_URI
+        const newAccessToken = await callWithTokenRefresh(
+          userId,
+          'google',
+          async (token) => token,
+          { refreshBeforeRequest: true }
         )
-        oauth2Client.setCredentials({
-          refresh_token: data.refresh_token
-        })
-
-        const { credentials } = await oauth2Client.refreshAccessToken()
-        const newAccessToken = credentials.access_token
-
-        // Save the new token to Supabase
-        await supabase
-          .from('platform_accounts')
-          .update({
-            access_token: newAccessToken,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', userId)
-          .eq('platform', platform)
 
         return res.json({
           access_token: newAccessToken,

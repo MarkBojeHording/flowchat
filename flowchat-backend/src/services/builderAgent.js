@@ -1,7 +1,7 @@
 'use strict'
 
 const Anthropic = require('@anthropic-ai/sdk')
-const { getMetadataForAgent } = require('./integrations')
+const { getMetadataForAgent } = require('./integration-metadata')
 const triggerSchemas = require('../data/trigger-schemas')
 
 const anthropic = new Anthropic({

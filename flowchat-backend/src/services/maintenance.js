@@ -1,7 +1,7 @@
 const { createClient } = require('@supabase/supabase-js')
-const { google } = require('googleapis')
 const axios = require('axios')
 const ws = require('ws')
+const { callWithTokenRefresh } = require('../integrations/core/execute')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -92,27 +92,12 @@ async function refreshGoogleTokens() {
 
     for (const account of accounts) {
       try {
-        const oauth2Client = new google.auth.OAuth2(
-          process.env.GOOGLE_CLIENT_ID,
-          process.env.GOOGLE_CLIENT_SECRET,
-          process.env.GOOGLE_REDIRECT_URI
+        await callWithTokenRefresh(
+          account.user_id,
+          'google',
+          async (token) => token,
+          { refreshBeforeRequest: true }
         )
-
-        oauth2Client.setCredentials({
-          refresh_token: account.refresh_token,
-        })
-
-        const { credentials } = await oauth2Client.refreshAccessToken()
-
-        await supabase
-          .from('platform_accounts')
-          .update({
-            access_token: credentials.access_token,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('user_id', account.user_id)
-          .eq('platform', 'google')
-
         refreshed++
       } catch (err) {
         console.error(`Failed to refresh token for ${account.email}:`, err.message)
