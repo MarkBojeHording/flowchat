@@ -322,6 +322,9 @@ router.post('/sync/:userId/:formId', async (req, res) => {
   const { sheetId, sheetTab, fieldMapping } = req.body
   const apiKey = req.headers['x-api-key']
 
+  console.log('sync called with fieldMapping:', JSON.stringify(fieldMapping?.slice(0, 2)))
+  console.log('sync sheetId:', sheetId, 'sheetTab:', sheetTab)
+
   if (apiKey !== process.env.INTERNAL_API_KEY) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
