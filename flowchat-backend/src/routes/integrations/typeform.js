@@ -11,11 +11,13 @@ const supabase = createClient(
 )
 
 function extractAnswer(answer) {
+  console.log('extractAnswer called with type:', answer?.type)
   if (!answer) return ''
 
   switch (answer.type) {
     // Text-based answers
     case 'text':
+      console.log('extractAnswer text:', answer.text)
       return answer.text || ''
 
     // Email
