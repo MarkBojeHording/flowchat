@@ -59,10 +59,14 @@ export default function SettingsPage() {
         setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
       }
 
-      const { data: accounts } = await supabase
+      console.log("Fetching connected apps for user:", user.id);
+
+      const { data: accounts, error: accountsError } = await supabase
         .from("platform_accounts")
         .select("platform")
         .eq("user_id", user.id);
+
+      console.log("Connected accounts:", accounts, "Error:", accountsError);
       setConnectedApps(accounts?.map((a) => a.platform) || []);
 
       setLoading(false);
