@@ -11,6 +11,73 @@ import { supabase } from "@/lib/supabase";
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3456";
 
+const ALL_APPS = [
+  { key: "google", name: "Google", description: "Gmail + Google Sheets", icon: "🔵" },
+  { key: "slack", name: "Slack", description: "Send messages to channels", icon: "💬" },
+  { key: "typeform", name: "Typeform", description: "Form submission triggers", icon: "📋" },
+];
+
+function ConnectedAppsSection({ userId }: { userId?: string }) {
+  const [connectedApps, setConnectedApps] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from("platform_accounts")
+      .select("platform")
+      .eq("user_id", userId)
+      .then(({ data }) => {
+        setConnectedApps(data?.map((a) => a.platform) || []);
+        setLoading(false);
+      });
+  }, [userId]);
+
+  if (loading) return <div className="text-sm text-[#8888aa]">Loading...</div>;
+
+  return (
+    <div className="space-y-2">
+      {ALL_APPS.map((app) => {
+        const isConnected = connectedApps.includes(app.key);
+        return (
+          <div
+            key={app.key}
+            className="flex items-center justify-between rounded-xl border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-3"
+          >
+            <div className="flex items-center gap-3">
+              <span>{app.icon}</span>
+              <div>
+                <p className="text-sm font-medium text-[#e8e8f0]">{app.name}</p>
+                <p className="text-xs text-[#8888aa]">{app.description}</p>
+              </div>
+            </div>
+            {isConnected ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-[#00d4aa]">
+                  ✓ Connected
+                </span>
+                <a
+                  href={`${BACKEND_URL}/api/auth/${app.key}?userId=${userId}`}
+                  className="text-xs text-[#8888aa] hover:text-[#e8e8f0]"
+                >
+                  Reconnect
+                </a>
+              </div>
+            ) : (
+              <a
+                href={`${BACKEND_URL}/api/auth/${app.key}?userId=${userId}`}
+                className="rounded-lg bg-[#00d4aa] px-3 py-1.5 text-xs font-semibold text-[#0f0f1a] hover:bg-[#00b894]"
+              >
+                Connect
+              </a>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const PLAN_DISPLAY_NAMES: Record<string, string> = {
   free: "Free",
   pro: "Pro",
@@ -123,8 +190,15 @@ function joinStreamText(existing: string, chunk: string): string {
   if (!chunk) return existing;
   if (!existing) return chunk;
   const trimmedEnd = existing.trimEnd();
-  if (/[.!?]["']?$/.test(trimmedEnd) && !/^\s/.test(chunk)) {
-    return existing + " " + chunk;
+  if (/^\s/.test(chunk)) {
+    return existing + chunk;
+  }
+  if (/[.!?]["']?$/.test(trimmedEnd)) {
+    const rest = chunk.trimStart();
+    if (/^[A-Z]/.test(rest)) {
+      return `${trimmedEnd}\n\n${rest}`;
+    }
+    return `${existing} ${chunk}`;
   }
   return existing + chunk;
 }
@@ -259,6 +333,7 @@ export default function DashboardPage() {
     currentPeriodEnd: string | null;
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [userTimezone, setUserTimezone] = useState<string>("UTC");
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
 
@@ -1265,14 +1340,17 @@ export default function DashboardPage() {
                         <span>⚡</span>
                         <span>My Automations</span>
                       </button>
-                      <Link
-                        href="/settings"
-                        onClick={() => setShowUserMenu(false)}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowSettings(true);
+                          setShowUserMenu(false);
+                        }}
                         className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:bg-[#2a2a4a]"
                       >
                         <span>⚙️</span>
                         <span>Settings</span>
-                      </Link>
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -1646,7 +1724,7 @@ export default function DashboardPage() {
                                   />
                                 </div>
                               ) : (
-                                <div className="prose prose-sm max-w-none text-sm leading-relaxed text-[#374151]">
+                                <div className="prose prose-sm prose-p:my-2 max-w-none text-sm leading-relaxed text-[#374151]">
                                   <ReactMarkdown>{msg.text}</ReactMarkdown>
                                 </div>
                               )}
@@ -2274,6 +2352,80 @@ export default function DashboardPage() {
                 className="text-sm text-[#6b7280] transition-colors hover:text-[#111]"
               >
                 Manage subscription, cancel, or update payment method →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowSettings(false)}
+          />
+          <div className="relative w-full max-w-lg rounded-2xl border border-[#2a2a4a] bg-[#0f0f1a] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#2a2a4a] px-6 py-4">
+              <h2 className="text-base font-semibold text-[#e8e8f0]">Settings</h2>
+              <button
+                type="button"
+                onClick={() => setShowSettings(false)}
+                className="text-[#8888aa] transition-colors hover:text-[#e8e8f0]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="max-h-[70vh] space-y-6 overflow-y-auto p-6">
+              <div>
+                <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-[#8888aa]">
+                  Profile
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs text-[#8888aa]">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      value={
+                        user?.user_metadata?.full_name ||
+                        user?.email?.split("@")[0] ||
+                        ""
+                      }
+                      readOnly
+                      className="w-full rounded-lg border border-[#2a2a4a] bg-[#1a1a2e] px-3 py-2 text-sm text-[#e8e8f0] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-[#8888aa]">
+                      Email
+                    </label>
+                    <input
+                      type="text"
+                      value={user?.email || ""}
+                      readOnly
+                      className="w-full rounded-lg border border-[#2a2a4a] bg-[#1a1a2e] px-3 py-2 text-sm text-[#e8e8f0] outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-[#8888aa]">
+                  Connected apps
+                </h3>
+                <ConnectedAppsSection userId={user?.id} />
+              </div>
+            </div>
+
+            <div className="border-t border-[#2a2a4a] px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setShowSettings(false)}
+                className="w-full rounded-lg border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:border-[#00d4aa]"
+              >
+                Close
               </button>
             </div>
           </div>
