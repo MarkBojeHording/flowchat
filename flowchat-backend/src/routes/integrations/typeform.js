@@ -367,6 +367,30 @@ router.post('/sync/:userId/:formId', async (req, res) => {
       return res.json({ success: true, imported: 0 })
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('timezone')
+      .eq('id', userId)
+      .single()
+
+    const userTimezone = profile?.timezone || 'UTC'
+
+    const formatTimestamp = (isoString) => {
+      if (!isoString) return ''
+      try {
+        return new Date(isoString).toLocaleString('en-GB', {
+          timeZone: userTimezone,
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      } catch {
+        return isoString
+      }
+    }
+
     const headers = ['Submitted At', ...fieldMapping.map(f => f.title)]
 
     const rows = responses.map(response => {
@@ -381,7 +405,7 @@ router.post('/sync/:userId/:formId', async (req, res) => {
       }
 
       return [
-        response.submitted_at || '',
+        formatTimestamp(response.submitted_at),
         ...fieldMapping.map(f => extractAnswer(answersMap[f.id]))
       ]
     })
