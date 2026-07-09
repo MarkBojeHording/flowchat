@@ -106,6 +106,30 @@ export default function SettingsPage() {
     );
   }
 
+  const ALL_APPS = [
+    {
+      key: "google",
+      name: "Google",
+      description: "Gmail + Google Sheets",
+      connectUrl: `${BACKEND_URL}/api/auth/google?userId=${user?.id}`,
+      icon: "🔵",
+    },
+    {
+      key: "slack",
+      name: "Slack",
+      description: "Send messages to channels",
+      connectUrl: `${BACKEND_URL}/api/auth/slack?userId=${user?.id}`,
+      icon: "💬",
+    },
+    {
+      key: "typeform",
+      name: "Typeform",
+      description: "Trigger automations from form submissions",
+      connectUrl: `${BACKEND_URL}/api/auth/typeform?userId=${user?.id}`,
+      icon: "📋",
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-[#0f0f1a]">
       <div className="border-b border-[#2a2a4a] px-6 py-4">
@@ -178,40 +202,47 @@ export default function SettingsPage() {
               Connected apps
             </h2>
             <div className="space-y-3">
-              {(["google", "slack"] as const).map((app) => (
-                <div
-                  key={app}
-                  className="flex items-center justify-between py-2"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">
-                      {app === "google" ? "📧" : "💬"}
-                    </span>
-                    <div>
-                      <p className="text-sm text-[#e8e8f0]">
-                        {app === "google" ? "Google" : "Slack"}
-                      </p>
-                      <p className="text-xs text-[#8888aa]">
-                        {app === "google"
-                          ? "Gmail + Google Sheets"
-                          : "Send messages to channels"}
-                      </p>
+              {ALL_APPS.map((app) => {
+                const isConnected = connectedApps.includes(app.key);
+                return (
+                  <div
+                    key={app.key}
+                    className="flex items-center justify-between rounded-xl border border-[#2a2a4a] bg-[#0f0f1a] px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">{app.icon}</span>
+                      <div>
+                        <p className="text-sm font-medium text-[#e8e8f0]">
+                          {app.name}
+                        </p>
+                        <p className="text-xs text-[#8888aa]">
+                          {app.description}
+                        </p>
+                      </div>
                     </div>
+                    {isConnected ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-[#00d4aa]">
+                          ✓ Connected
+                        </span>
+                        <a
+                          href={app.connectUrl}
+                          className="text-xs text-[#8888aa] transition-colors hover:text-[#e8e8f0]"
+                        >
+                          Reconnect
+                        </a>
+                      </div>
+                    ) : (
+                      <a
+                        href={app.connectUrl}
+                        className="rounded-lg bg-[#00d4aa] px-3 py-1.5 text-xs font-semibold text-[#0f0f1a] transition-colors hover:bg-[#00b894]"
+                      >
+                        Connect
+                      </a>
+                    )}
                   </div>
-                  {connectedApps.includes(app) ? (
-                    <span className="text-xs font-medium text-green-400">
-                      ✓ Connected
-                    </span>
-                  ) : (
-                    <a
-                      href={`${BACKEND_URL}/api/auth/${app}?userId=${user?.id}`}
-                      className="rounded-lg bg-[#00d4aa] px-3 py-1.5 text-xs font-medium text-[#0f0f1a] transition-colors hover:bg-[#00b894]"
-                    >
-                      Connect
-                    </a>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
