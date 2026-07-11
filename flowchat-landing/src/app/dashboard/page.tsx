@@ -11,6 +11,25 @@ import { supabase } from "@/lib/supabase";
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3456";
 
+const COMMON_TIMEZONES = [
+  { value: "Pacific/Honolulu", label: "Hawaii (UTC-10)" },
+  { value: "America/Los_Angeles", label: "Los Angeles (UTC-8/-7)" },
+  { value: "America/Denver", label: "Denver (UTC-7/-6)" },
+  { value: "America/Chicago", label: "Chicago (UTC-6/-5)" },
+  { value: "America/New_York", label: "New York (UTC-5/-4)" },
+  { value: "America/Sao_Paulo", label: "São Paulo (UTC-3)" },
+  { value: "Europe/London", label: "London (UTC+0/+1)" },
+  { value: "Europe/Paris", label: "Paris / Copenhagen (UTC+1/+2)" },
+  { value: "Europe/Helsinki", label: "Helsinki (UTC+2/+3)" },
+  { value: "Asia/Dubai", label: "Dubai (UTC+4)" },
+  { value: "Asia/Kolkata", label: "Mumbai / Delhi (UTC+5:30)" },
+  { value: "Asia/Bangkok", label: "Bangkok / Jakarta (UTC+7)" },
+  { value: "Asia/Singapore", label: "Singapore (UTC+8)" },
+  { value: "Asia/Tokyo", label: "Tokyo (UTC+9)" },
+  { value: "Australia/Sydney", label: "Sydney (UTC+10/+11)" },
+  { value: "Pacific/Auckland", label: "Auckland (UTC+12/+13)" },
+];
+
 const ALL_APPS = [
   { key: "google", name: "Google", description: "Gmail + Google Sheets", icon: "🔵" },
   { key: "slack", name: "Slack", description: "Send messages to channels", icon: "💬" },
@@ -334,6 +353,9 @@ export default function DashboardPage() {
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsTimezone, setSettingsTimezone] = useState("UTC");
+  const [savingTimezone, setSavingTimezone] = useState(false);
+  const [timezoneSaved, setTimezoneSaved] = useState(false);
   const [userTimezone, setUserTimezone] = useState<string>("UTC");
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
 
@@ -349,6 +371,27 @@ export default function DashboardPage() {
   ) {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  }
+
+  async function saveTimezone() {
+    if (!user) return;
+    setSavingTimezone(true);
+    try {
+      await fetch(`${BACKEND_URL}/api/settings/timezone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          timezone: settingsTimezone,
+        }),
+      });
+      setUserTimezone(settingsTimezone);
+      setTimezoneSaved(true);
+      setTimeout(() => setTimezoneSaved(false), 2000);
+    } catch {
+      // ignore
+    }
+    setSavingTimezone(false);
   }
 
   async function fetchHistory(automationId: string) {
@@ -870,6 +913,16 @@ export default function DashboardPage() {
     return () => window.removeEventListener("focus", handleFocus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!showSettings || !user) return;
+    fetch(`${BACKEND_URL}/api/chat/usage?userId=${user.id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.timezone) setSettingsTimezone(data.timezone);
+      })
+      .catch(() => {});
+  }, [showSettings, user]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -2408,6 +2461,36 @@ export default function DashboardPage() {
                       className="w-full rounded-lg border border-[#2a2a4a] bg-[#1a1a2e] px-3 py-2 text-sm text-[#e8e8f0] outline-none"
                     />
                   </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-[#8888aa]">
+                  Timezone
+                </h3>
+                <p className="mb-2 text-xs text-[#8888aa]">
+                  Used for all scheduled automations.
+                </p>
+                <div className="flex gap-2">
+                  <select
+                    value={settingsTimezone}
+                    onChange={(e) => setSettingsTimezone(e.target.value)}
+                    className="flex-1 rounded-lg border border-[#2a2a4a] bg-[#1a1a2e] px-3 py-2 text-sm text-[#e8e8f0] outline-none"
+                  >
+                    {COMMON_TIMEZONES.map((tz) => (
+                      <option key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={saveTimezone}
+                    disabled={savingTimezone}
+                    className="rounded-lg bg-[#00d4aa] px-4 py-2 text-sm font-semibold text-[#0f0f1a] transition-colors hover:bg-[#00b894] disabled:opacity-50"
+                  >
+                    {timezoneSaved ? "✓ Saved" : "Save"}
+                  </button>
                 </div>
               </div>
 
