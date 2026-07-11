@@ -1470,6 +1470,7 @@ export default function DashboardPage() {
             {renderAutomationList()}
           </div>
 
+          {/* Connected apps indicator — hidden for now, reconsidering placement
           <div className="border-t border-[#2a2a4a] px-4 py-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs text-[#8888aa]">Connected apps</span>
@@ -1500,6 +1501,7 @@ export default function DashboardPage() {
               })}
             </div>
           </div>
+          */}
 
           {usage && (
             <div className="border-t border-[#2a2a4a] px-4 py-4">
