@@ -36,6 +36,12 @@ const ALL_APPS = [
   { key: "typeform", name: "Typeform", description: "Form submission triggers", icon: "📋" },
 ];
 
+const APP_INDICATORS = [
+  { key: "google", icon: "🔵", label: "Google" },
+  { key: "slack", icon: "💬", label: "Slack" },
+  { key: "typeform", icon: "📋", label: "Typeform" },
+];
+
 function ConnectedAppsSection({ userId }: { userId?: string }) {
   const [connectedApps, setConnectedApps] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -357,6 +363,9 @@ export default function DashboardPage() {
   const [savingTimezone, setSavingTimezone] = useState(false);
   const [timezoneSaved, setTimezoneSaved] = useState(false);
   const [userTimezone, setUserTimezone] = useState<string>("UTC");
+  const [sidebarConnectedApps, setSidebarConnectedApps] = useState<string[]>(
+    []
+  );
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -892,6 +901,14 @@ export default function DashboardPage() {
 
     console.log("Calling fetchUsage for user:", user.id);
     fetchUsage(user.id);
+
+    supabase
+      .from("platform_accounts")
+      .select("platform")
+      .eq("user_id", user.id)
+      .then(({ data }) => {
+        setSidebarConnectedApps(data?.map((a) => a.platform) || []);
+      });
 
     const params = new URLSearchParams(window.location.search);
     const fixId = params.get("fix");
@@ -1451,6 +1468,37 @@ export default function DashboardPage() {
 
           <div className="flex-1 overflow-y-auto p-2">
             {renderAutomationList()}
+          </div>
+
+          <div className="border-t border-[#2a2a4a] px-4 py-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs text-[#8888aa]">Connected apps</span>
+              <button
+                type="button"
+                onClick={() => setShowSettings(true)}
+                className="text-xs text-[#00d4aa] hover:underline"
+              >
+                Manage
+              </button>
+            </div>
+            <div className="flex gap-2">
+              {APP_INDICATORS.map((app) => {
+                const isConnected = sidebarConnectedApps.includes(app.key);
+                return (
+                  <div
+                    key={app.key}
+                    title={`${app.label}: ${isConnected ? "Connected" : "Not connected"}`}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-opacity ${
+                      isConnected
+                        ? "border border-[#00d4aa] bg-[#1a1a2e] opacity-100"
+                        : "border border-[#2a2a4a] bg-[#1a1a2e] opacity-30"
+                    }`}
+                  >
+                    {app.icon}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {usage && (
