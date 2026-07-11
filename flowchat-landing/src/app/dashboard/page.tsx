@@ -36,11 +36,13 @@ const ALL_APPS = [
   { key: "typeform", name: "Typeform", description: "Form submission triggers", icon: "📋" },
 ];
 
+/* Sidebar connected apps indicator — hidden for now, reconsidering placement
 const APP_INDICATORS = [
   { key: "google", icon: "🔵", label: "Google" },
   { key: "slack", icon: "💬", label: "Slack" },
   { key: "typeform", icon: "📋", label: "Typeform" },
 ];
+*/
 
 function ConnectedAppsSection({ userId }: { userId?: string }) {
   const [connectedApps, setConnectedApps] = useState<string[]>([]);
@@ -363,9 +365,7 @@ export default function DashboardPage() {
   const [savingTimezone, setSavingTimezone] = useState(false);
   const [timezoneSaved, setTimezoneSaved] = useState(false);
   const [userTimezone, setUserTimezone] = useState<string>("UTC");
-  const [sidebarConnectedApps, setSidebarConnectedApps] = useState<string[]>(
-    []
-  );
+  /* const [sidebarConnectedApps, setSidebarConnectedApps] = useState<string[]>([]); */
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -902,13 +902,13 @@ export default function DashboardPage() {
     console.log("Calling fetchUsage for user:", user.id);
     fetchUsage(user.id);
 
-    supabase
+    /* supabase
       .from("platform_accounts")
       .select("platform")
       .eq("user_id", user.id)
       .then(({ data }) => {
         setSidebarConnectedApps(data?.map((a) => a.platform) || []);
-      });
+      }); */
 
     const params = new URLSearchParams(window.location.search);
     const fixId = params.get("fix");
