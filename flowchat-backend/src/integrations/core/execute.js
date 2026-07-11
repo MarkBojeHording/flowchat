@@ -2,11 +2,17 @@ const { createClient } = require('@supabase/supabase-js')
 const axios = require('axios')
 const ws = require('ws')
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { realtime: { transport: ws } }
-)
+let _supabase = null
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { realtime: { transport: ws } }
+    )
+  }
+  return _supabase
+}
 
 function isUnauthorizedError(err) {
   return err?.response?.status === 401
@@ -28,7 +34,7 @@ async function refreshGoogleAccessToken(userId, refreshToken) {
 
   const accessToken = refreshRes.data.access_token
 
-  await supabase
+  await getSupabase()
     .from('platform_accounts')
     .update({
       access_token: accessToken,
@@ -44,7 +50,7 @@ async function refreshGoogleAccessToken(userId, refreshToken) {
 async function callWithTokenRefresh(userId, platform, requestFn, options = {}) {
   const { refreshBeforeRequest = false } = options
 
-  const { data: account, error } = await supabase
+  const { data: account, error } = await getSupabase()
     .from('platform_accounts')
     .select('access_token, refresh_token')
     .eq('user_id', userId)
