@@ -377,8 +377,8 @@ export default function DashboardPage() {
     if (!user) return;
     setSavingTimezone(true);
     try {
-      await fetch(`${BACKEND_URL}/api/settings/timezone`, {
-        method: "POST",
+      await fetch(`${BACKEND_URL}/api/chat/profile/timezone`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
