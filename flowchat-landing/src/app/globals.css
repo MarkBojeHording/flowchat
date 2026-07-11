@@ -3,35 +3,49 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #0f0f1a;
-  --accent: #00c49a;
-  --accent-hover: #00a882;
-  --card: #f5f5f7;
-  --border: #e5e5ea;
-  --muted: #6e6e80;
-  --dark-bg: #0f0f1a;
-  --dark-card: #1a1a2e;
-  --dark-border: #2a2a4a;
-  --dark-muted: #8888aa;
-  --dark-text: #e8e8f0;
+  color-scheme: light;
+  --background: oklch(0.981 0.008 83);
+  --foreground: oklch(0.235 0.012 68);
+  --card: oklch(0.995 0.005 85);
+  --card-foreground: oklch(0.235 0.012 68);
+  --popover: oklch(0.995 0.005 85);
+  --popover-foreground: oklch(0.235 0.012 68);
+  --primary: oklch(0.245 0.014 62);
+  --primary-foreground: oklch(0.98 0.008 85);
+  --secondary: oklch(0.955 0.01 82);
+  --secondary-foreground: oklch(0.245 0.014 62);
+  --muted: oklch(0.952 0.011 82);
+  --muted-foreground: oklch(0.53 0.014 66);
+  --accent: oklch(0.955 0.01 82);
+  --accent-foreground: oklch(0.245 0.014 62);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.9 0.011 80);
+  --input: oklch(0.9 0.011 80);
+  --ring: oklch(0.75 0.145 75);
+  --gold: oklch(0.755 0.142 74);
+  --gold-foreground: oklch(0.24 0.02 60);
+  --radius: 0.75rem;
 }
 
 html {
   scroll-behavior: smooth;
-  background-color: #0f0f1a;
+  background-color: var(--background);
   overscroll-behavior: none;
 }
 
 body {
   color: var(--foreground);
-  background-color: #0f0f1a;
+  background-color: var(--background);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
   }
 }
 

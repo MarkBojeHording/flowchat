@@ -9,17 +9,50 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0f0f1a",
-        foreground: "#e8e8f0",
-        accent: "#00d4aa",
-        "accent-hover": "#00b894",
-        card: "#1a1a2e",
-        border: "#2a2a4a",
-        muted: "#8888aa",
+        background: "var(--background)",
+        foreground: "var(--foreground)",
+        card: {
+          DEFAULT: "var(--card)",
+          foreground: "var(--card-foreground)",
+        },
+        popover: {
+          DEFAULT: "var(--popover)",
+          foreground: "var(--popover-foreground)",
+        },
+        primary: {
+          DEFAULT: "var(--primary)",
+          foreground: "var(--primary-foreground)",
+        },
+        secondary: {
+          DEFAULT: "var(--secondary)",
+          foreground: "var(--secondary-foreground)",
+        },
+        muted: {
+          DEFAULT: "var(--muted)",
+          foreground: "var(--muted-foreground)",
+        },
+        accent: {
+          DEFAULT: "var(--accent)",
+          foreground: "var(--accent-foreground)",
+        },
+        destructive: "var(--destructive)",
+        border: "var(--border)",
+        input: "var(--input)",
+        ring: "var(--ring)",
+        gold: {
+          DEFAULT: "var(--gold)",
+          foreground: "var(--gold-foreground)",
+        },
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
         sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-geist-mono)", "monospace"],
+        serif: ["var(--font-instrument-serif)", "Georgia", "serif"],
       },
       animation: {
         "fade-slide-up": "fadeSlideUp 0.4s ease-out forwards",

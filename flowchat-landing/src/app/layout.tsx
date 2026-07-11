@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Instrument_Serif, Plus_Jakarta_Sans } from "next/font/google";
 import { AuthSessionRedirect } from "@/components/AuthSessionRedirect";
 import "./globals.css";
 
@@ -20,6 +20,13 @@ const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta",
 });
 
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-instrument-serif",
+});
+
 export const metadata: Metadata = {
   title: "Flowchat",
   description: "Automate anything. Just say it.",
@@ -36,9 +43,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth bg-[#0f0f1a]">
+    <html lang="en" className="scroll-smooth bg-background">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${plusJakarta.variable} min-h-screen bg-[#0f0f1a] text-[#e8e8f0] antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${plusJakarta.variable} ${instrumentSerif.variable} min-h-screen bg-background text-foreground antialiased`}
       >
         <AuthSessionRedirect />
         {children}
