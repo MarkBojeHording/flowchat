@@ -60,7 +60,7 @@ function ConnectedAppsSection({ userId }: { userId?: string }) {
       });
   }, [userId]);
 
-  if (loading) return <div className="text-sm text-[#8888aa]">Loading...</div>;
+  if (loading) return <div className="text-sm text-muted-foreground">Loading...</div>;
 
   return (
     <div className="space-y-2">
@@ -69,23 +69,23 @@ function ConnectedAppsSection({ userId }: { userId?: string }) {
         return (
           <div
             key={app.key}
-            className="flex items-center justify-between rounded-xl border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-3"
+            className="flex items-center justify-between rounded-xl border border-border bg-secondary px-4 py-3"
           >
             <div className="flex items-center gap-3">
               <span>{app.icon}</span>
               <div>
-                <p className="text-sm font-medium text-[#e8e8f0]">{app.name}</p>
-                <p className="text-xs text-[#8888aa]">{app.description}</p>
+                <p className="text-sm font-medium text-foreground">{app.name}</p>
+                <p className="text-xs text-muted-foreground">{app.description}</p>
               </div>
             </div>
             {isConnected ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-[#00d4aa]">
+                <span className="text-xs font-medium text-accent">
                   ✓ Connected
                 </span>
                 <a
                   href={`${BACKEND_URL}/api/auth/${app.key}?userId=${userId}`}
-                  className="text-xs text-[#8888aa] hover:text-[#e8e8f0]"
+                  className="text-xs text-muted-foreground hover:text-foreground"
                 >
                   Reconnect
                 </a>
@@ -93,7 +93,7 @@ function ConnectedAppsSection({ userId }: { userId?: string }) {
             ) : (
               <a
                 href={`${BACKEND_URL}/api/auth/${app.key}?userId=${userId}`}
-                className="rounded-lg bg-[#00d4aa] px-3 py-1.5 text-xs font-semibold text-[#0f0f1a] hover:bg-[#00b894]"
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-[#0f0f1a] hover:bg-[#00b894]"
               >
                 Connect
               </a>
@@ -1311,7 +1311,7 @@ export default function DashboardPage() {
                     className={
                       isSelected
                         ? "mb-1 w-full rounded-lg border border-[rgba(233,184,114,0.15)] bg-[rgba(233,184,114,0.07)] p-2 text-left transition-colors"
-                        : "mb-1 w-full rounded-lg border border-transparent p-2 text-left transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+                        : "mb-1 w-full rounded-lg border border-transparent p-2 text-left transition-colors hover:bg-foreground/[0.04]"
                     }
                   >
                     <div className="mb-1 flex items-center gap-1.5">
@@ -1347,14 +1347,14 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className={`flex h-screen flex-col ${theme === "dark" ? "dark" : ""}`}>
+    <div className={`flex h-screen flex-col bg-background ${theme === "dark" ? "dark" : ""}`}>
       {/* TOP NAVBAR */}
-      <nav className="shrink-0 px-4 pt-3 pb-0 bg-[#0a1020]">
+      <nav className="shrink-0 px-4 pt-3 pb-0 bg-background">
         <div className="w-full">
-          <div className="flex items-center justify-between rounded-2xl bg-[#0f1525] border border-[rgba(255,255,255,0.1)] px-6 py-3 shadow-xl w-full">
+          <div className="flex items-center justify-between rounded-2xl bg-card border border-border px-6 py-3 shadow-xl w-full">
             <Link
               href="/"
-              className="text-xl font-bold tracking-tight text-white"
+              className="text-xl font-bold tracking-tight text-foreground"
               style={{ letterSpacing: "-0.03em" }}
             >
               Flowchat
@@ -1375,14 +1375,14 @@ export default function DashboardPage() {
                   onClick={() => setShowUserMenu((prev) => !prev)}
                   className="flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.15)] px-3 py-1.5 transition-colors hover:bg-[rgba(255,255,255,0.07)]"
                 >
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e9b872] text-xs font-bold text-[#0a0a0a]">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gold text-xs font-bold text-[#0a0a0a]">
                     {(
                       user?.user_metadata?.full_name?.[0] ||
                       user?.email?.[0] ||
                       "U"
                     ).toUpperCase()}
                   </div>
-                  <span className="hidden text-sm text-white sm:block">
+                  <span className="hidden text-sm text-foreground sm:block">
                     {user?.user_metadata?.full_name ||
                       user?.email?.split("@")[0]}
                   </span>
@@ -1404,12 +1404,12 @@ export default function DashboardPage() {
                 </button>
 
                 {showUserMenu && (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-[#2a2a4a] bg-[#1a1a2e] shadow-lg">
-                    <div className="border-b border-[#2a2a4a] px-4 py-3">
-                      <p className="text-sm font-medium text-[#e8e8f0]">
+                  <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border bg-secondary shadow-lg">
+                    <div className="border-b border-border px-4 py-3">
+                      <p className="text-sm font-medium text-foreground">
                         {user?.user_metadata?.full_name || "Account"}
                       </p>
-                      <p className="mt-0.5 text-xs text-[#8888aa]">
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         {user?.email}
                       </p>
                     </div>
@@ -1418,7 +1418,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => setShowUserMenu(false)}
-                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:bg-[#2a2a4a]"
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-foreground transition-colors hover:bg-[#2a2a4a]"
                       >
                         <span>⚡</span>
                         <span>My Automations</span>
@@ -1429,7 +1429,7 @@ export default function DashboardPage() {
                           setShowSettings(true);
                           setShowUserMenu(false);
                         }}
-                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:bg-[#2a2a4a]"
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-foreground transition-colors hover:bg-[#2a2a4a]"
                       >
                         <span>⚙️</span>
                         <span>Settings</span>
@@ -1440,18 +1440,18 @@ export default function DashboardPage() {
                           setShowUpgradeModal(true);
                           setShowUserMenu(false);
                         }}
-                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:bg-[#2a2a4a]"
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-foreground transition-colors hover:bg-[#2a2a4a]"
                       >
                         <span>💳</span>
                         <span>Billing & subscription</span>
                       </button>
                     </div>
 
-                    <div className="border-t border-[#2a2a4a] py-2">
+                    <div className="border-t border-border py-2">
                       <button
                         type="button"
                         onClick={handleSignOut}
-                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#8888aa] transition-colors hover:bg-[#2a2a4a] hover:text-[#e8e8f0]"
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-[#2a2a4a] hover:text-foreground"
                       >
                         <span>→</span>
                         <span>Sign out</span>
@@ -1468,12 +1468,12 @@ export default function DashboardPage() {
       {/* BODY */}
       <div className="flex flex-1 overflow-hidden gap-0 px-4 pt-3 pb-0 md:gap-3 md:pb-4">
         {/* SIDEBAR — desktop only */}
-        <aside className="hidden w-56 shrink-0 flex-col rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[#0d1420] md:flex">
-          <div className="flex flex-col gap-2 border-b border-[rgba(255,255,255,0.06)] p-3">
+        <aside className="hidden w-56 shrink-0 flex-col rounded-2xl border border-border bg-card md:flex">
+          <div className="flex flex-col gap-2 border-b border-border p-3">
             <button
               type="button"
               onClick={handleNewAutomation}
-              className="flex items-center justify-center gap-2 rounded-lg bg-[#e9b872] px-3 py-2 text-xs font-medium text-[#0a0a0a] transition-colors hover:bg-[#d4a05a]"
+              className="flex items-center justify-center gap-2 rounded-lg bg-gold px-3 py-2 text-xs font-medium text-[#0a0a0a] transition-colors hover:bg-[#d4a05a]"
             >
               + New automation
             </button>
@@ -1484,13 +1484,13 @@ export default function DashboardPage() {
           </div>
 
           {/* Connected apps indicator — hidden for now, reconsidering placement
-          <div className="border-t border-[#2a2a4a] px-4 py-3">
+          <div className="border-t border-border px-4 py-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs text-[#8888aa]">Connected apps</span>
+              <span className="text-xs text-muted-foreground">Connected apps</span>
               <button
                 type="button"
                 onClick={() => setShowSettings(true)}
-                className="text-xs text-[#00d4aa] hover:underline"
+                className="text-xs text-accent hover:underline"
               >
                 Manage
               </button>
@@ -1504,8 +1504,8 @@ export default function DashboardPage() {
                     title={`${app.label}: ${isConnected ? "Connected" : "Not connected"}`}
                     className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition-opacity ${
                       isConnected
-                        ? "border border-[#00d4aa] bg-[#1a1a2e] opacity-100"
-                        : "border border-[#2a2a4a] bg-[#1a1a2e] opacity-30"
+                        ? "border border-accent bg-secondary opacity-100"
+                        : "border border-border bg-secondary opacity-30"
                     }`}
                   >
                     {app.icon}
@@ -1517,21 +1517,21 @@ export default function DashboardPage() {
           */}
 
           {usage && (
-            <div className="border-t border-[#2a2a4a] px-4 py-4">
+            <div className="border-t border-border px-4 py-4">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-[#e8e8f0]">
+                <span className="text-xs font-medium text-foreground">
                   {usage.planName} plan
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => user && fetchUsage(user.id)}
-                    className="text-xs text-[#8888aa] transition-colors hover:text-[#00d4aa]"
+                    className="text-xs text-muted-foreground transition-colors hover:text-accent"
                     title="Refresh usage"
                   >
                     ↻
                   </button>
-                  <span className="text-xs text-[#8888aa]">
+                  <span className="text-xs text-muted-foreground">
                     {usage.cancelAtPeriodEnd && usage.currentPeriodEnd
                       ? `Cancels ${new Date(usage.currentPeriodEnd).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
                       : `${usage.daysUntilReset}d until reset`}
@@ -1548,13 +1548,13 @@ export default function DashboardPage() {
                         ? "bg-red-400"
                         : usage.status === "warning"
                           ? "bg-amber-400"
-                          : "bg-[#00d4aa]"
+                          : "bg-accent"
                   }`}
                   style={{ width: `${Math.min(usage.percentUsed, 100)}%` }}
                 />
               </div>
 
-              <span className="text-xs text-[#8888aa]">
+              <span className="text-xs text-muted-foreground">
                 {usage.runsUsed.toLocaleString()} /{" "}
                 {usage.runsLimit.toLocaleString()} runs
               </span>
@@ -1578,18 +1578,18 @@ export default function DashboardPage() {
 
         {/* MOBILE — automations tab */}
         <div
-          className={`flex-1 overflow-y-auto bg-[#0f0f1a] pb-20 ${
+          className={`flex-1 overflow-y-auto bg-background pb-20 ${
             mobileTab === "automations" ? "block md:hidden" : "hidden"
           }`}
         >
-          <div className="border-b border-[rgba(255,255,255,0.06)] p-3">
+          <div className="border-b border-border p-3">
             <button
               type="button"
               onClick={() => {
                 handleNewAutomation();
                 setMobileTab("chat");
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#e9b872] px-3 py-2 text-xs font-medium text-[#0a0a0a] transition-colors hover:bg-[#d4a05a]"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-3 py-2 text-xs font-medium text-[#0a0a0a] transition-colors hover:bg-[#d4a05a]"
             >
               + New automation
             </button>
@@ -1599,46 +1599,46 @@ export default function DashboardPage() {
 
         {/* MOBILE — account tab */}
         <div
-          className={`flex-1 bg-[#0f0f1a] pb-20 ${
+          className={`flex-1 bg-background pb-20 ${
             mobileTab === "account" ? "block md:hidden" : "hidden"
           }`}
         >
           <div className="space-y-4 px-4 py-6">
-            <div className="rounded-xl border border-[#2a2a4a] bg-[#1a1a2e] p-4">
-              <p className="font-medium text-[#e8e8f0]">
+            <div className="rounded-xl border border-border bg-secondary p-4">
+              <p className="font-medium text-foreground">
                 {user?.user_metadata?.full_name || "Account"}
               </p>
-              <p className="text-sm text-[#8888aa]">{user?.email}</p>
+              <p className="text-sm text-muted-foreground">{user?.email}</p>
             </div>
             {usage && (
-              <div className="rounded-xl border border-[#2a2a4a] bg-[#1a1a2e] p-4">
-                <p className="mb-2 text-xs font-medium text-[#e8e8f0]">
+              <div className="rounded-xl border border-border bg-secondary p-4">
+                <p className="mb-2 text-xs font-medium text-foreground">
                   {usage.planName} plan
                 </p>
                 <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-[#2a2a4a]">
                   <div
-                    className="h-full rounded-full bg-[#00d4aa]"
+                    className="h-full rounded-full bg-accent"
                     style={{ width: `${Math.min(usage.percentUsed, 100)}%` }}
                   />
                 </div>
-                <p className="text-xs text-[#8888aa]">
+                <p className="text-xs text-muted-foreground">
                   {usage.runsUsed} / {usage.runsLimit} runs ·{" "}
                   {usage.daysUntilReset}d until reset
                 </p>
               </div>
             )}
-            <div className="overflow-hidden rounded-xl border border-[#2a2a4a] bg-[#1a1a2e]">
+            <div className="overflow-hidden rounded-xl border border-border bg-secondary">
               <button
                 type="button"
                 onClick={() => setShowUpgradeModal(true)}
-                className="w-full border-b border-[#2a2a4a] px-4 py-3 text-left text-sm text-[#e8e8f0] transition-colors hover:bg-[#2a2a4a]"
+                className="w-full border-b border-border px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-[#2a2a4a]"
               >
                 💳 Billing & subscription
               </button>
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="w-full px-4 py-3 text-left text-sm text-[#8888aa] transition-colors hover:bg-[#2a2a4a]"
+                className="w-full px-4 py-3 text-left text-sm text-muted-foreground transition-colors hover:bg-[#2a2a4a]"
               >
                 → Sign out
               </button>
@@ -1727,7 +1727,7 @@ export default function DashboardPage() {
                           setTitleValue(selectedAutomation?.auto_name || "");
                         }
                       }}
-                      className="w-full max-w-xs border-b border-[#00d4aa] bg-transparent text-sm font-medium text-[#111] outline-none"
+                      className="w-full max-w-xs border-b border-accent bg-transparent text-sm font-medium text-[#111] outline-none"
                     />
                   ) : (
                     <button
@@ -1736,7 +1736,7 @@ export default function DashboardPage() {
                         setTitleValue(selectedAutomation?.auto_name || "");
                         setEditingTitle(true);
                       }}
-                      className="group flex items-center gap-1.5 text-left text-sm font-medium text-[#111] transition-colors hover:text-[#00d4aa]"
+                      className="group flex items-center gap-1.5 text-left text-sm font-medium text-[#111] transition-colors hover:text-accent"
                       title="Click to rename"
                     >
                       <span className="max-w-xs truncate">
@@ -1813,7 +1813,7 @@ export default function DashboardPage() {
                       <div key={idx}>
                         {msg.type === "user" && (
                           <div className="flex justify-end">
-                            <div className="max-w-[70%] rounded-2xl rounded-br-sm bg-[#0d1420] px-4 py-2.5 text-sm leading-relaxed text-white">
+                            <div className="max-w-[70%] rounded-2xl rounded-br-sm bg-card px-4 py-2.5 text-sm leading-relaxed text-foreground">
                               {msg.text}
                             </div>
                           </div>
@@ -1821,21 +1821,21 @@ export default function DashboardPage() {
                         {msg.type === "assistant" && (
                           <div className="flex justify-start">
                             <div className="max-w-[85%] rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 shadow-sm sm:max-w-md">
-                              <div className="mb-1 text-xs font-medium text-[#00d4aa]">
+                              <div className="mb-1 text-xs font-medium text-accent">
                                 Flowchat
                               </div>
                               {msg.thinking && !msg.text ? (
                                 <div className="flex gap-1 py-1">
                                   <span
-                                    className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                                    className="h-2 w-2 animate-bounce rounded-full bg-accent"
                                     style={{ animationDelay: "0ms" }}
                                   />
                                   <span
-                                    className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                                    className="h-2 w-2 animate-bounce rounded-full bg-accent"
                                     style={{ animationDelay: "150ms" }}
                                   />
                                   <span
-                                    className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                                    className="h-2 w-2 animate-bounce rounded-full bg-accent"
                                     style={{ animationDelay: "300ms" }}
                                   />
                                 </div>
@@ -1856,7 +1856,7 @@ export default function DashboardPage() {
                               <button
                                 type="button"
                                 onClick={() => window.open(msg.url, "_blank")}
-                                className="rounded-full bg-[#0d1420] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#1a2540]"
+                                className="rounded-full bg-card px-4 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
                               >
                                 Connect {formatAppName(msg.app)} →
                               </button>
@@ -1893,7 +1893,7 @@ export default function DashboardPage() {
                                     type="button"
                                     onClick={() => handleQuickReply(option.value)}
                                     disabled={loading}
-                                    className="rounded-full border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 text-sm font-medium text-[#374151] shadow-sm transition-all hover:border-[#00d4aa] hover:bg-[#f0fdfa] hover:text-[#00d4aa] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="rounded-full border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 text-sm font-medium text-[#374151] shadow-sm transition-all hover:border-accent hover:bg-[#f0fdfa] hover:text-accent active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                                   >
                                     {option.label}
                                   </button>
@@ -1920,15 +1920,15 @@ export default function DashboardPage() {
                     <div className="flex justify-center py-8">
                       <div className="flex gap-1">
                         <span
-                          className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                          className="h-2 w-2 animate-bounce rounded-full bg-accent"
                           style={{ animationDelay: "0ms" }}
                         />
                         <span
-                          className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                          className="h-2 w-2 animate-bounce rounded-full bg-accent"
                           style={{ animationDelay: "150ms" }}
                         />
                         <span
-                          className="h-2 w-2 animate-bounce rounded-full bg-[#00d4aa]"
+                          className="h-2 w-2 animate-bounce rounded-full bg-accent"
                           style={{ animationDelay: "300ms" }}
                         />
                       </div>
@@ -2040,7 +2040,7 @@ export default function DashboardPage() {
                         onClick={() => setTemplateCategory(cat)}
                         className={`rounded-full px-2.5 py-1 text-[10px] transition-colors ${
                           templateCategory === cat
-                            ? "bg-[#0d1420] text-white"
+                            ? "bg-card text-foreground"
                             : "border border-[#e5e7eb] text-[#6b7280] hover:border-[#0d1420] hover:text-[#0d1420]"
                         }`}
                       >
@@ -2105,7 +2105,7 @@ export default function DashboardPage() {
                   onClick={() => setShowTemplates(!showTemplates)}
                   className={`absolute bottom-3 left-3 z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
                     showTemplates
-                      ? "bg-[#0d1420] text-white"
+                      ? "bg-card text-foreground"
                       : "bg-[#f3f4f6] text-[#6b7280] hover:bg-[#e5e7eb]"
                   }`}
                 >
@@ -2145,13 +2145,13 @@ export default function DashboardPage() {
       </div>
 
       {/* MOBILE BOTTOM NAV */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#2a2a4a] bg-[#0f0f1a] md:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background md:hidden">
         <div className="flex">
           <button
             type="button"
             onClick={() => setMobileTab("chat")}
             className={`flex flex-1 flex-col items-center gap-0.5 py-3 text-xs transition-colors ${
-              mobileTab === "chat" ? "text-[#00d4aa]" : "text-[#8888aa]"
+              mobileTab === "chat" ? "text-accent" : "text-muted-foreground"
             }`}
           >
             <span className="text-lg">💬</span>
@@ -2161,7 +2161,7 @@ export default function DashboardPage() {
             type="button"
             onClick={() => setMobileTab("automations")}
             className={`flex flex-1 flex-col items-center gap-0.5 py-3 text-xs transition-colors ${
-              mobileTab === "automations" ? "text-[#00d4aa]" : "text-[#8888aa]"
+              mobileTab === "automations" ? "text-accent" : "text-muted-foreground"
             }`}
           >
             <span className="text-lg">⚡</span>
@@ -2173,7 +2173,7 @@ export default function DashboardPage() {
               handleNewAutomation();
               setMobileTab("chat");
             }}
-            className="flex flex-1 flex-col items-center gap-0.5 py-3 text-xs text-[#8888aa] transition-colors"
+            className="flex flex-1 flex-col items-center gap-0.5 py-3 text-xs text-muted-foreground transition-colors"
           >
             <span className="text-lg font-light">＋</span>
             <span>New</span>
@@ -2182,7 +2182,7 @@ export default function DashboardPage() {
             type="button"
             onClick={() => setMobileTab("account")}
             className={`flex flex-1 flex-col items-center gap-0.5 py-3 text-xs transition-colors ${
-              mobileTab === "account" ? "text-[#00d4aa]" : "text-[#8888aa]"
+              mobileTab === "account" ? "text-accent" : "text-muted-foreground"
             }`}
           >
             <span className="text-lg">👤</span>
@@ -2212,7 +2212,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={confirmDeleteAutomation}
-                className="flex-1 rounded-xl bg-[#dc2626] py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#b91c1c]"
+                className="flex-1 rounded-xl bg-[#dc2626] py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-[#b91c1c]"
               >
                 Delete
               </button>
@@ -2225,7 +2225,7 @@ export default function DashboardPage() {
         <div
           className={`fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-5 py-3 text-sm font-medium shadow-xl transition-all md:bottom-6 ${
             toast.type === "success"
-              ? "bg-[#0d1420] text-white"
+              ? "bg-card text-foreground"
               : toast.type === "error"
                 ? "border border-[#fecaca] bg-[#fef2f2] text-[#dc2626]"
                 : "border border-[#fde68a] bg-[#fffbeb] text-[#92400e]"
@@ -2294,7 +2294,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={() => handleCheckout("pro")}
-                    className="rounded-xl border-2 border-[#e5e7eb] p-4 text-left transition-colors hover:border-[#00d4aa]"
+                    className="rounded-xl border-2 border-[#e5e7eb] p-4 text-left transition-colors hover:border-accent"
                   >
                     <p className="text-sm font-semibold text-[#111]">Pro</p>
                     <p className="mt-1 text-xl font-bold text-[#111]">
@@ -2310,7 +2310,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={() => handleCheckout("business")}
-                    className="rounded-xl border-2 border-[#e5e7eb] p-4 text-left transition-colors hover:border-[#00d4aa]"
+                    className="rounded-xl border-2 border-[#e5e7eb] p-4 text-left transition-colors hover:border-accent"
                   >
                     <p className="text-sm font-semibold text-[#111]">
                       Business
@@ -2333,7 +2333,7 @@ export default function DashboardPage() {
                 <div
                   className={`rounded-xl border-2 p-4 ${
                     usage.plan === "pro"
-                      ? "border-[#00d4aa] bg-[#00d4aa]/5"
+                      ? "border-accent bg-accent/5"
                       : "border-[#e5e7eb]"
                   }`}
                 >
@@ -2342,12 +2342,12 @@ export default function DashboardPage() {
                       Pro
                     </span>
                     {usage.plan !== "pro" && (
-                      <span className="rounded-full bg-[#00d4aa]/10 px-2 py-0.5 text-xs font-medium text-[#00d4aa]">
+                      <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
                         Popular
                       </span>
                     )}
                     {usage.plan === "pro" && (
-                      <span className="rounded-full bg-[#00d4aa]/10 px-2 py-0.5 text-xs font-medium text-[#00d4aa]">
+                      <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
                         Current
                       </span>
                     )}
@@ -2368,7 +2368,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => handleCheckout("pro")}
-                      className="w-full rounded-lg bg-[#00d4aa] py-2 text-sm font-semibold text-white transition-colors hover:bg-[#00b894]"
+                      className="w-full rounded-lg bg-accent py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[#00b894]"
                     >
                       Choose Pro
                     </button>
@@ -2386,7 +2386,7 @@ export default function DashboardPage() {
                 <div
                   className={`rounded-xl border-2 p-4 ${
                     usage.plan === "business"
-                      ? "border-[#00d4aa] bg-[#00d4aa]/5"
+                      ? "border-accent bg-accent/5"
                       : "border-[#e5e7eb]"
                   }`}
                 >
@@ -2395,7 +2395,7 @@ export default function DashboardPage() {
                       Business
                     </span>
                     {usage.plan === "business" && (
-                      <span className="rounded-full bg-[#00d4aa]/10 px-2 py-0.5 text-xs font-medium text-[#00d4aa]">
+                      <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
                         Current
                       </span>
                     )}
@@ -2451,7 +2451,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => handleCheckout("topup_1000")}
-                      className="rounded-lg bg-[#111] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#333]"
+                      className="rounded-lg bg-background px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[#333]"
                     >
                       $9.99
                     </button>
@@ -2480,13 +2480,13 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowSettings(false)}
           />
-          <div className="relative w-full max-w-lg rounded-2xl border border-[#2a2a4a] bg-[#0f0f1a] shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#2a2a4a] px-6 py-4">
-              <h2 className="text-base font-semibold text-[#e8e8f0]">Settings</h2>
+          <div className="relative w-full max-w-lg rounded-2xl border border-border bg-background shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <h2 className="text-base font-semibold text-foreground">Settings</h2>
               <button
                 type="button"
                 onClick={() => setShowSettings(false)}
-                className="text-[#8888aa] transition-colors hover:text-[#e8e8f0]"
+                className="text-muted-foreground transition-colors hover:text-foreground"
               >
                 ✕
               </button>
@@ -2494,12 +2494,12 @@ export default function DashboardPage() {
 
             <div className="max-h-[70vh] space-y-6 overflow-y-auto p-6">
               <div>
-                <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-[#8888aa]">
+                <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
                   Profile
                 </h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="mb-1 block text-xs text-[#8888aa]">
+                    <label className="mb-1 block text-xs text-muted-foreground">
                       Name
                     </label>
                     <input
@@ -2510,35 +2510,35 @@ export default function DashboardPage() {
                         ""
                       }
                       readOnly
-                      className="w-full rounded-lg border border-[#2a2a4a] bg-[#1a1a2e] px-3 py-2 text-sm text-[#e8e8f0] outline-none"
+                      className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground outline-none"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-[#8888aa]">
+                    <label className="mb-1 block text-xs text-muted-foreground">
                       Email
                     </label>
                     <input
                       type="text"
                       value={user?.email || ""}
                       readOnly
-                      className="w-full rounded-lg border border-[#2a2a4a] bg-[#1a1a2e] px-3 py-2 text-sm text-[#e8e8f0] outline-none"
+                      className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground outline-none"
                     />
                   </div>
                 </div>
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-[#8888aa]">
+                <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
                   Timezone
                 </h3>
-                <p className="mb-2 text-xs text-[#8888aa]">
+                <p className="mb-2 text-xs text-muted-foreground">
                   Used for all scheduled automations.
                 </p>
                 <div className="flex gap-2">
                   <select
                     value={settingsTimezone}
                     onChange={(e) => setSettingsTimezone(e.target.value)}
-                    className="flex-1 rounded-lg border border-[#2a2a4a] bg-[#1a1a2e] px-3 py-2 text-sm text-[#e8e8f0] outline-none"
+                    className="flex-1 rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground outline-none"
                   >
                     {COMMON_TIMEZONES.map((tz) => (
                       <option key={tz.value} value={tz.value}>
@@ -2550,7 +2550,7 @@ export default function DashboardPage() {
                     type="button"
                     onClick={saveTimezone}
                     disabled={savingTimezone}
-                    className="rounded-lg bg-[#00d4aa] px-4 py-2 text-sm font-semibold text-[#0f0f1a] transition-colors hover:bg-[#00b894] disabled:opacity-50"
+                    className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-[#0f0f1a] transition-colors hover:bg-[#00b894] disabled:opacity-50"
                   >
                     {timezoneSaved ? "✓ Saved" : "Save"}
                   </button>
@@ -2588,18 +2588,18 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-[#8888aa]">
+                <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
                   Connected apps
                 </h3>
                 <ConnectedAppsSection userId={user?.id} />
               </div>
             </div>
 
-            <div className="border-t border-[#2a2a4a] px-6 py-4">
+            <div className="border-t border-border px-6 py-4">
               <button
                 type="button"
                 onClick={() => setShowSettings(false)}
-                className="w-full rounded-lg border border-[#2a2a4a] bg-[#1a1a2e] px-4 py-2 text-sm text-[#e8e8f0] transition-colors hover:border-[#00d4aa]"
+                className="w-full rounded-lg border border-border bg-secondary px-4 py-2 text-sm text-foreground transition-colors hover:border-accent"
               >
                 Close
               </button>
