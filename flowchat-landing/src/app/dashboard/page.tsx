@@ -1369,6 +1369,17 @@ export default function DashboardPage() {
                 </div>
               )}
 
+              <button
+                type="button"
+                onClick={() => saveTheme(theme === "dark" ? "light" : "dark")}
+                title={
+                  theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+                }
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-gold hover:text-foreground"
+              >
+                {theme === "dark" ? "☀️" : "🌙"}
+              </button>
+
               <div className="relative" data-user-menu>
                 <button
                   type="button"
@@ -2553,36 +2564,6 @@ export default function DashboardPage() {
                     className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
                   >
                     {timezoneSaved ? "✓ Saved" : "Save"}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
-                  Theme
-                </h3>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => saveTheme("light")}
-                    className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
-                      theme === "light"
-                        ? "border-gold bg-gold/10 text-foreground"
-                        : "border-border bg-background text-muted-foreground hover:border-gold/50"
-                    }`}
-                  >
-                    ☀️ Light
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => saveTheme("dark")}
-                    className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
-                      theme === "dark"
-                        ? "border-gold bg-gold/10 text-foreground"
-                        : "border-border bg-background text-muted-foreground hover:border-gold/50"
-                    }`}
-                  >
-                    🌙 Dark
                   </button>
                 </div>
               </div>
