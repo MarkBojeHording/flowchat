@@ -7,7 +7,6 @@ const tiers = [
     name: "Free",
     price: "$0",
     period: "forever",
-    tagline: "Try your first automation.",
     features: [
       "1 active automation",
       "50 runs per month",
@@ -22,7 +21,6 @@ const tiers = [
     name: "Pro",
     price: "$19.99",
     period: "/mo",
-    tagline: "For solopreneurs running their business on autopilot.",
     features: [
       "Unlimited automations",
       "2,000 runs per month",
@@ -38,7 +36,6 @@ const tiers = [
     name: "Business",
     price: "$49.99",
     period: "/mo",
-    tagline: "For small teams with more moving parts.",
     features: [
       "Everything in Pro",
       "10,000 runs per month",

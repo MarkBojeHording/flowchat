@@ -9,7 +9,7 @@ export function Hero() {
         <div className="flex flex-col items-start">
           <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
             <span className="size-1.5 rounded-full bg-gold" />
-            For people who gave up on automation tools
+            Automation for everyone
           </span>
           <h1 className="text-balance text-5xl font-semibold leading-[0.95] tracking-tight sm:text-6xl lg:text-7xl">
             Stop doing it
@@ -19,9 +19,8 @@ export function Hero() {
             <span className="font-serif text-gold italic">Just describe it.</span>
           </h1>
           <p className="mt-6 max-w-md text-pretty text-lg leading-relaxed text-muted-foreground">
-            Flowchat is automation for freelancers and small business owners —
-            not developers. Type what you want in plain English, and it builds,
-            runs, and maintains it forever.
+            Flowchat is automation for everyone. Type what you want in plain
+            language, and it builds, runs, and maintains it forever.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
