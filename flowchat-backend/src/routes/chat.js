@@ -100,21 +100,31 @@ const TOOLS = [
             'slack',
             'typeform_forms',
             'typeform_fields',
-            'typeform_response_count'
+            'typeform_response_count',
+            'notion_databases',
+            'notion_schema',
           ],
-          description: 'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds.'
+          description:
+            'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds. Use notion_schema only after getting database_id from notion_databases.',
         },
         form_id: {
           type: 'string',
-          description: 'Required for typeform_fields and typeform_response_count. Copy the exact ID from typeform_forms result - the string between "(ID: " and ")". Example: from "My new form (ID: HPExk4sV)" copy exactly "HPExk4sV" - every character including hyphens and underscores.'
+          description:
+            'Required for typeform_fields and typeform_response_count. Copy the exact ID from typeform_forms result - the string between "(ID: " and ")". Example: from "My new form (ID: HPExk4sV)" copy exactly "HPExk4sV" - every character including hyphens and underscores.',
         },
         sheet_id: {
           type: 'string',
-          description: 'Required for sheet_tabs. Copy the exact ID from sheets result - the string between "(ID: " and ")". Example: from "Mark Tester (ID: 1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8)" copy exactly "1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8" - every character.'
-        }
+          description:
+            'Required for sheet_tabs. Copy the exact ID from sheets result - the string between "(ID: " and ")". Example: from "Mark Tester (ID: 1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8)" copy exactly "1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8" - every character.',
+        },
+        database_id: {
+          type: 'string',
+          description:
+            'Required for notion_schema. Copy the exact ID from notion_databases result - the string between "(ID: " and ")".',
+        },
       },
-      required: ['app']
-    }
+      required: ['app'],
+    },
   },
   {
     name: 'present_choice',
@@ -623,6 +633,70 @@ async function executeTool(name, input, userId, automationId = null) {
           } catch (err) {
             console.error('typeform_response_count error:', err.response?.data || err.message)
             return { result: 'Could not fetch existing response count.' }
+          }
+        }
+
+        if (app === 'notion_databases') {
+          try {
+            const { data: account } = await supabase
+              .from('platform_accounts')
+              .select('access_token')
+              .eq('user_id', userId)
+              .eq('platform', 'notion')
+              .single()
+
+            if (!account) return { result: 'Notion not connected.' }
+
+            const notion = require('../integrations/actions/notion')
+            const databases = await notion.listDatabases(account.access_token)
+
+            if (databases.length === 0) {
+              return {
+                result:
+                  'No databases found. Make sure you have shared at least one Notion database with the Flowchat integration.',
+                databases: [],
+              }
+            }
+
+            return {
+              result: databases
+                .map((d, i) => `${i + 1}. ${d.title} (ID: ${d.id})`)
+                .join('\n'),
+              databases,
+            }
+          } catch (err) {
+            console.error('notion_databases error:', err.message)
+            return { result: 'Could not fetch Notion databases.' }
+          }
+        }
+
+        if (app === 'notion_schema') {
+          try {
+            const database_id = input?.database_id || input?.databaseId
+            if (!database_id) return { result: 'No database_id provided.' }
+
+            const { data: account } = await supabase
+              .from('platform_accounts')
+              .select('access_token')
+              .eq('user_id', userId)
+              .eq('platform', 'notion')
+              .single()
+
+            if (!account) return { result: 'Notion not connected.' }
+
+            const notion = require('../integrations/actions/notion')
+            const schema = await notion.getDatabaseSchema(
+              database_id,
+              account.access_token
+            )
+
+            return {
+              result: schema.map((f) => `${f.name} (${f.type})`).join('\n'),
+              schema,
+            }
+          } catch (err) {
+            console.error('notion_schema error:', err.message)
+            return { result: 'Could not fetch database schema.' }
           }
         }
 

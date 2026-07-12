@@ -309,6 +309,75 @@ router.get('/callback/typeform', async (req, res) => {
   }
 })
 
+// ─── NOTION OAUTH ─────────────────────────────────────────────
+
+// GET /api/auth/notion
+router.get('/notion', (req, res) => {
+  const { userId } = req.query
+  if (!userId) return res.status(400).json({ error: 'userId required' })
+
+  const params = new URLSearchParams({
+    client_id: process.env.NOTION_CLIENT_ID,
+    redirect_uri: `${process.env.BACKEND_URL}/api/auth/callback/notion`,
+    response_type: 'code',
+    owner: 'user',
+    state: userId,
+  })
+  res.redirect(`https://api.notion.com/v1/oauth/authorize?${params}`)
+})
+
+// GET /api/auth/callback/notion
+router.get('/callback/notion', async (req, res) => {
+  const { code, state: userId } = req.query
+  if (!code || !userId) {
+    return res.redirect(`${process.env.FRONTEND_URL}/dashboard?error=notion_auth`)
+  }
+
+  try {
+    const credentials = Buffer.from(
+      `${process.env.NOTION_CLIENT_ID}:${process.env.NOTION_CLIENT_SECRET}`
+    ).toString('base64')
+
+    const tokenRes = await axios.post(
+      'https://api.notion.com/v1/oauth/token',
+      {
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: `${process.env.BACKEND_URL}/api/auth/callback/notion`,
+      },
+      {
+        headers: {
+          Authorization: `Basic ${credentials}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    const { access_token, workspace_name } = tokenRes.data
+
+    await supabase.from('platform_accounts').upsert(
+      {
+        user_id: userId,
+        platform: 'notion',
+        email: workspace_name || 'Notion workspace',
+        access_token,
+        refresh_token: null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,platform' }
+    )
+
+    console.log(`[notion/${userId}] OAuth complete, workspace: ${workspace_name}`)
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard?connected=notion`)
+  } catch (err) {
+    console.error(
+      '[notion] OAuth callback error:',
+      err.response?.data || err.message
+    )
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard?error=notion_auth`)
+  }
+})
+
 // Helper: Register webhook on a Typeform form
 async function registerTypeformWebhook(userId, formId, accessToken) {
   try {

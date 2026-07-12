@@ -1,0 +1,36 @@
+NOTION ACTION MODULE
+
+Notion is a destination. Data is added as new rows in a
+Notion database.
+
+SETUP:
+1. Call get_user_resources "notion_databases" to list
+   databases the user has shared with Flowchat.
+
+   IMPORTANT: If no databases are returned, tell the user:
+   "To connect your Notion database, open Notion, go to
+   the database you want to use, click the ··· menu,
+   select Connections, and add Flowchat. Then come back
+   and try again."
+
+2. User picks a database. Extract database_id exactly
+   from the result.
+
+3. Call get_user_resources "notion_schema" with that
+   database_id to get the column names and types.
+
+4. Present the columns and ask which trigger fields
+   should map to which Notion columns.
+
+5. Show summary before building.
+
+PASS TO build_workflow:
+- action_app: "notion"
+- action_event: "create_row"
+- details including: database_id, database_name,
+  field_mapping [{sourceField, notionColumn, notionType}]
+
+NOTE: Notion tokens do not expire — no refresh needed.
+Users must share each database with Flowchat manually
+inside Notion. Always explain this in plain English if
+databases are not found.
