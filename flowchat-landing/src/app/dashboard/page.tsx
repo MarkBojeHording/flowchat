@@ -34,6 +34,7 @@ const ALL_APPS = [
   { key: "google", name: "Google", description: "Gmail + Google Sheets", icon: "🔵" },
   { key: "slack", name: "Slack", description: "Send messages to channels", icon: "💬" },
   { key: "typeform", name: "Typeform", description: "Form submission triggers", icon: "📋" },
+  { key: "notion", name: "Notion", description: "Create pages and database rows", icon: "📓" },
 ];
 
 /* Sidebar connected apps indicator — hidden for now, reconsidering placement

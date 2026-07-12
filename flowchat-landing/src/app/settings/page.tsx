@@ -128,6 +128,13 @@ export default function SettingsPage() {
       connectUrl: `${BACKEND_URL}/api/auth/typeform?userId=${user?.id}`,
       icon: "📋",
     },
+    {
+      key: "notion",
+      name: "Notion",
+      description: "Create pages and database rows",
+      connectUrl: `${BACKEND_URL}/api/auth/notion?userId=${user?.id}`,
+      icon: "📓",
+    },
   ];
 
   return (
