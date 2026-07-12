@@ -439,6 +439,226 @@ return [{
   }
 }
 
+function buildNotionFormatAnswersCode() {
+  return `
+const body = $input.first().json.body || $input.first().json;
+
+let columnValues = body.column_values || [];
+let columnHeaders = body.column_headers || [];
+
+if (columnValues.length === 0 && body.columns && Array.isArray(body.columns)) {
+  columnHeaders = body.columns.map((c) => c.title || c.name || '');
+  columnValues = body.columns.map((c) => c.value ?? '');
+}
+
+if (columnValues.length === 0) {
+  const skip = new Set(['column_values', 'column_headers', 'columns', 'all_answers', 'body']);
+  const entries = Object.entries(body).filter(([k, v]) => !skip.has(k) && (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'));
+  columnHeaders = entries.map(([k]) => k);
+  columnValues = entries.map(([, v]) => String(v ?? ''));
+}
+
+const trigger_data = {};
+columnHeaders.forEach((header, i) => {
+  if (header) trigger_data[header] = columnValues[i] ?? '';
+});
+columnValues.forEach((value, i) => {
+  trigger_data['answer_' + i] = value ?? '';
+});
+if (body.submitter_name) trigger_data.submitter_name = body.submitter_name;
+if (body.submitter_email) trigger_data.submitter_email = body.submitter_email;
+if (body.submitted_at) trigger_data.submitted_at = body.submitted_at;
+
+return [{
+  json: {
+    submitted_at: body.submitted_at || new Date().toISOString(),
+    column_values: columnValues,
+    column_headers: columnHeaders,
+    trigger_data,
+  }
+}];
+`
+}
+
+function buildTriggerNotionWorkflow(userId, details, options = {}) {
+  const {
+    triggerName = 'Typeform Trigger',
+    humanName = 'Typeform → Notion',
+    pathPrefix = 'flowchat-typeform-notion',
+    notifyType = 'typeform_to_notion',
+  } = options
+
+  const databaseId = details.database_id || details.databaseId
+  const fieldMapping = details.field_mapping || details.fieldMapping || []
+  const webhookPath = `${pathPrefix}-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+  const fieldMappingJson = JSON.stringify(fieldMapping)
+
+  const nodes = [
+    {
+      id: 'main-trigger',
+      name: triggerName,
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 200],
+      parameters: {
+        httpMethod: 'POST',
+        path: webhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 400],
+      parameters: {
+        httpMethod: 'POST',
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'format-answers',
+      name: 'Format Answers',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: buildNotionFormatAnswersCode(),
+      },
+    },
+    {
+      id: 'fetch-notion-creds',
+      name: 'Fetch Notion Token',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/notion`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'create-notion-row',
+      name: 'Create Notion Row',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: `${backendUrl}/api/actions/notion/${userId}`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ database_id: ${JSON.stringify(databaseId || '')}, field_mapping: ${fieldMappingJson}, trigger_data: $("Format Answers").item.json.trigger_data }) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'notify-success',
+      name: 'Notify Flowchat',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1280, 304],
+      parameters: {
+        method: 'POST',
+        url: `${backendUrl}/api/executions/log`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({
+  userId: "${userId}",
+  n8nWorkflowId: $workflow.id,
+  status: "success",
+  mode: $execution.mode,
+  details: {
+    type: "${notifyType}",
+    page_id: $("Create Notion Row").item.json.page_id,
+    submitted_at: $("Format Answers").item.json.submitted_at,
+    columns: $("Format Answers").item.json.column_values.length
+  }
+}) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'respond-webhook',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1536, 304],
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify({ success: true }) }}',
+        options: {},
+      },
+    },
+  ]
+
+  const connections = {
+    [triggerName]: {
+      main: [[{ node: 'Format Answers', type: 'main', index: 0 }]],
+    },
+    'Test Webhook': {
+      main: [[{ node: 'Format Answers', type: 'main', index: 0 }]],
+    },
+    'Format Answers': {
+      main: [[{ node: 'Fetch Notion Token', type: 'main', index: 0 }]],
+    },
+    'Fetch Notion Token': {
+      main: [[{ node: 'Create Notion Row', type: 'main', index: 0 }]],
+    },
+    'Create Notion Row': {
+      main: [[{ node: 'Notify Flowchat', type: 'main', index: 0 }]],
+    },
+    'Notify Flowchat': {
+      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]],
+    },
+  }
+
+  return {
+    humanName,
+    nodes,
+    connections,
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
+function buildTypeformNotionWorkflow(userId, details) {
+  return buildTriggerNotionWorkflow(userId, details, {
+    triggerName: 'Typeform Trigger',
+    humanName: 'Typeform → Notion',
+    pathPrefix: 'flowchat-typeform-notion',
+    notifyType: 'typeform_to_notion',
+  })
+}
+
+function buildAnyTriggerNotionWorkflow(userId, details) {
+  return buildTriggerNotionWorkflow(userId, details, {
+    triggerName: 'Webhook Trigger',
+    humanName: 'Any Trigger → Notion',
+    pathPrefix: 'flowchat-any-notion',
+    notifyType: 'any_trigger_to_notion',
+  })
+}
+
 function buildScheduleGmailWorkflow(userId, details) {
   console.log('buildScheduleGmailWorkflow details:', JSON.stringify(details))
 
@@ -560,11 +780,23 @@ async function buildWorkflow(userId, userEmail, spec) {
     triggerApp === 'typeform' &&
     (actionApp === 'google_sheets' || actionApp === 'sheets' || action_app?.toLowerCase() === 'google sheets')
 
+  const isTypeformToNotion =
+    triggerApp === 'typeform' &&
+    actionApp === 'notion' &&
+    (!actionEvent || actionEvent === 'create_row')
+
+  const isAnyTriggerToNotion =
+    (triggerApp === 'any_trigger' || triggerApp === 'webhook' || triggerApp === 'any') &&
+    actionApp === 'notion' &&
+    (!actionEvent || actionEvent === 'create_row')
+
   const hasTemplate =
     (triggerApp === 'schedule' &&
       actionApp === 'slack' &&
       actionEvent === 'send_message') ||
     isTypeformToSheets ||
+    isTypeformToNotion ||
+    isAnyTriggerToNotion ||
     (triggerApp === 'schedule' &&
       actionApp === 'gmail' &&
       actionEvent === 'send_email')
@@ -577,6 +809,10 @@ async function buildWorkflow(userId, userEmail, spec) {
       workflow = buildScheduleSlackWorkflow(userId, details)
     } else if (isTypeformToSheets) {
       workflow = buildTypeformSheetsWorkflow(userId, details)
+    } else if (isTypeformToNotion) {
+      workflow = buildTypeformNotionWorkflow(userId, details)
+    } else if (isAnyTriggerToNotion) {
+      workflow = buildAnyTriggerNotionWorkflow(userId, details)
     } else if (triggerApp === 'schedule' && actionApp === 'gmail') {
       workflow = buildScheduleGmailWorkflow(userId, details)
     }
