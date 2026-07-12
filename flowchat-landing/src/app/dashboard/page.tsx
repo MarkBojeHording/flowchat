@@ -366,6 +366,7 @@ export default function DashboardPage() {
   const [timezoneSaved, setTimezoneSaved] = useState(false);
   const [userTimezone, setUserTimezone] = useState<string>("UTC");
   /* const [sidebarConnectedApps, setSidebarConnectedApps] = useState<string[]>([]); */
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -403,6 +404,16 @@ export default function DashboardPage() {
     setSavingTimezone(false);
   }
 
+  async function saveTheme(newTheme: "light" | "dark") {
+    setTheme(newTheme);
+    if (!user) return;
+    await fetch(`${BACKEND_URL}/api/chat/profile/theme`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id, theme: newTheme }),
+    });
+  }
+
   async function fetchHistory(automationId: string) {
     if (!user || !automationId || automationId.startsWith("new-")) return;
     setHistoryLoading(true);
@@ -432,6 +443,8 @@ export default function DashboardPage() {
       }
       const normalized = normalizeUsage(data);
       console.log("Usage fetched:", normalized);
+      const savedTheme = (data.theme as string) || "light";
+      setTheme(savedTheme === "dark" ? "dark" : "light");
       setUsage(
         normalized as {
           plan: string;
@@ -1334,7 +1347,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-[#0f0f1a]">
+    <div className={`flex h-screen flex-col ${theme === "dark" ? "dark" : ""}`}>
       {/* TOP NAVBAR */}
       <nav className="shrink-0 px-4 pt-3 pb-0 bg-[#0a1020]">
         <div className="w-full">
@@ -2540,6 +2553,36 @@ export default function DashboardPage() {
                     className="rounded-lg bg-[#00d4aa] px-4 py-2 text-sm font-semibold text-[#0f0f1a] transition-colors hover:bg-[#00b894] disabled:opacity-50"
                   >
                     {timezoneSaved ? "✓ Saved" : "Save"}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+                  Theme
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => saveTheme("light")}
+                    className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                      theme === "light"
+                        ? "border-gold bg-gold/10 text-foreground"
+                        : "border-border bg-background text-muted-foreground hover:border-gold/50"
+                    }`}
+                  >
+                    ☀️ Light
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => saveTheme("dark")}
+                    className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                      theme === "dark"
+                        ? "border-gold bg-gold/10 text-foreground"
+                        : "border-border bg-background text-muted-foreground hover:border-gold/50"
+                    }`}
+                  >
+                    🌙 Dark
                   </button>
                 </div>
               </div>
