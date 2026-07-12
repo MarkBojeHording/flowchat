@@ -2254,15 +2254,15 @@ export default function DashboardPage() {
       )}
 
       {showUpgradeModal && usage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
-            <div className="border-b border-[#e5e7eb] px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-card shadow-2xl">
+            <div className="border-b border-border px-6 py-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-[#111]">
+                  <h2 className="text-lg font-semibold text-foreground">
                     Upgrade your plan
                   </h2>
-                  <p className="mt-0.5 text-sm text-[#6b7280]">
+                  <p className="mt-0.5 text-sm text-muted-foreground">
                     You&apos;re on the {usage.planName} plan · {usage.runsUsed}{" "}
                     / {usage.runsLimit} runs used
                   </p>
@@ -2270,7 +2270,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setShowUpgradeModal(false)}
-                  className="rounded-lg p-2 text-[#6b7280] transition-colors hover:bg-[#f3f4f6]"
+                  className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary"
                 >
                   ✕
                 </button>
@@ -2279,11 +2279,11 @@ export default function DashboardPage() {
 
             {usage.cancelAtPeriodEnd ? (
               <div className="px-6 py-5">
-                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
-                  <p className="mb-1 text-sm font-medium text-amber-800">
+                <div className="mb-4 rounded-xl border border-gold/30 bg-gold/10 px-4 py-4">
+                  <p className="mb-1 text-sm font-medium text-foreground">
                     Your subscription is cancelled
                   </p>
-                  <p className="text-sm text-amber-700">
+                  <p className="text-sm text-muted-foreground">
                     You have access until{" "}
                     {usage.currentPeriodEnd
                       ? new Date(usage.currentPeriodEnd).toLocaleDateString(
@@ -2298,41 +2298,41 @@ export default function DashboardPage() {
                     . After that you will move to the Free plan.
                   </p>
                 </div>
-                <p className="mb-3 text-sm font-medium text-[#111]">
+                <p className="mb-3 text-sm font-medium text-foreground">
                   Resubscribe
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <button
                     type="button"
                     onClick={() => handleCheckout("pro")}
-                    className="rounded-xl border-2 border-[#e5e7eb] p-4 text-left transition-colors hover:border-accent"
+                    className="rounded-xl border-2 border-border p-4 text-left transition-colors hover:border-accent"
                   >
-                    <p className="text-sm font-semibold text-[#111]">Pro</p>
-                    <p className="mt-1 text-xl font-bold text-[#111]">
+                    <p className="text-sm font-semibold text-foreground">Pro</p>
+                    <p className="mt-1 text-xl font-bold text-foreground">
                       $19.99
-                      <span className="text-sm font-normal text-[#6b7280]">
+                      <span className="text-sm font-normal text-muted-foreground">
                         /mo
                       </span>
                     </p>
-                    <p className="mt-1 text-xs text-[#6b7280]">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       2,000 runs/month
                     </p>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleCheckout("business")}
-                    className="rounded-xl border-2 border-[#e5e7eb] p-4 text-left transition-colors hover:border-accent"
+                    className="rounded-xl border-2 border-border p-4 text-left transition-colors hover:border-accent"
                   >
-                    <p className="text-sm font-semibold text-[#111]">
+                    <p className="text-sm font-semibold text-foreground">
                       Business
                     </p>
-                    <p className="mt-1 text-xl font-bold text-[#111]">
+                    <p className="mt-1 text-xl font-bold text-foreground">
                       $49.99
-                      <span className="text-sm font-normal text-[#6b7280]">
+                      <span className="text-sm font-normal text-muted-foreground">
                         /mo
                       </span>
                     </p>
-                    <p className="mt-1 text-xs text-[#6b7280]">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       10,000 runs/month
                     </p>
                   </button>
@@ -2345,11 +2345,11 @@ export default function DashboardPage() {
                   className={`rounded-xl border-2 p-4 ${
                     usage.plan === "pro"
                       ? "border-accent bg-accent/5"
-                      : "border-[#e5e7eb]"
+                      : "border-border"
                   }`}
                 >
                   <div className="mb-3 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-[#111]">
+                    <span className="text-sm font-semibold text-foreground">
                       Pro
                     </span>
                     {usage.plan !== "pro" && (
@@ -2363,13 +2363,13 @@ export default function DashboardPage() {
                       </span>
                     )}
                   </div>
-                  <p className="mb-1 text-2xl font-bold text-[#111]">
+                  <p className="mb-1 text-2xl font-bold text-foreground">
                     $19.99
-                    <span className="text-sm font-normal text-[#6b7280]">
+                    <span className="text-sm font-normal text-muted-foreground">
                       /mo
                     </span>
                   </p>
-                  <ul className="mb-4 space-y-1 text-xs text-[#6b7280]">
+                  <ul className="mb-4 space-y-1 text-xs text-muted-foreground">
                     <li>✓ Unlimited automations</li>
                     <li>✓ 2,000 runs/month</li>
                     <li>✓ All apps</li>
@@ -2387,7 +2387,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       disabled
-                      className="w-full rounded-lg bg-[#f3f4f6] py-2 text-sm font-medium text-[#9ca3af]"
+                      className="w-full rounded-lg bg-secondary py-2 text-sm font-medium text-muted-foreground"
                     >
                       Current plan
                     </button>
@@ -2398,11 +2398,11 @@ export default function DashboardPage() {
                   className={`rounded-xl border-2 p-4 ${
                     usage.plan === "business"
                       ? "border-accent bg-accent/5"
-                      : "border-[#e5e7eb]"
+                      : "border-border"
                   }`}
                 >
                   <div className="mb-3 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-[#111]">
+                    <span className="text-sm font-semibold text-foreground">
                       Business
                     </span>
                     {usage.plan === "business" && (
@@ -2411,13 +2411,13 @@ export default function DashboardPage() {
                       </span>
                     )}
                   </div>
-                  <p className="mb-1 text-2xl font-bold text-[#111]">
+                  <p className="mb-1 text-2xl font-bold text-foreground">
                     $49.99
-                    <span className="text-sm font-normal text-[#6b7280]">
+                    <span className="text-sm font-normal text-muted-foreground">
                       /mo
                     </span>
                   </p>
-                  <ul className="mb-4 space-y-1 text-xs text-[#6b7280]">
+                  <ul className="mb-4 space-y-1 text-xs text-muted-foreground">
                     <li>✓ Unlimited automations</li>
                     <li>✓ 10,000 runs/month</li>
                     <li>✓ All apps</li>
@@ -2428,7 +2428,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => handleCheckout("business")}
-                      className="w-full rounded-lg border border-[#e5e7eb] py-2 text-sm font-semibold text-[#111] transition-colors hover:bg-[#f3f4f6]"
+                      className="w-full rounded-lg border border-border py-2 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
                     >
                       Choose Business
                     </button>
@@ -2436,7 +2436,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       disabled
-                      className="w-full rounded-lg bg-[#f3f4f6] py-2 text-sm font-medium text-[#9ca3af]"
+                      className="w-full rounded-lg bg-secondary py-2 text-sm font-medium text-muted-foreground"
                     >
                       Current plan
                     </button>
@@ -2445,16 +2445,16 @@ export default function DashboardPage() {
               </div>
 
               {usage.plan !== "free" && (
-                <div className="mt-2 border-t border-[#e5e7eb] pt-5">
-                  <p className="mb-3 text-xs font-medium uppercase tracking-wider text-[#6b7280]">
+                <div className="mt-2 border-t border-border pt-5">
+                  <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     Top up runs
                   </p>
-                  <div className="flex items-center justify-between rounded-xl border border-[#e5e7eb] px-4 py-3">
+                  <div className="flex items-center justify-between rounded-xl border border-border px-4 py-3">
                     <div>
-                      <p className="text-sm font-medium text-[#111]">
+                      <p className="text-sm font-medium text-foreground">
                         Add 1,000 runs
                       </p>
-                      <p className="text-xs text-[#6b7280]">
+                      <p className="text-xs text-muted-foreground">
                         Valid until your plan resets in {usage.daysUntilReset}{" "}
                         days
                       </p>
@@ -2462,7 +2462,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => handleCheckout("topup_1000")}
-                      className="rounded-lg bg-background px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[#333]"
+                      className="rounded-lg bg-background px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
                     >
                       $9.99
                     </button>
@@ -2472,11 +2472,11 @@ export default function DashboardPage() {
             </div>
             )}
 
-            <div className="border-t border-[#e5e7eb] px-6 py-4">
+            <div className="border-t border-border px-6 py-4">
               <button
                 type="button"
                 onClick={handlePortal}
-                className="text-sm text-[#6b7280] transition-colors hover:text-[#111]"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 Manage subscription, cancel, or update payment method →
               </button>
