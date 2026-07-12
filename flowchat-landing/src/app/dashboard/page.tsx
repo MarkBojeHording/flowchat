@@ -93,7 +93,7 @@ function ConnectedAppsSection({ userId }: { userId?: string }) {
             ) : (
               <a
                 href={`${BACKEND_URL}/api/auth/${app.key}?userId=${userId}`}
-                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-[#0f0f1a] hover:bg-[#00b894]"
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent/90"
               >
                 Connect
               </a>
@@ -1256,7 +1256,7 @@ export default function DashboardPage() {
 
     if (automations.length === 0) {
       return (
-        <div className="p-4 text-center text-xs text-[rgba(255,255,255,0.2)]">
+        <div className="p-4 text-center text-xs text-muted-foreground">
           No automations yet. Start one!
         </div>
       );
@@ -1296,7 +1296,7 @@ export default function DashboardPage() {
 
         {automations.filter((a) => a.status !== "broken").length > 0 && (
           <>
-            <div className="mb-1 mt-2 px-2 text-[9px] font-medium uppercase tracking-widest text-[rgba(255,255,255,0.2)]">
+            <div className="mb-1 mt-2 px-2 text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
               My automations
             </div>
             {automations
@@ -1310,8 +1310,8 @@ export default function DashboardPage() {
                     onClick={() => onSelect(auto.id)}
                     className={
                       isSelected
-                        ? "mb-1 w-full rounded-lg border border-[rgba(233,184,114,0.15)] bg-[rgba(233,184,114,0.07)] p-2 text-left transition-colors"
-                        : "mb-1 w-full rounded-lg border border-transparent p-2 text-left transition-colors hover:bg-foreground/[0.04]"
+                        ? "mb-1 w-full rounded-lg border border-gold/20 bg-accent/10 p-2 text-left text-foreground transition-colors"
+                        : "mb-1 w-full rounded-lg border border-transparent p-2 text-left text-foreground transition-colors hover:bg-secondary"
                     }
                   >
                     <div className="mb-1 flex items-center gap-1.5">
@@ -1325,7 +1325,7 @@ export default function DashboardPage() {
                           }}
                         />
                       )}
-                      <span className="flex-1 truncate text-[11px] text-[rgba(255,255,255,0.75)]">
+                      <span className="flex-1 truncate text-[11px] text-foreground">
                         {getDisplayName(auto)}
                       </span>
                       <span
@@ -1334,7 +1334,7 @@ export default function DashboardPage() {
                         {getStatusLabel(auto.status)}
                       </span>
                     </div>
-                    <div className="truncate pl-3 text-[9px] text-[rgba(255,255,255,0.25)]">
+                    <div className="truncate pl-3 text-[9px] text-muted-foreground">
                       {formatTime(auto.last_message_at)}
                     </div>
                   </button>
@@ -1373,9 +1373,9 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setShowUserMenu((prev) => !prev)}
-                  className="flex items-center gap-2 rounded-full border border-[rgba(255,255,255,0.15)] px-3 py-1.5 transition-colors hover:bg-[rgba(255,255,255,0.07)]"
+                  className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 transition-colors hover:bg-secondary"
                 >
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gold text-xs font-bold text-[#0a0a0a]">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gold text-xs font-bold text-gold-foreground">
                     {(
                       user?.user_metadata?.full_name?.[0] ||
                       user?.email?.[0] ||
@@ -1418,7 +1418,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => setShowUserMenu(false)}
-                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-foreground transition-colors hover:bg-[#2a2a4a]"
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
                       >
                         <span>⚡</span>
                         <span>My Automations</span>
@@ -1429,7 +1429,7 @@ export default function DashboardPage() {
                           setShowSettings(true);
                           setShowUserMenu(false);
                         }}
-                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-foreground transition-colors hover:bg-[#2a2a4a]"
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
                       >
                         <span>⚙️</span>
                         <span>Settings</span>
@@ -1440,7 +1440,7 @@ export default function DashboardPage() {
                           setShowUpgradeModal(true);
                           setShowUserMenu(false);
                         }}
-                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-foreground transition-colors hover:bg-[#2a2a4a]"
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
                       >
                         <span>💳</span>
                         <span>Billing & subscription</span>
@@ -1451,7 +1451,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={handleSignOut}
-                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-[#2a2a4a] hover:text-foreground"
+                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                       >
                         <span>→</span>
                         <span>Sign out</span>
@@ -1473,7 +1473,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={handleNewAutomation}
-              className="flex items-center justify-center gap-2 rounded-lg bg-gold px-3 py-2 text-xs font-medium text-[#0a0a0a] transition-colors hover:bg-[#d4a05a]"
+              className="flex items-center justify-center gap-2 rounded-lg bg-gold px-3 py-2 text-xs font-medium text-gold-foreground transition-colors hover:bg-gold/90"
             >
               + New automation
             </button>
@@ -1539,7 +1539,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#2a2a4a]">
+              <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border">
                 <div
                   className={`h-full rounded-full transition-all ${
                     usage.status === "limit_reached"
@@ -1589,7 +1589,7 @@ export default function DashboardPage() {
                 handleNewAutomation();
                 setMobileTab("chat");
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-3 py-2 text-xs font-medium text-[#0a0a0a] transition-colors hover:bg-[#d4a05a]"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-3 py-2 text-xs font-medium text-gold-foreground transition-colors hover:bg-gold/90"
             >
               + New automation
             </button>
@@ -1615,7 +1615,7 @@ export default function DashboardPage() {
                 <p className="mb-2 text-xs font-medium text-foreground">
                   {usage.planName} plan
                 </p>
-                <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-[#2a2a4a]">
+                <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-border">
                   <div
                     className="h-full rounded-full bg-accent"
                     style={{ width: `${Math.min(usage.percentUsed, 100)}%` }}
@@ -1631,14 +1631,14 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => setShowUpgradeModal(true)}
-                className="w-full border-b border-border px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-[#2a2a4a]"
+                className="w-full border-b border-border px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-secondary"
               >
                 💳 Billing & subscription
               </button>
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="w-full px-4 py-3 text-left text-sm text-muted-foreground transition-colors hover:bg-[#2a2a4a]"
+                className="w-full px-4 py-3 text-left text-sm text-muted-foreground transition-colors hover:bg-secondary"
               >
                 → Sign out
               </button>
@@ -1893,7 +1893,7 @@ export default function DashboardPage() {
                                     type="button"
                                     onClick={() => handleQuickReply(option.value)}
                                     disabled={loading}
-                                    className="rounded-full border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 text-sm font-medium text-[#374151] shadow-sm transition-all hover:border-accent hover:bg-[#f0fdfa] hover:text-accent active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-all hover:border-accent hover:bg-secondary hover:text-accent active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                                   >
                                     {option.label}
                                   </button>
@@ -2368,7 +2368,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => handleCheckout("pro")}
-                      className="w-full rounded-lg bg-accent py-2 text-sm font-semibold text-foreground transition-colors hover:bg-[#00b894]"
+                      className="w-full rounded-lg bg-accent py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent/90"
                     >
                       Choose Pro
                     </button>
@@ -2550,7 +2550,7 @@ export default function DashboardPage() {
                     type="button"
                     onClick={saveTimezone}
                     disabled={savingTimezone}
-                    className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-[#0f0f1a] transition-colors hover:bg-[#00b894] disabled:opacity-50"
+                    className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
                   >
                     {timezoneSaved ? "✓ Saved" : "Save"}
                   </button>
