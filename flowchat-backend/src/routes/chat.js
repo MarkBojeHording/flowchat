@@ -2592,6 +2592,19 @@ router.patch('/profile/timezone', async (req, res) => {
   }
 })
 
+router.patch('/profile/theme', async (req, res) => {
+  const { userId, theme } = req.body
+  if (!userId || !['light', 'dark'].includes(theme)) {
+    return res.status(400).json({ error: 'Invalid request' })
+  }
+  const { error } = await supabase
+    .from('profiles')
+    .update({ theme })
+    .eq('id', userId)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ success: true, theme })
+})
+
 router.patch('/profile/complete-onboarding', async (req, res) => {
   const { userId } = req.body
   if (!userId) return res.status(400).json({ error: 'userId required' })
@@ -2617,7 +2630,7 @@ router.get('/usage', async (req, res) => {
     const { data: profile, error } = await supabase
       .from('profiles')
       .select(
-        'plan_id, runs_used, test_runs_used, topup_runs, billing_period_start, cancel_at_period_end, current_period_end, timezone, first_login'
+        'plan_id, runs_used, test_runs_used, topup_runs, billing_period_start, cancel_at_period_end, current_period_end, timezone, first_login, theme'
       )
       .eq('id', userId)
       .single()
@@ -2639,6 +2652,7 @@ router.get('/usage', async (req, res) => {
         currentPeriodEnd: null,
         timezone: 'UTC',
         first_login: true,
+        theme: 'light',
       })
     }
 
@@ -2718,6 +2732,7 @@ router.get('/usage', async (req, res) => {
       currentPeriodEnd: profile.current_period_end || null,
       timezone: profile.timezone || 'UTC',
       first_login: profile.first_login !== false,
+      theme: profile.theme || 'light',
     })
   } catch (err) {
     console.error('Usage error:', err)
