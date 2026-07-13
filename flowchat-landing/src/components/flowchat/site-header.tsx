@@ -8,6 +8,18 @@ import type { User } from "@supabase/supabase-js";
 export function SiteHeader() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("flowchat-theme") as
+      | "light"
+      | "dark"
+      | null;
+    if (saved) {
+      setTheme(saved);
+      document.documentElement.classList.toggle("dark", saved === "dark");
+    }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -21,6 +33,13 @@ export function SiteHeader() {
     );
     return () => subscription.unsubscribe();
   }, []);
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("flowchat-theme", next);
+    document.documentElement.classList.toggle("dark", next === "dark");
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur">
@@ -52,6 +71,16 @@ export function SiteHeader() {
           </a>
         </nav>
         <div className="flex min-w-[160px] items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={
+              theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+            }
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-gold hover:text-foreground"
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
           {loading ? null : user ? (
             <Link
               href="/dashboard"

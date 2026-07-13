@@ -43,10 +43,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth bg-background">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${plusJakarta.variable} ${instrumentSerif.variable} min-h-screen bg-background text-foreground antialiased`}
-      >
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} ${plusJakarta.variable} ${instrumentSerif.variable}`}
+    >
+      <body className="min-h-screen bg-background text-foreground antialiased">
         <AuthSessionRedirect />
         {children}
       </body>
