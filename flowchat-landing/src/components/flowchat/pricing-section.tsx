@@ -81,9 +81,6 @@ export function PricingSection() {
                   {tier.period}
                 </span>
               </div>
-              <p className="mt-2 text-pretty text-sm leading-relaxed text-muted-foreground">
-                {tier.tagline}
-              </p>
               <ul className="mt-6 flex flex-1 flex-col gap-3">
                 {tier.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-sm">
