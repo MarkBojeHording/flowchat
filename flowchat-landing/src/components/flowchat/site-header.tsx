@@ -29,8 +29,8 @@ export function SiteHeader() {
           href="/"
           className="flex items-center gap-2 font-semibold text-foreground"
         >
-          <span className="flex size-7 items-center justify-center rounded-lg bg-gold text-xs font-bold text-gold-foreground">
-            f
+          <span className="flex size-7 items-center justify-center rounded-full bg-foreground">
+            <span className="size-2.5 rounded-full bg-gold" />
           </span>
           Flowchat
         </Link>

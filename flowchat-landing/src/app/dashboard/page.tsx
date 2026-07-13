@@ -1355,9 +1355,11 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between rounded-2xl bg-card border border-border px-6 py-3 shadow-xl w-full">
             <Link
               href="/"
-              className="text-xl font-bold tracking-tight text-foreground"
-              style={{ letterSpacing: "-0.03em" }}
+              className="flex items-center gap-2 text-base font-semibold text-foreground"
             >
+              <span className="flex size-7 items-center justify-center rounded-full bg-foreground">
+                <span className="size-2.5 rounded-full bg-gold" />
+              </span>
               Flowchat
             </Link>
 
