@@ -642,12 +642,189 @@ function buildTriggerNotionWorkflow(userId, details, options = {}) {
 }
 
 function buildTypeformNotionWorkflow(userId, details) {
-  return buildTriggerNotionWorkflow(userId, details, {
-    triggerName: 'Typeform Trigger',
-    humanName: 'Typeform → Notion',
-    pathPrefix: 'flowchat-typeform-notion',
-    notifyType: 'typeform_to_notion',
+  const databaseId = details.database_id || details.databaseId
+  const rawMapping = details.field_mapping || details.fieldMapping || []
+  const fieldMapping = rawMapping.map((f, i) => {
+    const rawId = f.typeform_id || f.id || f.sourceField || `idx_${i}`
+    return {
+      typeform_id: String(rawId).replace(/[^a-zA-Z0-9_]/g, '_'),
+      notion_field: f.notion_field || f.notionColumn || f.name,
+      notion_type: f.notion_type || f.notionType || 'rich_text',
+    }
+  }).filter((f) => f.notion_field)
+
+  const webhookPath = `flowchat-typeform-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const assignments = fieldMapping.map((f, i) => ({
+    id: `field-${f.typeform_id}`,
+    name: `field_${f.typeform_id}`,
+    value: `={{ $json.body?.column_values?.[${i}] || $json.column_values?.[${i}] || '' }}`,
+    type: 'string',
+  }))
+
+  assignments.unshift({
+    id: 'submitted-at',
+    name: 'submitted_at',
+    value: '={{ $json.body?.submitted_at || $json.submitted_at || new Date().toISOString() }}',
+    type: 'string',
   })
+
+  const notionPropertiesJs = fieldMapping.map((f) => {
+    const fieldRef = `$('Set Submission Data').item.json.field_${f.typeform_id}`
+    const key = JSON.stringify(f.notion_field)
+    if (f.notion_type === 'title') {
+      return `${key}: { title: [{ text: { content: String(${fieldRef} || '') } }] }`
+    }
+    return `${key}: { rich_text: [{ text: { content: String(${fieldRef} || '') } }] }`
+  }).join(',\n')
+
+  const nodes = [
+    {
+      id: 'typeform-trigger',
+      name: 'Typeform Trigger',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 200],
+      parameters: {
+        httpMethod: 'POST',
+        path: webhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 400],
+      parameters: {
+        httpMethod: 'POST',
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.set',
+      typeVersion: 1,
+      position: [512, 304],
+      parameters: {
+        values: {
+          string: assignments.map((a) => ({
+            name: a.name,
+            value: a.value,
+          })),
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'fetch-notion-creds',
+      name: 'Fetch Notion Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/notion`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'create-notion-page',
+      name: 'Create Notion Page',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://api.notion.com/v1/pages',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: "=Bearer {{ $('Fetch Notion Credentials').item.json.access_token }}",
+            },
+            { name: 'Notion-Version', value: '2022-06-28' },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        specifyBody: 'string',
+        body: `={{ JSON.stringify({ parent: { database_id: "${databaseId}" }, properties: { ${notionPropertiesJs} } }) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'notify-success',
+      name: 'Notify Flowchat',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1280, 304],
+      parameters: {
+        method: 'POST',
+        url: `${backendUrl}/api/executions/log`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode, details: { type: "typeform_to_notion", database_id: "${databaseId}", submitted_at: $("Set Submission Data").item.json.submitted_at } }) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'respond-webhook',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1536, 304],
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify({ success: true }) }}',
+        options: {},
+      },
+    },
+  ]
+
+  const connections = {
+    'Typeform Trigger': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Test Webhook': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Set Submission Data': {
+      main: [[{ node: 'Fetch Notion Credentials', type: 'main', index: 0 }]],
+    },
+    'Fetch Notion Credentials': {
+      main: [[{ node: 'Create Notion Page', type: 'main', index: 0 }]],
+    },
+    'Create Notion Page': {
+      main: [[{ node: 'Notify Flowchat', type: 'main', index: 0 }]],
+    },
+    'Notify Flowchat': {
+      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]],
+    },
+  }
+
+  return {
+    humanName: 'Typeform → Notion',
+    nodes,
+    connections,
+    webhookPath,
+    testWebhookPath,
+  }
 }
 
 function buildAnyTriggerNotionWorkflow(userId, details) {
