@@ -12,16 +12,21 @@ SETUP:
    - Duration (default: 1 hour)
    - Whether to invite the submitter as attendee (yes/no)
 
-   When presenting event title options as quick reply buttons,
-   use plain readable labels WITHOUT curly braces:
-   - "New submission from [Full Name]"
-   - "Meeting with [Full Name]"
-   - "Call with [Full Name]"
-   - "Let me type my own"
+   Present event title options as quick reply buttons:
+   - "New form submission"
+   - "Meeting with submitter"
+   - "Call with submitter"
+   - "Custom title"
+
+   Do NOT use [Full Name], {{Full Name}}, or any placeholder
+   syntax in button labels. The user sees these buttons —
+   they must be plain readable English.
 
    The actual event_title_template passed to build_workflow
-   should use the field substitution format:
-   "New submission from {{submitter_name}}"
+   uses submitter_name at runtime:
+   "New form submission from {{submitter_name}}"
+   "Meeting with {{submitter_name}}"
+   "Call with {{submitter_name}}"
 
    Never show {{}} syntax to the user in button labels or
    in any message text.
