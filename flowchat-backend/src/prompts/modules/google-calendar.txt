@@ -8,9 +8,23 @@ SETUP:
    If only one calendar (Primary), auto-select it.
 
 2. Ask for event details the agent cannot infer:
-   - Event title (can use trigger data e.g. "New form submission from {{name}}")
+   - Event title (can use trigger data)
    - Duration (default: 1 hour)
    - Whether to invite the submitter as attendee (yes/no)
+
+   When presenting event title options as quick reply buttons,
+   use plain readable labels WITHOUT curly braces:
+   - "New submission from [Full Name]"
+   - "Meeting with [Full Name]"
+   - "Call with [Full Name]"
+   - "Let me type my own"
+
+   The actual event_title_template passed to build_workflow
+   should use the field substitution format:
+   "New submission from {{submitter_name}}"
+
+   Never show {{}} syntax to the user in button labels or
+   in any message text.
 
 3. Show summary before building.
 
