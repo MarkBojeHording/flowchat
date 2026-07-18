@@ -1075,9 +1075,22 @@ async function executeTool(name, input, userId, automationId = null) {
             id: result.executionId,
           })
 
+          const rawAction = workflow.action_apps?.[0] || workflow.action_app || 'destination'
+          const actionApp = String(rawAction).toLowerCase().replace(/\s+/g, '_')
+          const actionMessages = {
+            google_sheets: 'check your Google Sheet for a new row',
+            sheets: 'check your Google Sheet for a new row',
+            google_calendar: 'check your Google Calendar for a new event',
+            calendar: 'check your Google Calendar for a new event',
+            slack: 'check your Slack channel for a new message',
+            gmail: 'check your Gmail sent folder for the test email',
+            notion: 'check your Notion database for a new page',
+          }
+          const actionMessage = actionMessages[actionApp] || 'check your connected app for the test data'
+
           return {
             success: true,
-            summary: 'Test completed successfully — check your sheet for a new row.',
+            summary: `Test completed successfully — ${actionMessage}.`,
           }
         }
 
