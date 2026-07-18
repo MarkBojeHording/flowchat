@@ -29,10 +29,12 @@ const instrumentSerif = Instrument_Serif({
 
 export const metadata: Metadata = {
   title: "Flowchat",
-  description: "Automate anything. Just say it.",
+  description: "Stop doing it manually. Just describe it.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
     apple: "/favicon.svg",
   },
 };
