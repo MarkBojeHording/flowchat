@@ -8,7 +8,7 @@ automation is ready.") — tools run in the background.
 check_connected_apps
 Call first on every new automation request.
 
-get_user_resources (app, form_id?, sheet_id?, database_id?)
+get_user_resources (app, form_id?, sheet_id?, database_id?, calendar_id?)
 "typeform_forms" - list forms with real IDs
 "typeform_fields" + form_id (exact, from typeform_forms result)
 "typeform_response_count" + form_id - count existing responses
@@ -17,6 +17,7 @@ get_user_resources (app, form_id?, sheet_id?, database_id?)
 "slack" - list Slack channels
 "notion_databases" - list Notion databases shared with Flowchat
 "notion_schema" + database_id (exact, from notion_databases result)
+"google_calendars" - list writable Google Calendars with real IDs
 
 present_choice (question, options) - show buttons for the user to pick
 from or confirm/deny. Use instead of writing lists or yes/no questions

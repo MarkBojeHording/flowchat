@@ -439,6 +439,223 @@ return [{
   }
 }
 
+function buildTypeformCalendarWorkflow(userId, details) {
+  const calendarId = details.calendar_id || details.calendarId || 'primary'
+  const durationMinutes = Number(details.duration_minutes || details.durationMinutes || 60)
+  const timezone = details.timezone || 'UTC'
+  const titleTemplate =
+    details.event_title_template ||
+    details.eventTitleTemplate ||
+    'New submission from {{name}}'
+  const inviteSubmitter =
+    details.invite_submitter === true || details.inviteSubmitter === true
+  const webhookPath = `flowchat-typeform-calendar-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    {
+      id: 'typeform-trigger',
+      name: 'Typeform Trigger',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 200],
+      parameters: {
+        httpMethod: 'POST',
+        path: webhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 400],
+      parameters: {
+        httpMethod: 'POST',
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const name = body.submitter_name || '';
+const email = body.submitter_email || '';
+const phone = (() => {
+  const headers = body.column_headers || [];
+  const values = body.column_values || [];
+  const idx = headers.findIndex((h) => /phone/i.test(String(h || '')));
+  return idx >= 0 ? (values[idx] || '') : '';
+})();
+const submittedAt = body.submitted_at || new Date().toISOString();
+const start = new Date(submittedAt);
+const end = new Date(start.getTime() + ${durationMinutes} * 60 * 1000);
+
+let summary = ${JSON.stringify(titleTemplate)};
+summary = summary
+  .replace(/\\{\\{name\\}\\}/gi, name || 'Unknown')
+  .replace(/\\{\\{email\\}\\}/gi, email || '');
+
+const descriptionParts = [];
+if (email) descriptionParts.push('Email: ' + email);
+if (phone) descriptionParts.push('Phone: ' + phone);
+
+return [{
+  json: {
+    submitted_at: submittedAt,
+    submitter_name: name,
+    submitter_email: email,
+    submitter_phone: phone,
+    summary,
+    description: descriptionParts.join('\\n'),
+    startDateTime: start.toISOString(),
+    endDateTime: end.toISOString(),
+    timezone: ${JSON.stringify(timezone)},
+    invite_email: ${inviteSubmitter ? 'email' : "''"},
+  }
+}];
+`,
+      },
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'create-calendar-event',
+      name: 'Create Calendar Event',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({
+  summary: $("Set Submission Data").item.json.summary,
+  description: $("Set Submission Data").item.json.description,
+  start: {
+    dateTime: $("Set Submission Data").item.json.startDateTime,
+    timeZone: $("Set Submission Data").item.json.timezone
+  },
+  end: {
+    dateTime: $("Set Submission Data").item.json.endDateTime,
+    timeZone: $("Set Submission Data").item.json.timezone
+  },
+  attendees: $("Set Submission Data").item.json.invite_email
+    ? [{ email: $("Set Submission Data").item.json.invite_email }]
+    : []
+}) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'notify-success',
+      name: 'Notify Flowchat',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1280, 304],
+      parameters: {
+        method: 'POST',
+        url: `${backendUrl}/api/executions/log`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({
+  userId: "${userId}",
+  n8nWorkflowId: $workflow.id,
+  status: "success",
+  mode: $execution.mode,
+  details: {
+    type: "typeform_to_calendar",
+    calendar_id: ${JSON.stringify(calendarId)},
+    summary: $("Set Submission Data").item.json.summary,
+    submitted_at: $("Set Submission Data").item.json.submitted_at
+  }
+}) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'respond-webhook',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1536, 304],
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify({ success: true }) }}',
+        options: {},
+      },
+    },
+  ]
+
+  const connections = {
+    'Typeform Trigger': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Test Webhook': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Set Submission Data': {
+      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
+    },
+    'Fetch Google Credentials': {
+      main: [[{ node: 'Create Calendar Event', type: 'main', index: 0 }]],
+    },
+    'Create Calendar Event': {
+      main: [[{ node: 'Notify Flowchat', type: 'main', index: 0 }]],
+    },
+    'Notify Flowchat': {
+      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]],
+    },
+  }
+
+  return {
+    humanName: 'Typeform → Google Calendar',
+    nodes,
+    connections,
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
 function buildNotionFormatAnswersCode() {
   return `
 const body = $input.first().json.body || $input.first().json;
@@ -957,6 +1174,13 @@ async function buildWorkflow(userId, userEmail, spec) {
     triggerApp === 'typeform' &&
     (actionApp === 'google_sheets' || actionApp === 'sheets' || action_app?.toLowerCase() === 'google sheets')
 
+  const isTypeformToCalendar =
+    triggerApp === 'typeform' &&
+    (actionApp === 'google_calendar' ||
+      actionApp === 'calendar' ||
+      action_app?.toLowerCase() === 'google calendar') &&
+    (!actionEvent || actionEvent === 'create_event')
+
   const isTypeformToNotion =
     triggerApp === 'typeform' &&
     actionApp === 'notion' &&
@@ -972,6 +1196,7 @@ async function buildWorkflow(userId, userEmail, spec) {
       actionApp === 'slack' &&
       actionEvent === 'send_message') ||
     isTypeformToSheets ||
+    isTypeformToCalendar ||
     isTypeformToNotion ||
     isAnyTriggerToNotion ||
     (triggerApp === 'schedule' &&
@@ -986,6 +1211,8 @@ async function buildWorkflow(userId, userEmail, spec) {
       workflow = buildScheduleSlackWorkflow(userId, details)
     } else if (isTypeformToSheets) {
       workflow = buildTypeformSheetsWorkflow(userId, details)
+    } else if (isTypeformToCalendar) {
+      workflow = buildTypeformCalendarWorkflow(userId, details)
     } else if (isTypeformToNotion) {
       workflow = buildTypeformNotionWorkflow(userId, details)
     } else if (isAnyTriggerToNotion) {

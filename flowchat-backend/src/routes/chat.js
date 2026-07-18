@@ -103,9 +103,10 @@ const TOOLS = [
             'typeform_response_count',
             'notion_databases',
             'notion_schema',
+            'google_calendars',
           ],
           description:
-            'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds. Use notion_schema only after getting database_id from notion_databases.',
+            'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds. Use notion_schema only after getting database_id from notion_databases. Use google_calendars to list writable Google Calendars.',
         },
         form_id: {
           type: 'string',
@@ -121,6 +122,11 @@ const TOOLS = [
           type: 'string',
           description:
             'Required for notion_schema. Copy the exact ID from notion_databases result - the string between "(ID: " and ")".',
+        },
+        calendar_id: {
+          type: 'string',
+          description:
+            'Optional. Copy the exact ID from google_calendars result - the string between "(ID: " and ")". Use when a later step needs a specific calendar.',
         },
       },
       required: ['app'],
@@ -697,6 +703,31 @@ async function executeTool(name, input, userId, automationId = null) {
           } catch (err) {
             console.error('notion_schema error:', err.message)
             return { result: 'Could not fetch database schema.' }
+          }
+        }
+
+        if (app === 'google_calendars') {
+          try {
+            const { callWithTokenRefresh } = require('../integrations/core/execute')
+            const googleCalendar = require('../integrations/actions/google_calendar')
+
+            const calendars = await callWithTokenRefresh(userId, 'google', async (token) => {
+              return googleCalendar.listCalendars(token)
+            })
+
+            if (calendars.length === 0) {
+              return { result: 'No calendars found.' }
+            }
+
+            return {
+              result: calendars.map((c, i) =>
+                `${i + 1}. ${c.title}${c.primary ? ' (Primary)' : ''} (ID: ${c.id})`
+              ).join('\n'),
+              calendars
+            }
+          } catch (err) {
+            console.error('google_calendars error:', err.message)
+            return { result: 'Could not fetch calendars.' }
           }
         }
 
@@ -1935,11 +1966,15 @@ function inferPromptApps({
 
   const actionApp = text.includes('google sheets') || text.includes('google sheet')
     ? 'google-sheets'
+    : text.includes('google calendar') || text.includes('calendar event') || /\bcalendar\b/.test(text)
+      ? 'google-calendar'
     : text.includes('slack')
       ? 'slack'
       : text.includes('gmail') || text.includes('send an email') || text.includes('send email')
         ? 'gmail'
-        : null
+        : text.includes('notion')
+          ? 'notion'
+          : null
 
   return { triggerApp, actionApp }
 }

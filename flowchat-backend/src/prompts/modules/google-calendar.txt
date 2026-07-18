@@ -1,0 +1,37 @@
+GOOGLE CALENDAR ACTION MODULE
+
+Google Calendar creates events when a trigger fires.
+
+SETUP:
+1. Call get_user_resources "google_calendars" to list 
+   the user's calendars. Present as quick reply buttons.
+   If only one calendar (Primary), auto-select it.
+
+2. Ask for event details the agent cannot infer:
+   - Event title (can use trigger data e.g. "New form submission from {{name}}")
+   - Duration (default: 1 hour)
+   - Whether to invite the submitter as attendee (yes/no)
+
+3. Show summary before building.
+
+COMMON USE CASES:
+- Typeform → Calendar: "When someone fills my form, 
+  create a calendar event with their name and submission date"
+- Schedule → Calendar: Not typical — calendar IS the schedule
+- Stripe → Calendar: "When I get a payment, add a follow-up 
+  call to my calendar"
+
+PASS TO build_workflow:
+- action_app: "google_calendar"
+- action_event: "create_event"
+- details including: calendar_id, event_title_template,
+  duration_minutes, invite_submitter (bool), timezone
+
+NOTE: Google Calendar uses the same OAuth token as Gmail 
+and Sheets — no separate connection needed. Just needs 
+the calendar scope which is included in the Google connection.
+
+If the user says Google is connected but calendars fail,
+they may need to reconnect Google to grant calendar access.
+Tell them: "Click 'Reconnect' next to Google in your 
+settings to add calendar access."
