@@ -13,6 +13,10 @@ function normalizeActionEvent(event) {
     sendmessage: 'send_message',
     appendrow: 'append_row',
     sendemail: 'send_email',
+    createevent: 'create_event',
+    createcontact: 'create_contact',
+    createfolder: 'create_folder',
+    createdocument: 'create_document',
   }
   return aliases[compact] || normalized
 }
@@ -656,6 +660,400 @@ return [{
   }
 }
 
+function buildTypeformContactsWorkflow(userId, details) {
+  const webhookPath = `flowchat-typeform-contacts-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    {
+      id: 'typeform-trigger',
+      name: 'Typeform Trigger',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 200],
+      parameters: {
+        httpMethod: 'POST',
+        path: webhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 400],
+      parameters: {
+        httpMethod: 'POST',
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const name = body.submitter_name || '';
+const email = body.submitter_email || '';
+const phone = (() => {
+  const headers = body.column_headers || [];
+  const values = body.column_values || [];
+  const idx = headers.findIndex((h) => /phone/i.test(String(h || '')));
+  return idx >= 0 ? (values[idx] || '') : '';
+})();
+const company = (() => {
+  const headers = body.column_headers || [];
+  const values = body.column_values || [];
+  const idx = headers.findIndex((h) => /company|organization|business/i.test(String(h || '')));
+  return idx >= 0 ? (values[idx] || '') : '';
+})();
+
+const parts = String(name || '').trim().split(/\\s+/).filter(Boolean);
+const givenName = parts[0] || name || 'Unknown';
+const familyName = parts.slice(1).join(' ') || '';
+
+return [{
+  json: {
+    submitted_at: body.submitted_at || new Date().toISOString(),
+    submitter_name: name,
+    submitter_email: email,
+    submitter_phone: phone,
+    company,
+    givenName,
+    familyName,
+  }
+}];
+`,
+      },
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'create-contact',
+      name: 'Create Google Contact',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://people.googleapis.com/v1/people:createContact',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({
+  names: [{
+    givenName: $("Set Submission Data").item.json.givenName,
+    familyName: $("Set Submission Data").item.json.familyName
+  }],
+  emailAddresses: $("Set Submission Data").item.json.submitter_email
+    ? [{ value: $("Set Submission Data").item.json.submitter_email }]
+    : [],
+  phoneNumbers: $("Set Submission Data").item.json.submitter_phone
+    ? [{ value: $("Set Submission Data").item.json.submitter_phone }]
+    : [],
+  organizations: $("Set Submission Data").item.json.company
+    ? [{ name: $("Set Submission Data").item.json.company }]
+    : []
+}) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'notify-success',
+      name: 'Notify Flowchat',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1280, 304],
+      parameters: {
+        method: 'POST',
+        url: `${backendUrl}/api/executions/log`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({
+  userId: "${userId}",
+  n8nWorkflowId: $workflow.id,
+  status: "success",
+  mode: $execution.mode,
+  details: {
+    type: "typeform_to_contacts",
+    name: $("Set Submission Data").item.json.submitter_name,
+    email: $("Set Submission Data").item.json.submitter_email
+  }
+}) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'respond-webhook',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1536, 304],
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify({ success: true }) }}',
+        options: {},
+      },
+    },
+  ]
+
+  const connections = {
+    'Typeform Trigger': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Test Webhook': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Set Submission Data': {
+      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
+    },
+    'Fetch Google Credentials': {
+      main: [[{ node: 'Create Google Contact', type: 'main', index: 0 }]],
+    },
+    'Create Google Contact': {
+      main: [[{ node: 'Notify Flowchat', type: 'main', index: 0 }]],
+    },
+    'Notify Flowchat': {
+      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]],
+    },
+  }
+
+  return {
+    humanName: 'Typeform → Google Contacts',
+    nodes,
+    connections,
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
+function buildTypeformDriveFolderWorkflow(userId, details) {
+  const nameTemplate =
+    details.name_template ||
+    details.nameTemplate ||
+    details.folder_name ||
+    'Submission from {{submitter_name}}'
+  const parentFolderId =
+    details.parent_folder_id || details.parentFolderId || null
+  const webhookPath = `flowchat-typeform-drive-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    {
+      id: 'typeform-trigger',
+      name: 'Typeform Trigger',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 200],
+      parameters: {
+        httpMethod: 'POST',
+        path: webhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 400],
+      parameters: {
+        httpMethod: 'POST',
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const name = body.submitter_name || '';
+const email = body.submitter_email || '';
+
+let folderName = ${JSON.stringify(nameTemplate)};
+folderName = folderName
+  .replace(/\\{\\{submitter_name\\}\\}/gi, name || 'Unknown')
+  .replace(/\\{\\{name\\}\\}/gi, name || 'Unknown')
+  .replace(/\\{\\{email\\}\\}/gi, email || '')
+  .replace(/\\{\\{submitted_at\\}\\}/gi, body.submitted_at || new Date().toISOString());
+
+return [{
+  json: {
+    submitted_at: body.submitted_at || new Date().toISOString(),
+    submitter_name: name,
+    submitter_email: email,
+    folder_name: folderName,
+  }
+}];
+`,
+      },
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'create-drive-folder',
+      name: 'Create Drive Folder',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://www.googleapis.com/drive/v3/files',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: parentFolderId
+          ? `={{ JSON.stringify({
+  name: $("Set Submission Data").item.json.folder_name,
+  mimeType: "application/vnd.google-apps.folder",
+  parents: [${JSON.stringify(parentFolderId)}]
+}) }}`
+          : `={{ JSON.stringify({
+  name: $("Set Submission Data").item.json.folder_name,
+  mimeType: "application/vnd.google-apps.folder"
+}) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'notify-success',
+      name: 'Notify Flowchat',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1280, 304],
+      parameters: {
+        method: 'POST',
+        url: `${backendUrl}/api/executions/log`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({
+  userId: "${userId}",
+  n8nWorkflowId: $workflow.id,
+  status: "success",
+  mode: $execution.mode,
+  details: {
+    type: "typeform_to_drive_folder",
+    folder_name: $("Set Submission Data").item.json.folder_name,
+    submitted_at: $("Set Submission Data").item.json.submitted_at
+  }
+}) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'respond-webhook',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1536, 304],
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify({ success: true }) }}',
+        options: {},
+      },
+    },
+  ]
+
+  const connections = {
+    'Typeform Trigger': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Test Webhook': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Set Submission Data': {
+      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
+    },
+    'Fetch Google Credentials': {
+      main: [[{ node: 'Create Drive Folder', type: 'main', index: 0 }]],
+    },
+    'Create Drive Folder': {
+      main: [[{ node: 'Notify Flowchat', type: 'main', index: 0 }]],
+    },
+    'Notify Flowchat': {
+      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]],
+    },
+  }
+
+  return {
+    humanName: 'Typeform → Google Drive',
+    nodes,
+    connections,
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
 function buildNotionFormatAnswersCode() {
   return `
 const body = $input.first().json.body || $input.first().json;
@@ -1181,6 +1579,16 @@ async function buildWorkflow(userId, userEmail, spec) {
       action_app?.toLowerCase() === 'google calendar') &&
     (!actionEvent || actionEvent === 'create_event')
 
+  const isTypeformToContacts =
+    triggerApp === 'typeform' &&
+    (actionApp === 'google_contacts' || actionApp === 'contacts') &&
+    (!actionEvent || actionEvent === 'create_contact')
+
+  const isTypeformToDriveFolder =
+    triggerApp === 'typeform' &&
+    (actionApp === 'google_drive' || actionApp === 'drive') &&
+    (actionEvent === 'create_folder' || !actionEvent)
+
   const isTypeformToNotion =
     triggerApp === 'typeform' &&
     actionApp === 'notion' &&
@@ -1197,6 +1605,8 @@ async function buildWorkflow(userId, userEmail, spec) {
       actionEvent === 'send_message') ||
     isTypeformToSheets ||
     isTypeformToCalendar ||
+    isTypeformToContacts ||
+    isTypeformToDriveFolder ||
     isTypeformToNotion ||
     isAnyTriggerToNotion ||
     (triggerApp === 'schedule' &&
@@ -1213,6 +1623,10 @@ async function buildWorkflow(userId, userEmail, spec) {
       workflow = buildTypeformSheetsWorkflow(userId, details)
     } else if (isTypeformToCalendar) {
       workflow = buildTypeformCalendarWorkflow(userId, details)
+    } else if (isTypeformToContacts) {
+      workflow = buildTypeformContactsWorkflow(userId, details)
+    } else if (isTypeformToDriveFolder) {
+      workflow = buildTypeformDriveFolderWorkflow(userId, details)
     } else if (isTypeformToNotion) {
       workflow = buildTypeformNotionWorkflow(userId, details)
     } else if (isAnyTriggerToNotion) {

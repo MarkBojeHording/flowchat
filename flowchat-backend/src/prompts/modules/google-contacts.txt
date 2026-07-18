@@ -1,0 +1,29 @@
+GOOGLE CONTACTS ACTION MODULE
+
+Google Contacts creates a new contact when a trigger fires.
+
+SETUP:
+1. Google Contacts uses the same OAuth as Gmail/Sheets.
+   No separate connection needed.
+
+2. Ask which fields from the trigger to map:
+   - Name (givenName + familyName)
+   - Email address
+   - Phone number
+   - Company name (optional)
+
+3. Show summary before building.
+
+COMMON USE CASES:
+- Typeform → Contacts: "When someone fills my form, 
+  add them to my Google Contacts"
+- Calendly → Contacts: "When someone books a call, 
+  add them as a contact"
+
+PASS TO build_workflow:
+- action_app: "google_contacts"
+- action_event: "create_contact"
+- details: { name_field, email_field, phone_field }
+
+NOTE: No list of "contacts" to select — just maps 
+trigger data directly to a new contact.

@@ -104,9 +104,10 @@ const TOOLS = [
             'notion_databases',
             'notion_schema',
             'google_calendars',
+            'google_drive_folders',
           ],
           description:
-            'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds. Use notion_schema only after getting database_id from notion_databases. Use google_calendars to list writable Google Calendars.',
+            'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds. Use notion_schema only after getting database_id from notion_databases. Use google_calendars to list writable Google Calendars. Use google_drive_folders to list Drive folders.',
         },
         form_id: {
           type: 'string',
@@ -731,6 +732,29 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         }
 
+        if (app === 'google_drive_folders') {
+          try {
+            const { callWithTokenRefresh } = require('../integrations/core/execute')
+            const googleDrive = require('../integrations/actions/google_drive')
+
+            const folders = await callWithTokenRefresh(userId, 'google', async (token) => {
+              return googleDrive.listFolders(token)
+            })
+
+            if (folders.length === 0) {
+              return { result: 'No folders found in Google Drive.', folders: [] }
+            }
+
+            return {
+              result: folders.map((f, i) => `${i + 1}. ${f.title} (ID: ${f.id})`).join('\n'),
+              folders
+            }
+          } catch (err) {
+            console.error('google_drive_folders error:', err.message)
+            return { result: 'Could not fetch Drive folders.' }
+          }
+        }
+
         return {
           google_sheets: ['Client Leads', 'New Signups'],
           slack_channels: ['#general', '#team'],
@@ -1082,6 +1106,8 @@ async function executeTool(name, input, userId, automationId = null) {
             sheets: 'check your Google Sheet for a new row',
             google_calendar: 'check your Google Calendar for a new event',
             calendar: 'check your Google Calendar for a new event',
+            google_contacts: 'check your Google Contacts for a new contact',
+            google_drive: 'check your Google Drive for the new folder or document',
             slack: 'check your Slack channel for a new message',
             gmail: 'check your Gmail sent folder for the test email',
             notion: 'check your Notion database for a new page',

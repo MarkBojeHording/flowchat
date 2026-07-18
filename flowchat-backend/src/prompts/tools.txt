@@ -18,6 +18,7 @@ get_user_resources (app, form_id?, sheet_id?, database_id?, calendar_id?)
 "notion_databases" - list Notion databases shared with Flowchat
 "notion_schema" + database_id (exact, from notion_databases result)
 "google_calendars" - list writable Google Calendars with real IDs
+"google_drive_folders" - list Google Drive folders with real IDs
 
 present_choice (question, options) - show buttons for the user to pick
 from or confirm/deny. Use instead of writing lists or yes/no questions

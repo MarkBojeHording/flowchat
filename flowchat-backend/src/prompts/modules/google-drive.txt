@@ -1,0 +1,30 @@
+GOOGLE DRIVE ACTION MODULE
+
+Google Drive can create folders or documents when a trigger fires.
+
+SETUP:
+1. Ask whether to create a folder or a document.
+   Return quick reply buttons: ["Create a folder", "Create a document"]
+
+2. For folders:
+   - Ask for the folder name (can use trigger data)
+   - Optionally ask which parent folder to put it in
+   - Call get_user_resources "google_drive_folders" to list options
+
+3. For documents:
+   - Ask for the document title
+   - Ask what content to include (can use trigger data)
+   - Optionally ask which folder to save it in
+
+4. Show summary before building.
+
+COMMON USE CASES:
+- Typeform → Drive: "When someone fills my intake form, 
+  create a folder with their name"
+- Stripe → Drive: "When I get a new client payment, 
+  create an onboarding document for them"
+
+PASS TO build_workflow:
+- action_app: "google_drive"
+- action_event: "create_folder" or "create_document"
+- details: { name_template, parent_folder_id, content_template }
