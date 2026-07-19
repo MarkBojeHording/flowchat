@@ -822,48 +822,10 @@ export default function DashboardPage() {
         const connectedApp = params.get("connected");
         if (connectedApp) {
           window.history.replaceState({}, "", "/dashboard");
-
-          setTimeout(async () => {
-            if (!mounted) return;
-
-            const confirmMessage = `I just connected ${connectedApp}`;
-
-            const {
-              data: { session: currentSession },
-            } = await supabase.auth.getSession();
-            if (!currentSession?.user) return;
-
-            const res = await fetch(
-              `${BACKEND_URL}/api/chat/automations?userId=${currentSession.user.id}`
-            );
-            const { automations: userAutomations } = await res.json();
-
-            if (userAutomations && userAutomations.length > 0) {
-              const mostRecent = userAutomations[0];
-              setSelectedId(mostRecent.id);
-              setAutomations(userAutomations);
-
-              const autoRes = await fetch(
-                `${BACKEND_URL}/api/chat/automations/${mostRecent.id}?userId=${currentSession.user.id}`
-              );
-              const { automation } = await autoRes.json();
-
-              const rawMessages: ChatMessage[] = [];
-              for (const turn of automation?.conversation || []) {
-                if (turn.role === "user") {
-                  rawMessages.push({ type: "user", text: turn.content });
-                } else {
-                  rawMessages.push({ type: "assistant", text: turn.content });
-                }
-              }
-              setMessages(rawMessages);
-
-              setInput(confirmMessage);
-              setTimeout(() => {
-                document.dispatchEvent(new Event("autosubmit"));
-              }, 500);
-            }
-          }, 1000);
+          // Show a brief success toast instead of sending a chat message
+          const appLabel =
+            connectedApp.charAt(0).toUpperCase() + connectedApp.slice(1);
+          showToast(`${appLabel} connected successfully`, "success");
         }
 
         return;
@@ -2237,9 +2199,9 @@ export default function DashboardPage() {
 
       {toast && (
         <div
-          className={`fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl px-5 py-3 text-sm font-medium shadow-xl transition-all md:bottom-6 ${
+          className={`fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 animate-fade-in items-center gap-3 rounded-2xl px-5 py-3 text-sm font-medium shadow-xl transition-all md:bottom-6 ${
             toast.type === "success"
-              ? "bg-card text-foreground"
+              ? "border border-border bg-card text-foreground"
               : toast.type === "error"
                 ? "border border-[#fecaca] bg-[#fef2f2] text-[#dc2626]"
                 : "border border-[#fde68a] bg-[#fffbeb] text-[#92400e]"
