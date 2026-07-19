@@ -1789,6 +1789,7 @@ async function buildWorkflow(userId, userEmail, spec) {
     isTypeformToCalendar ||
     isTypeformToContacts ||
     isTypeformToDriveFolder ||
+    isTypeformToDocs ||
     isTypeformToNotion ||
     isAnyTriggerToNotion ||
     (triggerApp === 'schedule' &&
@@ -1807,6 +1808,8 @@ async function buildWorkflow(userId, userEmail, spec) {
       workflow = buildTypeformCalendarWorkflow(userId, details)
     } else if (isTypeformToContacts) {
       workflow = buildTypeformContactsWorkflow(userId, details)
+    } else if (isTypeformToDocs) {
+      workflow = buildTypeformDocsWorkflow(userId, details)
     } else if (isTypeformToDriveFolder) {
       workflow = buildTypeformDriveFolderWorkflow(userId, details)
     } else if (isTypeformToNotion) {
