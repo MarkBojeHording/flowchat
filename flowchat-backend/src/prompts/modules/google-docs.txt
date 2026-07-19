@@ -1,0 +1,35 @@
+GOOGLE DOCS ACTION MODULE
+
+Google Docs creates a new document when a trigger fires.
+The document is created in Google Drive.
+
+SETUP:
+1. Google Docs uses the same OAuth as Gmail/Sheets/Drive.
+   No separate connection needed.
+
+2. Ask what the document should be called:
+   - "New submission from [submitter name]" — auto-uses name
+   - "Client onboarding doc" — fixed title
+   - "Custom title" — user types their own
+
+3. Ask what content to include:
+   - All form fields (default)
+   - Just name and email
+   - Custom content
+
+4. Show summary before building.
+
+COMMON USE CASES:
+- Typeform → Docs: "When someone fills my intake form, 
+  create an onboarding document for them"
+- Stripe → Docs: "When I get a new client payment, 
+  create a project brief document"
+
+PASS TO build_workflow:
+- action_app: "google_docs"
+- action_event: "create_document"
+- details: { doc_title, content_template }
+
+NOTE: Document is created in Google Drive root folder.
+If user wants it in a specific folder, they can move it 
+manually or we can add folder selection later.

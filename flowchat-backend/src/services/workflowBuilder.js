@@ -1054,6 +1054,181 @@ return [{
   }
 }
 
+function buildTypeformDocsWorkflow(userId, details) {
+  const docTitle =
+    details.doc_title ||
+    details.docTitle ||
+    details.name_template ||
+    details.nameTemplate ||
+    'New Document'
+  const webhookPath = `flowchat-typeform-docs-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+  const safeDocTitle = String(docTitle).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+
+  const nodes = [
+    {
+      id: 'typeform-trigger',
+      name: 'Typeform Trigger',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 200],
+      parameters: {
+        httpMethod: 'POST',
+        path: webhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 400],
+      parameters: {
+        httpMethod: 'POST',
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.set',
+      typeVersion: 1,
+      position: [512, 304],
+      parameters: {
+        values: {
+          string: [
+            {
+              name: 'submitter_name',
+              value:
+                '={{ $json.body?.submitter_name || $json.submitter_name || "" }}',
+            },
+            {
+              name: 'submitter_email',
+              value:
+                '={{ $json.body?.submitter_email || $json.submitter_email || "" }}',
+            },
+            {
+              name: 'submitted_at',
+              value:
+                '={{ $json.body?.submitted_at || $json.submitted_at || new Date().toISOString() }}',
+            },
+          ],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'create-doc',
+      name: 'Create Google Doc',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value:
+                "=Bearer {{ $('Fetch Google Credentials').item.json.access_token }}",
+            },
+            {
+              name: 'Content-Type',
+              value: 'multipart/related; boundary=flowchat_boundary',
+            },
+          ],
+        },
+        sendBody: true,
+        specifyBody: 'string',
+        body: `=--flowchat_boundary\r\nContent-Type: application/json\r\n\r\n{"name":"${safeDocTitle} - {{ $('Set Submission Data').item.json.submitter_name }}","mimeType":"application/vnd.google-apps.document"}\r\n--flowchat_boundary\r\nContent-Type: text/html\r\n\r\n<h1>${safeDocTitle}</h1><p>Submitted by: {{ $('Set Submission Data').item.json.submitter_name }}</p><p>Email: {{ $('Set Submission Data').item.json.submitter_email }}</p><p>Date: {{ $('Set Submission Data').item.json.submitted_at }}</p>\r\n--flowchat_boundary--`,
+        options: {},
+      },
+    },
+    {
+      id: 'notify-success',
+      name: 'Notify Flowchat',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1280, 304],
+      parameters: {
+        method: 'POST',
+        url: `${backendUrl}/api/executions/log`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode, details: { type: "typeform_to_google_docs", doc_title: ${JSON.stringify(docTitle)} } }) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'respond-webhook',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1536, 304],
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify({ success: true }) }}',
+        options: {},
+      },
+    },
+  ]
+
+  const connections = {
+    'Typeform Trigger': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Test Webhook': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Set Submission Data': {
+      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
+    },
+    'Fetch Google Credentials': {
+      main: [[{ node: 'Create Google Doc', type: 'main', index: 0 }]],
+    },
+    'Create Google Doc': {
+      main: [[{ node: 'Notify Flowchat', type: 'main', index: 0 }]],
+    },
+    'Notify Flowchat': {
+      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]],
+    },
+  }
+
+  return {
+    humanName: 'Typeform → Google Docs',
+    nodes,
+    connections,
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
 function buildNotionFormatAnswersCode() {
   return `
 const body = $input.first().json.body || $input.first().json;
@@ -1588,6 +1763,13 @@ async function buildWorkflow(userId, userEmail, spec) {
     triggerApp === 'typeform' &&
     (actionApp === 'google_drive' || actionApp === 'drive') &&
     (actionEvent === 'create_folder' || !actionEvent)
+
+  const isTypeformToDocs =
+    triggerApp === 'typeform' &&
+    (actionApp === 'google_docs' ||
+      actionApp === 'google_drive_docs' ||
+      action_app?.toLowerCase() === 'google docs' ||
+      (actionApp === 'google_drive' && actionEvent === 'create_document'))
 
   const isTypeformToNotion =
     triggerApp === 'typeform' &&
