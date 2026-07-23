@@ -64,4 +64,24 @@ module.exports = {
       title: f.name,
     }))
   },
+
+  // Share a file or folder with a specific email address
+  async shareFile({ fileId, email, role = 'reader', sendNotification = true, accessToken }) {
+    const res = await axios.post(
+      `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
+      {
+        type: 'user',
+        role: role, // 'reader', 'writer', or 'commenter'
+        emailAddress: email
+      },
+      {
+        params: { sendNotificationEmail: sendNotification },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+    return res.data
+  },
 }

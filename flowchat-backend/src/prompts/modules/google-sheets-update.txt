@@ -1,0 +1,21 @@
+GOOGLE SHEETS UPDATE ROW MODULE
+
+Updates an existing row in a Google Sheet when a trigger fires.
+Different from append — this finds and updates an existing row.
+
+SETUP:
+1. Call get_user_resources "sheets" to list sheets.
+2. Call get_user_resources "sheet_tabs" for the chosen sheet.
+3. Ask which column to search in (e.g. email column A).
+4. Ask what value to search for (e.g. submitter email from trigger).
+5. Ask what columns to update with new values.
+6. Show summary before building.
+
+COMMON USE CASES:
+- Update a lead status when they submit a follow-up form
+- Update a client record when a payment is received
+
+PASS TO build_workflow:
+- action_app: "google_sheets"
+- action_event: "update_row"
+- details: { sheet_id, sheet_tab, search_column, search_value_field, update_values }

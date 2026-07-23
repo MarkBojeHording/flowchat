@@ -1,0 +1,22 @@
+GOOGLE DRIVE SHARE MODULE
+
+Shares a Google Drive file or folder when a trigger fires.
+Useful for automatically granting access after a form submission or payment.
+
+SETUP:
+1. Call get_user_resources "google_drive_folders" to list folders.
+   Or ask the user to provide the file/folder ID directly.
+2. Ask what email address to share with (usually from trigger data).
+3. Ask what permission level: View, Comment, or Edit.
+4. Show summary before building.
+
+COMMON USE CASES:
+- Typeform → Drive: "When someone fills my form, share my 
+  onboarding folder with them"
+- Stripe → Drive: "When someone pays, share the course 
+  materials folder with their email"
+
+PASS TO build_workflow:
+- action_app: "google_drive"
+- action_event: "share_file"
+- details: { file_id, email_field, role }

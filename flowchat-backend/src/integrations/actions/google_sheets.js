@@ -26,5 +26,39 @@ module.exports = {
       }
     )
     return (res.data.sheets || []).map(s => s.properties.title)
+  },
+
+  // Find a row by matching a value in a specific column
+  async findRow(sheetId, sheetTab, searchColumn, searchValue, accessToken) {
+    const res = await axios.get(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetTab}!${searchColumn}:${searchColumn}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    const values = res.data.values || []
+    const rowIndex = values.findIndex(row => row[0] === searchValue)
+    return rowIndex === -1 ? null : rowIndex + 1 // 1-indexed
+  },
+
+  // Update a specific row by row number
+  async updateRow(sheetId, sheetTab, rowNumber, values, accessToken) {
+    const range = `${sheetTab}!A${rowNumber}`
+    await axios.put(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?valueInputOption=USER_ENTERED`,
+      { values: [values] },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+  },
+
+  // Find and update a row matching a search value
+  async findAndUpdateRow(sheetId, sheetTab, searchColumn, searchValue, newValues, accessToken) {
+    const rowNumber = await this.findRow(sheetId, sheetTab, searchColumn, searchValue, accessToken)
+    if (!rowNumber) return { found: false }
+    await this.updateRow(sheetId, sheetTab, rowNumber, newValues, accessToken)
+    return { found: true, rowNumber }
   }
 }
