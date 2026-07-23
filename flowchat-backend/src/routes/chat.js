@@ -946,8 +946,10 @@ async function executeTool(name, input, userId, automationId = null) {
         const testWebhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${testWebhookPath}`
 
         const triggerApp = trigger_app?.toLowerCase().replace(/\s+/g, '_')
+        const triggerEvent = (trigger_event || '').toLowerCase().replace(/\s+/g, '_')
         let webhookUrl = testWebhookUrl
         let triggerConfig = {}
+        let pollCursor = null
 
         if (triggerApp === 'typeform') {
           const typeformTriggerNode = workflowData.nodes?.find(
@@ -962,24 +964,110 @@ async function executeTool(name, input, userId, automationId = null) {
           triggerConfig = typeformTriggerConfig || {
             form_id: detailsObj.form_id || detailsObj.typeform_form_id
           }
+        } else if (
+          (triggerApp === 'google_sheets' || triggerApp === 'sheets') &&
+          (triggerEvent === 'new_row' ||
+            triggerEvent === 'newrow' ||
+            detailsObj.poll_type === 'google_sheets_new_row')
+        ) {
+          // Prefer a non-test webhook as the polling destination
+          const webhookNode =
+            workflowData.nodes?.find(
+              (node) =>
+                node.type === 'n8n-nodes-base.webhook' &&
+                node.name !== 'Test Webhook'
+            ) ||
+            workflowData.nodes?.find((node) => node.name === 'Test Webhook')
+          const webhookPath = webhookNode?.parameters?.path
+          if (webhookPath) {
+            webhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${webhookPath}`
+          }
+
+          triggerConfig = {
+            poll_type: 'google_sheets_new_row',
+            sheet_id: detailsObj.sheet_id || detailsObj.sheetId,
+            sheet_tab: detailsObj.sheet_tab || detailsObj.sheetTab || 'Sheet1',
+          }
+
+          // Seed cursor at current row count so existing rows aren't re-processed
+          try {
+            const { callWithTokenRefresh } = require('../integrations/core/execute')
+            const lastRow = await callWithTokenRefresh(userId, 'google', async (token) => {
+              const sheetId = triggerConfig.sheet_id
+              const sheetTab = triggerConfig.sheet_tab
+              if (!sheetId) return 1
+              const res = await axios.get(
+                `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetTab + '!A:A')}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+              )
+              return (res.data.values || []).length || 1
+            })
+            pollCursor = { last_row: lastRow }
+          } catch (err) {
+            console.error('Failed to seed sheets poll cursor:', err.message)
+            pollCursor = { last_row: 1 }
+          }
+        } else if (
+          triggerApp === 'gmail' &&
+          (triggerEvent === 'new_email' ||
+            triggerEvent === 'newemail' ||
+            detailsObj.poll_type === 'gmail_new_email')
+        ) {
+          const webhookNode =
+            workflowData.nodes?.find(
+              (node) =>
+                node.type === 'n8n-nodes-base.webhook' &&
+                node.name !== 'Test Webhook'
+            ) ||
+            workflowData.nodes?.find((node) => node.name === 'Test Webhook')
+          const webhookPath = webhookNode?.parameters?.path
+          if (webhookPath) {
+            webhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${webhookPath}`
+          }
+
+          triggerConfig = {
+            poll_type: 'gmail_new_email',
+            label_ids: detailsObj.label_ids || detailsObj.labelIds || ['INBOX'],
+          }
+
+          try {
+            const { callWithTokenRefresh } = require('../integrations/core/execute')
+            const historyId = await callWithTokenRefresh(userId, 'google', async (token) => {
+              const res = await axios.get(
+                'https://gmail.googleapis.com/gmail/v1/users/me/profile',
+                { headers: { Authorization: `Bearer ${token}` } }
+              )
+              return res.data.historyId
+            })
+            pollCursor = { history_id: historyId }
+          } catch (err) {
+            console.error('Failed to seed gmail poll cursor:', err.message)
+            pollCursor = {}
+          }
         }
 
         const workflowName = `${userEmail} — ${trigger_app} → ${action_app}`
 
         if (automationId) {
+          const updatePayload = {
+            n8n_workflow_id: created.id,
+            name: workflowName,
+            status: 'active',
+            stage: 'live',
+            webhook_url: webhookUrl,
+            test_webhook_url: testWebhookUrl,
+            trigger_app,
+            action_apps: [action_app],
+            trigger_config: triggerConfig,
+          }
+          if (pollCursor) {
+            updatePayload.poll_cursor = pollCursor
+            updatePayload.last_polled_at = new Date().toISOString()
+          }
+
           const { error: updateError } = await supabase
             .from('workflows')
-            .update({
-              n8n_workflow_id: created.id,
-              name: workflowName,
-              status: 'active',
-              stage: 'live',
-              webhook_url: webhookUrl,
-              test_webhook_url: testWebhookUrl,
-              trigger_app,
-              action_apps: [action_app],
-              trigger_config: triggerConfig,
-            })
+            .update(updatePayload)
             .eq('id', automationId)
             .eq('user_id', userId)
 
@@ -1108,6 +1196,7 @@ async function executeTool(name, input, userId, automationId = null) {
             calendar: 'check your Google Calendar for a new event',
             google_contacts: 'check your Google Contacts for a new contact',
             google_drive: 'check your Google Drive for the new folder or document',
+            google_docs: 'check your Google Drive for the new document',
             slack: 'check your Slack channel for a new message',
             gmail: 'check your Gmail sent folder for the test email',
             notion: 'check your Notion database for a new page',
@@ -1999,6 +2088,10 @@ function inferPromptApps({
 
   const triggerApp = text.includes('typeform')
     ? 'typeform'
+    : text.includes('new email') || text.includes('when i get an email') || text.includes('when an email')
+      ? 'gmail'
+    : text.includes('new row') || text.includes('when a row') || text.includes('spreadsheet') || (text.includes('google sheet') && (text.includes('when') || text.includes('trigger')))
+      ? 'google-sheets'
     : /\bschedule\b|\bdaily\b|\bweekly\b|\bevery day\b|\bevery monday\b/.test(text)
       ? 'schedule'
       : null
@@ -2007,6 +2100,12 @@ function inferPromptApps({
     ? 'google-sheets'
     : text.includes('google calendar') || text.includes('calendar event') || /\bcalendar\b/.test(text)
       ? 'google-calendar'
+    : text.includes('google docs') || text.includes('google doc')
+      ? 'google-docs'
+    : text.includes('google drive') || text.includes('drive folder')
+      ? 'google-drive'
+    : text.includes('google contacts') || text.includes('add them as a contact')
+      ? 'google-contacts'
     : text.includes('slack')
       ? 'slack'
       : text.includes('gmail') || text.includes('send an email') || text.includes('send email')
@@ -2014,6 +2113,11 @@ function inferPromptApps({
         : text.includes('notion')
           ? 'notion'
           : null
+
+  // If sheets/gmail inferred as both trigger and action, keep trigger and clear action ambiguity
+  if (triggerApp === 'google-sheets' && actionApp === 'google-sheets') {
+    return { triggerApp, actionApp: text.includes('slack') ? 'slack' : actionApp }
+  }
 
   return { triggerApp, actionApp }
 }
@@ -2036,11 +2140,19 @@ function buildSystemPrompt(triggerApp, actionApp) {
   const normalizedAction = normalizeAppForPromptModule(actionApp)
 
   if (normalizedTrigger) {
-    const triggerModulePath = `modules/${normalizedTrigger}.txt`
-    const triggerModule = readPrompt(triggerModulePath)
-    if (triggerModule) {
-      parts.push(triggerModule)
-      loadedModules.push(triggerModulePath)
+    // Prefer dedicated trigger modules (e.g. google-sheets-trigger.txt, gmail-trigger.txt)
+    const triggerSpecificPath = `modules/${normalizedTrigger}-trigger.txt`
+    const triggerSpecific = readPrompt(triggerSpecificPath)
+    if (triggerSpecific) {
+      parts.push(triggerSpecific)
+      loadedModules.push(triggerSpecificPath)
+    } else {
+      const triggerModulePath = `modules/${normalizedTrigger}.txt`
+      const triggerModule = readPrompt(triggerModulePath)
+      if (triggerModule) {
+        parts.push(triggerModule)
+        loadedModules.push(triggerModulePath)
+      }
     }
   }
   if (normalizedAction) {
