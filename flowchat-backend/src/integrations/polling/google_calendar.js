@@ -44,13 +44,16 @@ module.exports = {
     const endTime = event.end?.dateTime || event.end?.date || ''
     const attendees = (event.attendees || []).map(a => a.email).join(', ')
     const meetLink = event.conferenceData?.entryPoints?.[0]?.uri || ''
+    const title = event.summary || 'Untitled event'
 
     return {
       submitted_at: new Date().toISOString(),
       submitter_email: event.organizer?.email || null,
       submitter_name: event.organizer?.displayName || null,
+      subject: title,
+      snippet: [startTime, event.location, meetLink].filter(Boolean).join(' · '),
       column_values: [
-        event.summary || 'Untitled event',
+        title,
         startTime,
         endTime,
         event.location || '',
