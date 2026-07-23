@@ -1,0 +1,23 @@
+GMAIL TRIGGER MODULE
+
+Gmail fires when a new email arrives in the inbox.
+This uses polling — Flowchat checks every 5 minutes for new emails.
+
+SETUP:
+1. Google Gmail uses the same OAuth as Sheets/Calendar.
+   No separate connection needed.
+2. Ask if they want to trigger on all emails or specific ones:
+   - All new emails in inbox
+   - Emails from a specific sender (note: filtering done post-trigger)
+3. Ask what action to take when a new email arrives.
+4. Show summary before building.
+
+IMPORTANT: Tell the user:
+"I'll check your inbox every 5 minutes for new emails.
+There may be up to a 5-minute delay."
+
+PASS TO build_workflow:
+- trigger_app: "gmail"
+- trigger_event: "new_email"
+- details: { label_ids: ['INBOX'] }
+The trigger_config will include poll_type: "gmail_new_email"

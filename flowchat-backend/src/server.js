@@ -38,6 +38,9 @@ app.use('/api/executions', executionsRouter)
 const actionsRouter = require('./routes/actions')
 app.use('/api/actions', actionsRouter)
 
+const pollingRouter = require('./routes/polling')
+app.use('/api/polling', pollingRouter)
+
 const n8nProxy = require('./routes/n8n-proxy')
 app.use('/api/n8n', n8nProxy)
 

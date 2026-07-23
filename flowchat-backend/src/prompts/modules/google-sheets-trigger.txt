@@ -1,0 +1,22 @@
+GOOGLE SHEETS TRIGGER MODULE
+
+Google Sheets fires when a new row is added to a spreadsheet.
+This uses polling — Flowchat checks every 5 minutes for new rows.
+
+SETUP:
+1. Call get_user_resources "sheets" to list sheets.
+2. Call get_user_resources "sheet_tabs" for the chosen sheet.
+3. Confirm which sheet and tab to watch.
+4. Ask what action to take when a new row appears.
+5. Show summary before building.
+
+IMPORTANT: Tell the user:
+"I'll check this sheet every 5 minutes for new rows. 
+There may be up to a 5-minute delay between when a row 
+is added and when your automation runs."
+
+PASS TO build_workflow:
+- trigger_app: "google_sheets"
+- trigger_event: "new_row"
+- details: { sheet_id, sheet_tab }
+The trigger_config will include poll_type: "google_sheets_new_row"
