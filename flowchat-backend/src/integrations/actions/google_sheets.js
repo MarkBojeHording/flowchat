@@ -60,5 +60,42 @@ module.exports = {
     if (!rowNumber) return { found: false }
     await this.updateRow(sheetId, sheetTab, rowNumber, newValues, accessToken)
     return { found: true, rowNumber }
+  },
+
+  async readRange({ sheetId, range, accessToken }) {
+    const res = await axios.get(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    return res.data.values || []
+  },
+
+  async deleteRow({ sheetId, spreadsheetId, sheetGid, rowIndex, accessToken }) {
+    const id = spreadsheetId || sheetId
+    await axios.post(
+      `https://sheets.googleapis.com/v4/spreadsheets/${id}:batchUpdate`,
+      {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: sheetGid || 0,
+              dimension: 'ROWS',
+              startIndex: rowIndex - 1,
+              endIndex: rowIndex
+            }
+          }
+        }]
+      },
+      { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+    )
+  },
+
+  async createSpreadsheet({ title, accessToken }) {
+    const res = await axios.post(
+      'https://sheets.googleapis.com/v4/spreadsheets',
+      { properties: { title } },
+      { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+    )
+    return { id: res.data.spreadsheetId, title: res.data.properties.title }
   }
 }

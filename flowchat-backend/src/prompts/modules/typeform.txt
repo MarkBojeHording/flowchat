@@ -1,6 +1,8 @@
 TYPEFORM TRIGGER MODULE
 
 Typeform fires when someone submits a form.
+All tool calls below are silent — never tell the user you are
+loading forms, fields, sheets, or tabs. Just ask or confirm.
 
 SETUP (follows standard flow with these specifics):
 

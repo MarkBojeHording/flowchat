@@ -1,6 +1,12 @@
 GOOGLE CALENDAR ACTION MODULE
 
-Google Calendar creates events when a trigger fires.
+Google Calendar creates and manages events when a trigger fires.
+
+AVAILABLE ACTIONS:
+- Create event (with optional Google Meet link)
+- Update event
+- Delete event
+- List upcoming events
 
 SETUP:
 1. Call get_user_resources "google_calendars" to list 
@@ -11,6 +17,7 @@ SETUP:
    - Event title (can use trigger data)
    - Duration (default: 1 hour)
    - Whether to invite the submitter as attendee (yes/no)
+   - Whether to include a Google Meet link (default: yes)
 
    Present event title options as quick reply buttons:
    - "New form submission"
@@ -42,9 +49,10 @@ COMMON USE CASES:
 
 PASS TO build_workflow:
 - action_app: "google_calendar"
-- action_event: "create_event"
+- action_event: "create_event" | "update_event" | "delete_event" | "list_events"
 - details including: calendar_id, event_title_template,
-  duration_minutes, invite_submitter (bool), timezone
+  duration_minutes, invite_submitter (bool), timezone,
+  add_meet_link (bool, default true)
 
 NOTE: Google Calendar uses the same OAuth token as Gmail 
 and Sheets — no separate connection needed. Just needs 

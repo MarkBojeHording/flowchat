@@ -1,7 +1,25 @@
 GMAIL ACTION MODULE
 
-Gmail sends emails to a recipient.
+Gmail can send, draft, reply, label, and search emails.
 
-Ask for: recipient email address, subject line, message content.
-Never assume the recipient - always ask explicitly.
-For scheduled emails, confirm timezone (use user's stored timezone).
+AVAILABLE ACTIONS:
+- Send email (plain text or HTML)
+- Create draft
+- Reply to email
+- Add label to email
+- Search emails
+
+SETUP FOR SEND:
+1. Ask for recipient email, subject, and message content.
+   Never assume the recipient — always ask explicitly.
+2. Ask if they want plain text or HTML.
+3. For scheduled emails, confirm timezone (use user's stored timezone).
+4. Show summary before building.
+
+PASS TO build_workflow:
+- action_app: "gmail"
+- action_event: "send_email" | "create_draft" | "reply" | "add_label" | "search"
+- details: { to, subject, body, html?, label_ids?, query? }
+
+NOTE: Gmail uses the same Google OAuth as Sheets/Calendar —
+no separate connection needed.

@@ -207,6 +207,26 @@ router.get('/credentials/:userId/notion', async (req, res) => {
   }
 })
 
+router.get('/credentials/:userId/slack', async (req, res) => {
+  const { userId } = req.params
+  const apiKey = req.headers['x-api-key']
+  if (apiKey !== process.env.INTERNAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+  try {
+    const { data: account } = await supabase
+      .from('platform_accounts')
+      .select('access_token')
+      .eq('user_id', userId)
+      .eq('platform', 'slack')
+      .single()
+    if (!account) return res.status(404).json({ error: 'Slack not connected' })
+    res.json({ access_token: account.access_token })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 router.get('/credentials/:userId/:platform', async (req, res) => {
   const { userId, platform } = req.params
   const apiKey = req.headers['x-api-key']

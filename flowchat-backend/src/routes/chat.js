@@ -105,9 +105,11 @@ const TOOLS = [
             'notion_schema',
             'google_calendars',
             'google_drive_folders',
+            'google_drive_files',
+            'gmail_labels',
           ],
           description:
-            'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds. Use notion_schema only after getting database_id from notion_databases. Use google_calendars to list writable Google Calendars. Use google_drive_folders to list Drive folders.',
+            'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds. Use notion_schema only after getting database_id from notion_databases. Use google_calendars to list writable Google Calendars. Use google_drive_folders to list Drive folders. Use google_drive_files with optional folder_id. Use gmail_labels for custom Gmail labels.',
         },
         form_id: {
           type: 'string',
@@ -128,6 +130,11 @@ const TOOLS = [
           type: 'string',
           description:
             'Optional. Copy the exact ID from google_calendars result - the string between "(ID: " and ")". Use when a later step needs a specific calendar.',
+        },
+        folder_id: {
+          type: 'string',
+          description:
+            'Optional for google_drive_files. Copy the exact ID from google_drive_folders result - the string between "(ID: " and ")".',
         },
       },
       required: ['app'],
@@ -752,6 +759,43 @@ async function executeTool(name, input, userId, automationId = null) {
           } catch (err) {
             console.error('google_drive_folders error:', err.message)
             return { result: 'Could not fetch Drive folders.' }
+          }
+        }
+
+        if (app === 'google_drive_files') {
+          try {
+            const { callWithTokenRefresh } = require('../integrations/core/execute')
+            const googleDrive = require('../integrations/actions/google_drive')
+            const { folder_id } = input
+            const files = await callWithTokenRefresh(userId, 'google', async (token) => {
+              return googleDrive.listFiles({ folderId: folder_id, maxResults: 20, accessToken: token })
+            })
+            if (files.length === 0) return { result: 'No files found.' }
+            return {
+              result: files.map((f, i) => `${i + 1}. ${f.title} (ID: ${f.id})`).join('\n'),
+              files
+            }
+          } catch (err) {
+            console.error('google_drive_files error:', err.message)
+            return { result: 'Could not fetch Drive files.' }
+          }
+        }
+
+        if (app === 'gmail_labels') {
+          try {
+            const { callWithTokenRefresh } = require('../integrations/core/execute')
+            const gmail = require('../integrations/actions/gmail')
+            const labels = await callWithTokenRefresh(userId, 'google', async (token) => {
+              return gmail.listLabels(token)
+            })
+            if (labels.length === 0) return { result: 'No custom labels found.' }
+            return {
+              result: labels.map((l, i) => `${i + 1}. ${l.title} (ID: ${l.id})`).join('\n'),
+              labels
+            }
+          } catch (err) {
+            console.error('gmail_labels error:', err.message)
+            return { result: 'Could not fetch Gmail labels.' }
           }
         }
 

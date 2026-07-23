@@ -84,4 +84,56 @@ module.exports = {
     )
     return res.data
   },
+
+  async listFiles({ folderId, mimeType, maxResults = 20, accessToken }) {
+    let query = 'trashed=false'
+    if (folderId) query += ` and '${folderId}' in parents`
+    if (mimeType) query += ` and mimeType='${mimeType}'`
+
+    const res = await axios.get(
+      `https://www.googleapis.com/drive/v3/files`,
+      {
+        params: { q: query, pageSize: maxResults, fields: 'files(id,name,mimeType,webViewLink)' },
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }
+    )
+    return (res.data.files || []).map(f => ({
+      id: f.id,
+      title: f.name,
+      type: f.mimeType,
+      url: f.webViewLink
+    }))
+  },
+
+  async moveFile({ fileId, newFolderId, accessToken }) {
+    // Get current parents first
+    const fileRes = await axios.get(
+      `https://www.googleapis.com/drive/v3/files/${fileId}`,
+      {
+        params: { fields: 'parents' },
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }
+    )
+    const currentParents = (fileRes.data.parents || []).join(',')
+
+    await axios.patch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}`,
+      {},
+      {
+        params: {
+          addParents: newFolderId,
+          removeParents: currentParents,
+          fields: 'id,parents'
+        },
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }
+    )
+  },
+
+  async deleteFile({ fileId, accessToken }) {
+    await axios.delete(
+      `https://www.googleapis.com/drive/v3/files/${fileId}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  }
 }

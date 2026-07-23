@@ -1229,6 +1229,548 @@ function buildTypeformDocsWorkflow(userId, details) {
   }
 }
 
+function buildWebhookPair(webhookPath, testWebhookPath, triggerName = 'Webhook Trigger') {
+  return [
+    {
+      id: 'main-trigger',
+      name: triggerName,
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 200],
+      parameters: {
+        httpMethod: 'POST',
+        path: webhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 400],
+      parameters: {
+        httpMethod: 'POST',
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+  ]
+}
+
+function buildSubmissionDataCodeNode() {
+  return {
+    id: 'set-data',
+    name: 'Set Submission Data',
+    type: 'n8n-nodes-base.code',
+    typeVersion: 2,
+    position: [512, 304],
+    parameters: {
+      jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const name = body.submitter_name || body.from_name || '';
+const email = body.submitter_email || body.from_email || '';
+const subject = body.subject || body.raw?.subject || '';
+const snippet = body.snippet || body.raw?.snippet || '';
+const columnValues = body.column_values || [name, email, subject, snippet].filter(Boolean);
+const columnHeaders = body.column_headers || ['Name', 'Email', 'Subject', 'Preview'];
+
+return [{
+  json: {
+    submitted_at: body.submitted_at || new Date().toISOString(),
+    submitter_name: name,
+    submitter_email: email,
+    subject,
+    snippet,
+    column_values: columnValues,
+    column_headers: columnHeaders,
+    row: columnValues,
+  }
+}];
+`,
+    },
+  }
+}
+
+function buildNotifyRespondNodes(userId, backendUrl, detailsType, actionNodeName) {
+  return [
+    {
+      id: 'notify-success',
+      name: 'Notify Flowchat',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1280, 304],
+      parameters: {
+        method: 'POST',
+        url: `${backendUrl}/api/executions/log`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode, details: { type: "${detailsType}" } }) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'respond-webhook',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1536, 304],
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify({ success: true }) }}',
+        options: {},
+      },
+    },
+  ]
+}
+
+function wireWebhookFlow(triggerName, fetchNodeName, actionNodeName) {
+  return {
+    [triggerName]: {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Test Webhook': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Set Submission Data': {
+      main: [[{ node: fetchNodeName, type: 'main', index: 0 }]],
+    },
+    [fetchNodeName]: {
+      main: [[{ node: actionNodeName, type: 'main', index: 0 }]],
+    },
+    [actionNodeName]: {
+      main: [[{ node: 'Notify Flowchat', type: 'main', index: 0 }]],
+    },
+    'Notify Flowchat': {
+      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]],
+    },
+  }
+}
+
+function buildTypeformGmailWorkflow(userId, details) {
+  const subject =
+    details.subject || details.email_subject || 'New form submission'
+  const bodyTemplate =
+    details.body ||
+    details.message ||
+    details.message_text ||
+    'New submission from {{submitter_name}} ({{submitter_email}})'
+  const toEmail =
+    details.to || details.to_email || details.recipient || '{{submitter_email}}'
+  const webhookPath = `flowchat-typeform-gmail-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    ...buildWebhookPair(webhookPath, testWebhookPath, 'Typeform Trigger'),
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const name = body.submitter_name || '';
+const email = body.submitter_email || '';
+let subject = ${JSON.stringify(subject)};
+let emailBody = ${JSON.stringify(bodyTemplate)};
+let to = ${JSON.stringify(toEmail)};
+const replace = (s) => String(s || '')
+  .replace(/\\{\\{submitter_name\\}\\}/gi, name || 'Unknown')
+  .replace(/\\{\\{name\\}\\}/gi, name || 'Unknown')
+  .replace(/\\{\\{submitter_email\\}\\}/gi, email || '')
+  .replace(/\\{\\{email\\}\\}/gi, email || '');
+subject = replace(subject);
+emailBody = replace(emailBody);
+to = replace(to);
+return [{ json: { submitter_name: name, submitter_email: email, subject, emailBody, to } }];
+`,
+      },
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'send-gmail',
+      name: 'Send Gmail',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ (() => { const to = $("Set Submission Data").item.json.to; const subject = $("Set Submission Data").item.json.subject; const body = $("Set Submission Data").item.json.emailBody; const raw = ["To: " + to, "Subject: " + subject, "Content-Type: text/plain; charset=utf-8", "MIME-Version: 1.0", "", body].join("\\n"); const encoded = Buffer.from(raw).toString("base64").replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, ""); return JSON.stringify({ raw: encoded }); })() }}`,
+        options: {},
+      },
+    },
+    ...buildNotifyRespondNodes(userId, backendUrl, 'typeform_to_gmail', 'Send Gmail'),
+  ]
+
+  return {
+    humanName: 'Typeform → Gmail',
+    nodes,
+    connections: wireWebhookFlow('Typeform Trigger', 'Fetch Google Credentials', 'Send Gmail'),
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
+function buildTypeformSlackWorkflow(userId, details) {
+  const channel = details.channel || details.slack_channel || '#general'
+  const messageTemplate =
+    details.message ||
+    details.message_text ||
+    'New form submission from {{submitter_name}} ({{submitter_email}})'
+  const webhookPath = `flowchat-typeform-slack-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    ...buildWebhookPair(webhookPath, testWebhookPath, 'Typeform Trigger'),
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const name = body.submitter_name || '';
+const email = body.submitter_email || '';
+let text = ${JSON.stringify(messageTemplate)};
+text = text
+  .replace(/\\{\\{submitter_name\\}\\}/gi, name || 'Unknown')
+  .replace(/\\{\\{name\\}\\}/gi, name || 'Unknown')
+  .replace(/\\{\\{submitter_email\\}\\}/gi, email || '')
+  .replace(/\\{\\{email\\}\\}/gi, email || '');
+return [{ json: { submitter_name: name, submitter_email: email, text } }];
+`,
+      },
+    },
+    {
+      id: 'fetch-slack-creds',
+      name: 'Fetch Slack Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/slack`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'send-slack',
+      name: 'Send Slack Message',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://slack.com/api/chat.postMessage',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Slack Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ channel: ${JSON.stringify(channel)}, text: $("Set Submission Data").item.json.text }) }}`,
+        options: {},
+      },
+    },
+    ...buildNotifyRespondNodes(userId, backendUrl, 'typeform_to_slack', 'Send Slack Message'),
+  ]
+
+  return {
+    humanName: 'Typeform → Slack',
+    nodes,
+    connections: wireWebhookFlow('Typeform Trigger', 'Fetch Slack Credentials', 'Send Slack Message'),
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
+function buildPollingGmailWorkflow(userId, details, humanName, detailsType) {
+  const subject =
+    details.subject || details.email_subject || 'New automation alert'
+  const bodyTemplate =
+    details.body ||
+    details.message ||
+    'New event: {{submitter_name}} / {{submitter_email}}'
+  const toEmail =
+    details.to || details.to_email || details.recipient || ''
+  const webhookPath = `flowchat-poll-gmail-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    ...buildWebhookPair(webhookPath, testWebhookPath, 'Webhook Trigger'),
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const name = body.submitter_name || '';
+const email = body.submitter_email || '';
+let subject = ${JSON.stringify(subject)};
+let emailBody = ${JSON.stringify(bodyTemplate)};
+let to = ${JSON.stringify(toEmail)};
+const replace = (s) => String(s || '')
+  .replace(/\\{\\{submitter_name\\}\\}/gi, name || 'Unknown')
+  .replace(/\\{\\{submitter_email\\}\\}/gi, email || '')
+  .replace(/\\{\\{subject\\}\\}/gi, body.subject || '')
+  .replace(/\\{\\{snippet\\}\\}/gi, body.snippet || '');
+return [{ json: { submitter_name: name, submitter_email: email, subject: replace(subject), emailBody: replace(emailBody), to: replace(to) || email } }];
+`,
+      },
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'send-gmail',
+      name: 'Send Gmail',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ (() => { const to = $("Set Submission Data").item.json.to; const subject = $("Set Submission Data").item.json.subject; const body = $("Set Submission Data").item.json.emailBody; const raw = ["To: " + to, "Subject: " + subject, "Content-Type: text/plain; charset=utf-8", "MIME-Version: 1.0", "", body].join("\\n"); const encoded = Buffer.from(raw).toString("base64").replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, ""); return JSON.stringify({ raw: encoded }); })() }}`,
+        options: {},
+      },
+    },
+    ...buildNotifyRespondNodes(userId, backendUrl, detailsType, 'Send Gmail'),
+  ]
+
+  return {
+    humanName,
+    nodes,
+    connections: wireWebhookFlow('Webhook Trigger', 'Fetch Google Credentials', 'Send Gmail'),
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
+function buildPollingSlackWorkflow(userId, details, humanName, detailsType) {
+  const channel = details.channel || details.slack_channel || '#general'
+  const messageTemplate =
+    details.message ||
+    details.message_text ||
+    'New event from {{submitter_name}} ({{submitter_email}})'
+  const webhookPath = `flowchat-poll-slack-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    ...buildWebhookPair(webhookPath, testWebhookPath, 'Webhook Trigger'),
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const name = body.submitter_name || '';
+const email = body.submitter_email || '';
+let text = ${JSON.stringify(messageTemplate)};
+text = text
+  .replace(/\\{\\{submitter_name\\}\\}/gi, name || 'Unknown')
+  .replace(/\\{\\{submitter_email\\}\\}/gi, email || '')
+  .replace(/\\{\\{subject\\}\\}/gi, body.subject || '')
+  .replace(/\\{\\{snippet\\}\\}/gi, body.snippet || '');
+return [{ json: { text } }];
+`,
+      },
+    },
+    {
+      id: 'fetch-slack-creds',
+      name: 'Fetch Slack Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/slack`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'send-slack',
+      name: 'Send Slack Message',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://slack.com/api/chat.postMessage',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Slack Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ channel: ${JSON.stringify(channel)}, text: $("Set Submission Data").item.json.text }) }}`,
+        options: {},
+      },
+    },
+    ...buildNotifyRespondNodes(userId, backendUrl, detailsType, 'Send Slack Message'),
+  ]
+
+  return {
+    humanName,
+    nodes,
+    connections: wireWebhookFlow('Webhook Trigger', 'Fetch Slack Credentials', 'Send Slack Message'),
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
+function buildGmailToSheetsWorkflow(userId, details) {
+  const sheetId = details.sheet_id || details.sheetId || details.spreadsheet_id
+  const sheetTab = details.sheet_tab || details.sheetTab || 'Sheet1'
+  const webhookPath = `flowchat-gmail-sheets-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    ...buildWebhookPair(webhookPath, testWebhookPath, 'Webhook Trigger'),
+    buildSubmissionDataCodeNode(),
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'append-to-sheets',
+      name: 'Append to Google Sheets',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetTab}!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{
+            name: 'Authorization',
+            value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}'
+          }]
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: "={{ JSON.stringify({\"values\": [$('Set Submission Data').item.json.row]}) }}",
+        options: {},
+      },
+    },
+    ...buildNotifyRespondNodes(userId, backendUrl, 'gmail_to_sheets', 'Append to Google Sheets'),
+  ]
+
+  return {
+    humanName: 'Gmail → Google Sheets',
+    nodes,
+    connections: wireWebhookFlow('Webhook Trigger', 'Fetch Google Credentials', 'Append to Google Sheets'),
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
 function buildNotionFormatAnswersCode() {
   return `
 const body = $input.first().json.body || $input.first().json;
@@ -1771,6 +2313,36 @@ async function buildWorkflow(userId, userEmail, spec) {
       action_app?.toLowerCase() === 'google docs' ||
       (actionApp === 'google_drive' && actionEvent === 'create_document'))
 
+  const isTypeformToGmail =
+    triggerApp === 'typeform' &&
+    actionApp === 'gmail' &&
+    (!actionEvent || actionEvent === 'send_email')
+
+  const isTypeformToSlack =
+    triggerApp === 'typeform' &&
+    actionApp === 'slack' &&
+    (!actionEvent || actionEvent === 'send_message')
+
+  const isSheetsToGmail =
+    (triggerApp === 'google_sheets' || triggerApp === 'sheets') &&
+    actionApp === 'gmail' &&
+    (!actionEvent || actionEvent === 'send_email')
+
+  const isSheetsToSlack =
+    (triggerApp === 'google_sheets' || triggerApp === 'sheets') &&
+    actionApp === 'slack' &&
+    (!actionEvent || actionEvent === 'send_message')
+
+  const isGmailToSlack =
+    triggerApp === 'gmail' &&
+    actionApp === 'slack' &&
+    (!actionEvent || actionEvent === 'send_message')
+
+  const isGmailToSheets =
+    triggerApp === 'gmail' &&
+    (actionApp === 'google_sheets' || actionApp === 'sheets') &&
+    (!actionEvent || actionEvent === 'append_row')
+
   const isTypeformToNotion =
     triggerApp === 'typeform' &&
     actionApp === 'notion' &&
@@ -1790,6 +2362,12 @@ async function buildWorkflow(userId, userEmail, spec) {
     isTypeformToContacts ||
     isTypeformToDriveFolder ||
     isTypeformToDocs ||
+    isTypeformToGmail ||
+    isTypeformToSlack ||
+    isSheetsToGmail ||
+    isSheetsToSlack ||
+    isGmailToSlack ||
+    isGmailToSheets ||
     isTypeformToNotion ||
     isAnyTriggerToNotion ||
     (triggerApp === 'schedule' &&
@@ -1812,6 +2390,33 @@ async function buildWorkflow(userId, userEmail, spec) {
       workflow = buildTypeformDocsWorkflow(userId, details)
     } else if (isTypeformToDriveFolder) {
       workflow = buildTypeformDriveFolderWorkflow(userId, details)
+    } else if (isTypeformToGmail) {
+      workflow = buildTypeformGmailWorkflow(userId, details)
+    } else if (isTypeformToSlack) {
+      workflow = buildTypeformSlackWorkflow(userId, details)
+    } else if (isSheetsToGmail) {
+      workflow = buildPollingGmailWorkflow(
+        userId,
+        details,
+        'Google Sheets → Gmail',
+        'sheets_to_gmail'
+      )
+    } else if (isSheetsToSlack) {
+      workflow = buildPollingSlackWorkflow(
+        userId,
+        details,
+        'Google Sheets → Slack',
+        'sheets_to_slack'
+      )
+    } else if (isGmailToSlack) {
+      workflow = buildPollingSlackWorkflow(
+        userId,
+        details,
+        'Gmail → Slack',
+        'gmail_to_slack'
+      )
+    } else if (isGmailToSheets) {
+      workflow = buildGmailToSheetsWorkflow(userId, details)
     } else if (isTypeformToNotion) {
       workflow = buildTypeformNotionWorkflow(userId, details)
     } else if (isAnyTriggerToNotion) {
