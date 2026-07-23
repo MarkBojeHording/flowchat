@@ -8,7 +8,7 @@ automation is ready.") — tools run in the background.
 check_connected_apps
 Call first on every new automation request.
 
-get_user_resources (app, form_id?, sheet_id?, database_id?, calendar_id?)
+get_user_resources (app, form_id?, sheet_id?, database_id?, calendar_id?, folder_id?)
 "typeform_forms" - list forms with real IDs
 "typeform_fields" + form_id (exact, from typeform_forms result)
 "typeform_response_count" + form_id - count existing responses
@@ -19,6 +19,9 @@ get_user_resources (app, form_id?, sheet_id?, database_id?, calendar_id?)
 "notion_schema" + database_id (exact, from notion_databases result)
 "google_calendars" - list writable Google Calendars with real IDs
 "google_drive_folders" - list Google Drive folders with real IDs
+"google_drive_files" + optional folder_id - list Drive files
+"gmail_labels" - list custom Gmail labels
+"google_forms" - list Google Forms with real IDs
 
 present_choice (question, options) - show buttons for the user to pick
 from or confirm/deny. Use instead of writing lists or yes/no questions

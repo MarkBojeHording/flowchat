@@ -1771,6 +1771,313 @@ function buildGmailToSheetsWorkflow(userId, details) {
   }
 }
 
+function buildSheetsToCalendarWorkflow(userId, details) {
+  const calendarId = details.calendar_id || details.calendarId || 'primary'
+  const titleTemplate =
+    details.event_title_template ||
+    details.eventTitleTemplate ||
+    'New row: {{submitter_name}}'
+  const durationMinutes = Number(details.duration_minutes || details.durationMinutes || 60)
+  const timezone = details.timezone || 'UTC'
+  const webhookPath = `flowchat-sheets-calendar-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    ...buildWebhookPair(webhookPath, testWebhookPath, 'Webhook Trigger'),
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const name = body.submitter_name || '';
+const email = body.submitter_email || '';
+const submittedAt = body.submitted_at || new Date().toISOString();
+const start = new Date(submittedAt);
+const end = new Date(start.getTime() + ${durationMinutes} * 60 * 1000);
+let summary = ${JSON.stringify(titleTemplate)};
+summary = summary
+  .replace(/\\{\\{submitter_name\\}\\}/gi, name || 'Unknown')
+  .replace(/\\{\\{name\\}\\}/gi, name || 'Unknown')
+  .replace(/\\{\\{submitter_email\\}\\}/gi, email || '');
+return [{
+  json: {
+    summary,
+    description: (body.column_headers || []).map((h, i) => h + ': ' + ((body.column_values || [])[i] || '')).join('\\n'),
+    startDateTime: start.toISOString(),
+    endDateTime: end.toISOString(),
+    timezone: ${JSON.stringify(timezone)},
+    invite_email: email || '',
+  }
+}];
+`,
+      },
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'create-calendar-event',
+      name: 'Create Calendar Event',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({
+  summary: $("Set Submission Data").item.json.summary,
+  description: $("Set Submission Data").item.json.description,
+  start: { dateTime: $("Set Submission Data").item.json.startDateTime, timeZone: $("Set Submission Data").item.json.timezone },
+  end: { dateTime: $("Set Submission Data").item.json.endDateTime, timeZone: $("Set Submission Data").item.json.timezone },
+  attendees: $("Set Submission Data").item.json.invite_email ? [{ email: $("Set Submission Data").item.json.invite_email }] : [],
+  conferenceData: { createRequest: { requestId: "flowchat-" + Date.now(), conferenceSolutionKey: { type: "hangoutsMeet" } } }
+}) }}`,
+        options: {},
+      },
+    },
+    ...buildNotifyRespondNodes(userId, backendUrl, 'sheets_to_calendar', 'Create Calendar Event'),
+  ]
+
+  return {
+    humanName: 'Google Sheets → Google Calendar',
+    nodes,
+    connections: wireWebhookFlow('Webhook Trigger', 'Fetch Google Credentials', 'Create Calendar Event'),
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
+function buildPollingContactsWorkflow(userId, details, humanName, detailsType) {
+  const webhookPath = `flowchat-poll-contacts-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    ...buildWebhookPair(webhookPath, testWebhookPath, 'Webhook Trigger'),
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const name = body.submitter_name || '';
+const email = body.submitter_email || '';
+const parts = String(name || '').trim().split(/\\s+/).filter(Boolean);
+return [{
+  json: {
+    givenName: parts[0] || name || 'Unknown',
+    familyName: parts.slice(1).join(' ') || '',
+    submitter_email: email,
+  }
+}];
+`,
+      },
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'create-contact',
+      name: 'Create Google Contact',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://people.googleapis.com/v1/people:createContact',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({
+  names: [{ givenName: $("Set Submission Data").item.json.givenName, familyName: $("Set Submission Data").item.json.familyName }],
+  emailAddresses: $("Set Submission Data").item.json.submitter_email ? [{ value: $("Set Submission Data").item.json.submitter_email }] : []
+}) }}`,
+        options: {},
+      },
+    },
+    ...buildNotifyRespondNodes(userId, backendUrl, detailsType, 'Create Google Contact'),
+  ]
+
+  return {
+    humanName,
+    nodes,
+    connections: wireWebhookFlow('Webhook Trigger', 'Fetch Google Credentials', 'Create Google Contact'),
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
+function buildScheduleSheetsWorkflow(userId, details) {
+  const sheetId = details.sheet_id || details.sheetId || details.spreadsheet_id
+  const sheetTab = details.sheet_tab || details.sheetTab || 'Sheet1'
+  const cronExpression = details.cron_expression || '0 9 * * 1'
+  const testWebhookPath = createTestWebhookPath(userId)
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    {
+      id: 'schedule-trigger',
+      name: 'Schedule Trigger',
+      type: 'n8n-nodes-base.scheduleTrigger',
+      typeVersion: 1.2,
+      position: [256, 304],
+      parameters: {
+        rule: {
+          interval: [{ field: 'cronExpression', expression: cronExpression }],
+        },
+      },
+    },
+    {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 512],
+      parameters: {
+        httpMethod: 'POST',
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {},
+      },
+    },
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const now = new Date().toISOString();
+return [{ json: { row: [now, 'Scheduled run', 'Flowchat'] } }];
+`,
+      },
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'append-to-sheets',
+      name: 'Append to Google Sheets',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetTab}!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{
+            name: 'Authorization',
+            value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}'
+          }]
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: "={{ JSON.stringify({\"values\": [$('Set Submission Data').item.json.row]}) }}",
+        options: {},
+      },
+    },
+    ...buildNotifyRespondNodes(userId, backendUrl, 'schedule_to_sheets', 'Append to Google Sheets'),
+  ]
+
+  const connections = {
+    'Schedule Trigger': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Test Webhook': {
+      main: [[{ node: 'Set Submission Data', type: 'main', index: 0 }]],
+    },
+    'Set Submission Data': {
+      main: [[{ node: 'Fetch Google Credentials', type: 'main', index: 0 }]],
+    },
+    'Fetch Google Credentials': {
+      main: [[{ node: 'Append to Google Sheets', type: 'main', index: 0 }]],
+    },
+    'Append to Google Sheets': {
+      main: [[{ node: 'Notify Flowchat', type: 'main', index: 0 }]],
+    },
+    'Notify Flowchat': {
+      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]],
+    },
+  }
+
+  return {
+    humanName: 'Schedule → Google Sheets',
+    nodes,
+    connections,
+    testWebhookPath,
+  }
+}
+
 function buildNotionFormatAnswersCode() {
   return `
 const body = $input.first().json.body || $input.first().json;
@@ -2343,6 +2650,36 @@ async function buildWorkflow(userId, userEmail, spec) {
     (actionApp === 'google_sheets' || actionApp === 'sheets') &&
     (!actionEvent || actionEvent === 'append_row')
 
+  const isSheetsToCalendar =
+    (triggerApp === 'google_sheets' || triggerApp === 'sheets') &&
+    (actionApp === 'google_calendar' || actionApp === 'calendar') &&
+    (!actionEvent || actionEvent === 'create_event')
+
+  const isSheetsToContacts =
+    (triggerApp === 'google_sheets' || triggerApp === 'sheets') &&
+    (actionApp === 'google_contacts' || actionApp === 'contacts') &&
+    (!actionEvent || actionEvent === 'create_contact')
+
+  const isGmailToContacts =
+    triggerApp === 'gmail' &&
+    (actionApp === 'google_contacts' || actionApp === 'contacts') &&
+    (!actionEvent || actionEvent === 'create_contact')
+
+  const isScheduleToSheets =
+    triggerApp === 'schedule' &&
+    (actionApp === 'google_sheets' || actionApp === 'sheets') &&
+    (!actionEvent || actionEvent === 'append_row')
+
+  const isCalendarToGmail =
+    (triggerApp === 'google_calendar' || triggerApp === 'calendar') &&
+    actionApp === 'gmail' &&
+    (!actionEvent || actionEvent === 'send_email')
+
+  const isCalendarToSlack =
+    (triggerApp === 'google_calendar' || triggerApp === 'calendar') &&
+    actionApp === 'slack' &&
+    (!actionEvent || actionEvent === 'send_message')
+
   const isTypeformToNotion =
     triggerApp === 'typeform' &&
     actionApp === 'notion' &&
@@ -2368,6 +2705,12 @@ async function buildWorkflow(userId, userEmail, spec) {
     isSheetsToSlack ||
     isGmailToSlack ||
     isGmailToSheets ||
+    isSheetsToCalendar ||
+    isSheetsToContacts ||
+    isGmailToContacts ||
+    isScheduleToSheets ||
+    isCalendarToGmail ||
+    isCalendarToSlack ||
     isTypeformToNotion ||
     isAnyTriggerToNotion ||
     (triggerApp === 'schedule' &&
@@ -2417,6 +2760,51 @@ async function buildWorkflow(userId, userEmail, spec) {
       )
     } else if (isGmailToSheets) {
       workflow = buildGmailToSheetsWorkflow(userId, details)
+    } else if (isSheetsToCalendar) {
+      workflow = buildSheetsToCalendarWorkflow(userId, details)
+    } else if (isSheetsToContacts) {
+      workflow = buildPollingContactsWorkflow(
+        userId,
+        details,
+        'Google Sheets → Google Contacts',
+        'sheets_to_contacts'
+      )
+    } else if (isGmailToContacts) {
+      workflow = buildPollingContactsWorkflow(
+        userId,
+        details,
+        'Gmail → Google Contacts',
+        'gmail_to_contacts'
+      )
+    } else if (isScheduleToSheets) {
+      workflow = buildScheduleSheetsWorkflow(userId, details)
+    } else if (isCalendarToGmail) {
+      workflow = buildPollingGmailWorkflow(
+        userId,
+        {
+          ...details,
+          subject: details.subject || 'Upcoming event reminder: {{subject}}',
+          body:
+            details.body ||
+            details.message ||
+            'Reminder: {{subject}} starts soon.\n{{snippet}}',
+        },
+        'Google Calendar → Gmail',
+        'calendar_to_gmail'
+      )
+    } else if (isCalendarToSlack) {
+      workflow = buildPollingSlackWorkflow(
+        userId,
+        {
+          ...details,
+          message:
+            details.message ||
+            details.message_text ||
+            'Upcoming event: {{subject}} — {{snippet}}',
+        },
+        'Google Calendar → Slack',
+        'calendar_to_slack'
+      )
     } else if (isTypeformToNotion) {
       workflow = buildTypeformNotionWorkflow(userId, details)
     } else if (isAnyTriggerToNotion) {

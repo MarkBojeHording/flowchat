@@ -11,10 +11,14 @@ const supabase = createClient(
 
 const googleSheetsPoller = require('./google_sheets')
 const gmailPoller = require('./gmail')
+const googleFormsPoller = require('./google_forms')
+const googleCalendarPoller = require('./google_calendar')
 
 const POLLERS = {
   google_sheets_new_row: googleSheetsPoller,
   gmail_new_email: gmailPoller,
+  google_forms_new_response: googleFormsPoller,
+  google_calendar_upcoming_event: googleCalendarPoller,
 }
 
 async function runPolling() {
@@ -55,7 +59,7 @@ async function pollWorkflow(workflow) {
     return
   }
 
-  const platform = pollType.startsWith('gmail') ? 'google' : 'google'
+  const platform = 'google'
 
   try {
     let result
@@ -109,6 +113,60 @@ async function pollWorkflow(workflow) {
         .from('workflows')
         .update({
           poll_cursor: { history_id: result.newHistoryId },
+          last_polled_at: new Date().toISOString()
+        })
+        .eq('id', workflow.id)
+
+    } else if (pollType === 'google_forms_new_response') {
+      result = await callWithTokenRefresh(workflow.user_id, 'google', async (token) => {
+        return googleFormsPoller.checkNewResponses({
+          formId: config.form_id,
+          lastTimestamp: workflow.poll_cursor?.last_timestamp,
+          accessToken: token
+        })
+      })
+
+      // Get form questions for normalization
+      let questions = workflow.trigger_config?.field_mapping || []
+
+      if (result.newResponses.length > 0) {
+        console.log(`[polling/${workflow.id}] Found ${result.newResponses.length} new Google Form responses`)
+        for (const response of result.newResponses) {
+          const normalized = googleFormsPoller.normalize(response, questions)
+          await triggerWorkflow(workflow, normalized)
+        }
+      }
+
+      await supabase
+        .from('workflows')
+        .update({
+          poll_cursor: { last_timestamp: result.newTimestamp },
+          last_polled_at: new Date().toISOString()
+        })
+        .eq('id', workflow.id)
+
+    } else if (pollType === 'google_calendar_upcoming_event') {
+      result = await callWithTokenRefresh(workflow.user_id, 'google', async (token) => {
+        return googleCalendarPoller.checkUpcomingEvents({
+          calendarId: config.calendar_id || 'primary',
+          minutesBefore: config.minutes_before || 60,
+          processedEventIds: workflow.poll_cursor?.processed_ids || [],
+          accessToken: token
+        })
+      })
+
+      if (result.newEvents.length > 0) {
+        console.log(`[polling/${workflow.id}] Found ${result.newEvents.length} upcoming events`)
+        for (const event of result.newEvents) {
+          const normalized = googleCalendarPoller.normalize(event)
+          await triggerWorkflow(workflow, normalized)
+        }
+      }
+
+      await supabase
+        .from('workflows')
+        .update({
+          poll_cursor: { processed_ids: result.processedEventIds },
           last_polled_at: new Date().toISOString()
         })
         .eq('id', workflow.id)

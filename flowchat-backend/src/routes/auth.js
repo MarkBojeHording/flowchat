@@ -33,6 +33,7 @@ const GOOGLE_OAUTH_SCOPES = [
   'https://www.googleapis.com/auth/calendar',
   'https://www.googleapis.com/auth/contacts',
   'https://www.googleapis.com/auth/documents',
+  'https://www.googleapis.com/auth/forms.responses.readonly',
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
 ]

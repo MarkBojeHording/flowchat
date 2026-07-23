@@ -1,0 +1,26 @@
+GOOGLE FORMS TRIGGER MODULE
+
+Google Forms fires when a new response is submitted.
+Uses polling — checks every 5 minutes for new responses.
+
+SETUP:
+1. Call get_user_resources "google_forms" to list forms.
+   Present as quick reply buttons.
+
+2. User picks a form. Note: Google Forms uses the same 
+   Google connection — no separate OAuth needed.
+
+3. Present the form questions as column headers 
+   (similar to Typeform setup).
+
+4. Ask which action to perform when a new response arrives.
+
+5. Tell the user:
+   "I'll check this form every 5 minutes for new responses.
+   There may be up to a 5-minute delay."
+
+PASS TO build_workflow:
+- trigger_app: "google_forms"  
+- trigger_event: "new_response"
+- details: { form_id, form_name }
+trigger_config includes poll_type: "google_forms_new_response"

@@ -107,9 +107,10 @@ const TOOLS = [
             'google_drive_folders',
             'google_drive_files',
             'gmail_labels',
+            'google_forms',
           ],
           description:
-            'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds. Use notion_schema only after getting database_id from notion_databases. Use google_calendars to list writable Google Calendars. Use google_drive_folders to list Drive folders. Use google_drive_files with optional folder_id. Use gmail_labels for custom Gmail labels.',
+            'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds. Use notion_schema only after getting database_id from notion_databases. Use google_calendars to list writable Google Calendars. Use google_drive_folders to list Drive folders. Use google_drive_files with optional folder_id. Use gmail_labels for custom Gmail labels. Use google_forms to list Google Forms.',
         },
         form_id: {
           type: 'string',
@@ -799,6 +800,26 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         }
 
+        if (app === 'google_forms') {
+          try {
+            const { callWithTokenRefresh } = require('../integrations/core/execute')
+            const googleForms = require('../integrations/polling/google_forms')
+            const forms = await callWithTokenRefresh(userId, 'google', async (token) => {
+              return googleForms.listForms(token)
+            })
+            if (forms.length === 0) {
+              return { result: 'No Google Forms found.' }
+            }
+            return {
+              result: forms.map((f, i) => `${i + 1}. ${f.title} (ID: ${f.id})`).join('\n'),
+              forms
+            }
+          } catch (err) {
+            console.error('google_forms error:', err.message)
+            return { result: 'Could not fetch Google Forms.' }
+          }
+        }
+
         return {
           google_sheets: ['Client Leads', 'New Signups'],
           slack_channels: ['#general', '#team'],
@@ -1088,6 +1109,58 @@ async function executeTool(name, input, userId, automationId = null) {
             console.error('Failed to seed gmail poll cursor:', err.message)
             pollCursor = {}
           }
+        } else if (
+          (triggerApp === 'google_forms' || triggerApp === 'googleforms') &&
+          (triggerEvent === 'new_response' ||
+            triggerEvent === 'newresponse' ||
+            detailsObj.poll_type === 'google_forms_new_response')
+        ) {
+          const webhookNode =
+            workflowData.nodes?.find(
+              (node) =>
+                node.type === 'n8n-nodes-base.webhook' &&
+                node.name !== 'Test Webhook'
+            ) ||
+            workflowData.nodes?.find((node) => node.name === 'Test Webhook')
+          const webhookPath = webhookNode?.parameters?.path
+          if (webhookPath) {
+            webhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${webhookPath}`
+          }
+
+          triggerConfig = {
+            poll_type: 'google_forms_new_response',
+            form_id: detailsObj.form_id || detailsObj.formId,
+            form_name: detailsObj.form_name || detailsObj.formName,
+            field_mapping: detailsObj.field_mapping || detailsObj.fieldMapping || [],
+          }
+          pollCursor = { last_timestamp: new Date().toISOString() }
+        } else if (
+          (triggerApp === 'google_calendar' || triggerApp === 'calendar') &&
+          (triggerEvent === 'upcoming_event' ||
+            triggerEvent === 'upcomingevent' ||
+            detailsObj.poll_type === 'google_calendar_upcoming_event')
+        ) {
+          const webhookNode =
+            workflowData.nodes?.find(
+              (node) =>
+                node.type === 'n8n-nodes-base.webhook' &&
+                node.name !== 'Test Webhook'
+            ) ||
+            workflowData.nodes?.find((node) => node.name === 'Test Webhook')
+          const webhookPath = webhookNode?.parameters?.path
+          if (webhookPath) {
+            webhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${webhookPath}`
+          }
+
+          let minutesBefore = Number(detailsObj.minutes_before || detailsObj.minutesBefore || 60)
+          if (!Number.isFinite(minutesBefore) || minutesBefore <= 0) minutesBefore = 60
+
+          triggerConfig = {
+            poll_type: 'google_calendar_upcoming_event',
+            calendar_id: detailsObj.calendar_id || detailsObj.calendarId || 'primary',
+            minutes_before: minutesBefore,
+          }
+          pollCursor = { processed_ids: [] }
         }
 
         const workflowName = `${userEmail} — ${trigger_app} → ${action_app}`

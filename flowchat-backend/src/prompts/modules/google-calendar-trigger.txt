@@ -1,0 +1,33 @@
+GOOGLE CALENDAR TRIGGER MODULE
+
+Google Calendar fires when an event is about to start.
+Uses polling — checks every 5 minutes.
+
+SETUP:
+1. Google Calendar uses the same connection as Gmail/Sheets.
+   No separate connection needed.
+
+2. Call get_user_resources "google_calendars" to list calendars.
+   If only primary, auto-select.
+
+3. Ask how far in advance to trigger:
+   Present quick reply buttons:
+   - "15 minutes before"
+   - "1 hour before"  
+   - "1 day before"
+   - "Custom"
+
+4. Ask what action to take (send reminder email, Slack message etc).
+
+5. Show summary before building.
+
+COMMON USE CASES:
+- "Send me a Slack message 1 hour before each meeting"
+- "Send attendees a reminder email 24 hours before"
+- "Create a Google Doc agenda 1 hour before each meeting"
+
+PASS TO build_workflow:
+- trigger_app: "google_calendar"
+- trigger_event: "upcoming_event"  
+- details: { calendar_id, minutes_before }
+trigger_config includes poll_type: "google_calendar_upcoming_event"
