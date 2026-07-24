@@ -1623,10 +1623,23 @@ return [{ json: { submitter_name: name, submitter_email: email, subject: replace
 
 /** Sheets → Gmail: build email from column_headers/column_values (no top-level subject/snippet). */
 function buildSheetsToGmailWorkflow(userId, details) {
-  const toOverride = details.to || details.to_email || details.recipient || ''
+  const toAddress = details.to || details.to_email || details.recipient || ''
   const webhookPath = `flowchat-sheets-gmail-${userId}-${Date.now()}`
   const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
   const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  // Build jsCode via join so spaces cannot be lost in nested template literals
+  const jsCode = [
+    'const body = $input.first().json.body || $input.first().json;',
+    'const headers = body.column_headers || [];',
+    'const values = body.column_values || [];',
+    "const emailIdx = headers.findIndex((h) => /email/i.test(String(h || '')));",
+    "const toFromColumns = emailIdx >= 0 ? (values[emailIdx] || '') : '';",
+    `const configuredTo = ${JSON.stringify(toAddress)};`,
+    "const to = configuredTo || body.submitter_email || toFromColumns || '';",
+    "const emailBody = headers.map((h, i) => h + ': ' + (values[i] || '')).join('\\n');",
+    "return [{ json: { to: to, subject: 'New row added to your sheet', emailBody: emailBody } }];",
+  ].join('\n')
 
   const nodes = [
     ...buildWebhookPair(webhookPath, testWebhookPath, 'Webhook Trigger'),
@@ -1637,16 +1650,7 @@ function buildSheetsToGmailWorkflow(userId, details) {
       typeVersion: 2,
       position: [512, 304],
       parameters: {
-        jsCode: `
-const body = $input.first().json.body || $input.first().json;
-const headers = body.column_headers || [];
-const values = body.column_values || [];
-const emailIdx = headers.findIndex((h) => /email/i.test(String(h || '')));
-const toFromColumns = emailIdx >= 0 ? (values[emailIdx] || '') : '';
-const to = ${JSON.stringify(toOverride)} || body.submitter_email || toFromColumns || '';
-const emailBody = headers.map((h, i) => h + ': ' + (values[i] || '')).join('\\n');
-return [{ json: { to, subject: 'New row added to your sheet', emailBody } }];
-`,
+        jsCode,
       },
     },
     {
