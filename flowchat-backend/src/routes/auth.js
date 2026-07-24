@@ -127,7 +127,7 @@ router.get('/slack', (req, res) => {
 
   const params = new URLSearchParams({
     client_id: process.env.SLACK_CLIENT_ID,
-    scope: 'chat:write,channels:read,users:read',
+    scope: 'chat:write,channels:read,groups:read,users:read',
     redirect_uri: process.env.SLACK_REDIRECT_URI,
     response_type: 'code',
     state: userId || ''
