@@ -474,9 +474,11 @@ async function executeTool(name, input, userId, automationId = null) {
             return { error: 'Slack not connected' }
           }
 
-          const response = await axios.get(
-            'https://slack.com/api/conversations.list',
-            {
+          const url = 'https://slack.com/api/conversations.list'
+          console.log('[slack] Calling:', url)
+
+          try {
+            const response = await axios.get(url, {
               headers: {
                 Authorization: `Bearer ${slackAccount.access_token}`,
               },
@@ -484,19 +486,26 @@ async function executeTool(name, input, userId, automationId = null) {
                 limit: 50,
                 types: 'public_channel,private_channel',
               },
+            })
+
+            console.log('Slack API response:', response.data.ok, response.data.error)
+            if (!response.data.ok) {
+              console.error('[slack] Full error:', JSON.stringify(response.data))
             }
-          )
 
-          console.log('Slack API response:', response.data.ok, response.data.error)
+            if (response.data.ok) {
+              const channels = response.data.channels
+                .filter((c) => !c.is_archived)
+                .map((c) => `#${c.name}`)
+              return { slack_channels: channels }
+            }
 
-          if (response.data.ok) {
-            const channels = response.data.channels
-              .filter((c) => !c.is_archived)
-              .map((c) => `#${c.name}`)
-            return { slack_channels: channels }
-          }
-
-          if (!response.data.ok) {
+            return {
+              slack_channels: [],
+              note: 'Could not fetch channels automatically. Ask the user to type their channel name manually.',
+            }
+          } catch (err) {
+            console.error('[slack] Full error:', JSON.stringify(err.response?.data))
             return {
               slack_channels: [],
               note: 'Could not fetch channels automatically. Ask the user to type their channel name manually.',
