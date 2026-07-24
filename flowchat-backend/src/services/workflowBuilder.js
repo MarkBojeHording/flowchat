@@ -493,14 +493,15 @@ function buildTypeformCalendarWorkflow(userId, details) {
       parameters: {
         jsCode: `
 const body = $input.first().json.body || $input.first().json;
-const name = body.submitter_name || '';
-const email = body.submitter_email || '';
-const phone = (() => {
-  const headers = body.column_headers || [];
-  const values = body.column_values || [];
-  const idx = headers.findIndex((h) => /phone/i.test(String(h || '')));
+const headers = body.column_headers || [];
+const values = body.column_values || [];
+const byHeader = (re) => {
+  const idx = headers.findIndex((h) => re.test(String(h || '')));
   return idx >= 0 ? (values[idx] || '') : '';
-})();
+};
+const name = body.submitter_name || byHeader(/name/i) || '';
+const email = body.submitter_email || byHeader(/email/i) || '';
+const phone = byHeader(/phone/i);
 const submittedAt = body.submitted_at || new Date().toISOString();
 const start = new Date(submittedAt);
 const end = new Date(start.getTime() + ${durationMinutes} * 60 * 1000);
@@ -510,9 +511,11 @@ summary = summary
   .replace(/\\{\\{name\\}\\}/gi, name || 'Unknown')
   .replace(/\\{\\{email\\}\\}/gi, email || '');
 
-const descriptionParts = [];
-if (email) descriptionParts.push('Email: ' + email);
-if (phone) descriptionParts.push('Phone: ' + phone);
+const descriptionParts = headers.map((h, i) => h + ': ' + (values[i] || ''));
+if (!descriptionParts.length) {
+  if (email) descriptionParts.push('Email: ' + email);
+  if (phone) descriptionParts.push('Phone: ' + phone);
+}
 
 return [{
   json: {
@@ -701,20 +704,16 @@ function buildTypeformContactsWorkflow(userId, details) {
       parameters: {
         jsCode: `
 const body = $input.first().json.body || $input.first().json;
-const name = body.submitter_name || '';
-const email = body.submitter_email || '';
-const phone = (() => {
-  const headers = body.column_headers || [];
-  const values = body.column_values || [];
-  const idx = headers.findIndex((h) => /phone/i.test(String(h || '')));
+const headers = body.column_headers || [];
+const values = body.column_values || [];
+const byHeader = (re) => {
+  const idx = headers.findIndex((h) => re.test(String(h || '')));
   return idx >= 0 ? (values[idx] || '') : '';
-})();
-const company = (() => {
-  const headers = body.column_headers || [];
-  const values = body.column_values || [];
-  const idx = headers.findIndex((h) => /company|organization|business/i.test(String(h || '')));
-  return idx >= 0 ? (values[idx] || '') : '';
-})();
+};
+const name = body.submitter_name || byHeader(/name/i) || '';
+const email = body.submitter_email || byHeader(/email/i) || '';
+const phone = byHeader(/phone/i);
+const company = byHeader(/company|organization|business/i);
 
 const parts = String(name || '').trim().split(/\\s+/).filter(Boolean);
 const givenName = parts[0] || name || 'Unknown';
@@ -1096,30 +1095,27 @@ function buildTypeformDocsWorkflow(userId, details) {
     {
       id: 'set-data',
       name: 'Set Submission Data',
-      type: 'n8n-nodes-base.set',
-      typeVersion: 1,
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
       position: [512, 304],
       parameters: {
-        values: {
-          string: [
-            {
-              name: 'submitter_name',
-              value:
-                '={{ $json.body?.submitter_name || $json.submitter_name || "" }}',
-            },
-            {
-              name: 'submitter_email',
-              value:
-                '={{ $json.body?.submitter_email || $json.submitter_email || "" }}',
-            },
-            {
-              name: 'submitted_at',
-              value:
-                '={{ $json.body?.submitted_at || $json.submitted_at || new Date().toISOString() }}',
-            },
-          ],
-        },
-        options: {},
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const headers = body.column_headers || [];
+const values = body.column_values || [];
+const name = body.submitter_name || '';
+const email = body.submitter_email || '';
+const submittedAt = body.submitted_at || new Date().toISOString();
+const answersHtml = headers.map((h, i) => '<p><strong>' + String(h || '') + ':</strong> ' + String(values[i] || '') + '</p>').join('');
+return [{
+  json: {
+    submitter_name: name,
+    submitter_email: email,
+    submitted_at: submittedAt,
+    answers_html: answersHtml,
+  }
+}];
+`,
       },
     },
     {
@@ -1162,7 +1158,7 @@ function buildTypeformDocsWorkflow(userId, details) {
         },
         sendBody: true,
         specifyBody: 'string',
-        body: `=--flowchat_boundary\r\nContent-Type: application/json\r\n\r\n{"name":"${safeDocTitle} - {{ $('Set Submission Data').item.json.submitter_name }}","mimeType":"application/vnd.google-apps.document"}\r\n--flowchat_boundary\r\nContent-Type: text/html\r\n\r\n<h1>${safeDocTitle}</h1><p>Submitted by: {{ $('Set Submission Data').item.json.submitter_name }}</p><p>Email: {{ $('Set Submission Data').item.json.submitter_email }}</p><p>Date: {{ $('Set Submission Data').item.json.submitted_at }}</p>\r\n--flowchat_boundary--`,
+        body: `=--flowchat_boundary\r\nContent-Type: application/json\r\n\r\n{"name":"${safeDocTitle} - {{ $('Set Submission Data').item.json.submitter_name }}","mimeType":"application/vnd.google-apps.document"}\r\n--flowchat_boundary\r\nContent-Type: text/html\r\n\r\n<h1>${safeDocTitle}</h1><p>Submitted by: {{ $('Set Submission Data').item.json.submitter_name }}</p><p>Email: {{ $('Set Submission Data').item.json.submitter_email }}</p><p>Date: {{ $('Set Submission Data').item.json.submitted_at }}</p>{{ $('Set Submission Data').item.json.answers_html }}\r\n--flowchat_boundary--`,
         options: {},
       },
     },
@@ -1625,6 +1621,87 @@ return [{ json: { submitter_name: name, submitter_email: email, subject: replace
   }
 }
 
+/** Sheets → Gmail: build email from column_headers/column_values (no top-level subject/snippet). */
+function buildSheetsToGmailWorkflow(userId, details) {
+  const toOverride = details.to || details.to_email || details.recipient || ''
+  const webhookPath = `flowchat-sheets-gmail-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    ...buildWebhookPair(webhookPath, testWebhookPath, 'Webhook Trigger'),
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const headers = body.column_headers || [];
+const values = body.column_values || [];
+const emailIdx = headers.findIndex((h) => /email/i.test(String(h || '')));
+const toFromColumns = emailIdx >= 0 ? (values[emailIdx] || '') : '';
+const to = ${JSON.stringify(toOverride)} || body.submitter_email || toFromColumns || '';
+const emailBody = headers.map((h, i) => h + ': ' + (values[i] || '')).join('\\n');
+return [{ json: { to, subject: 'New row added to your sheet', emailBody } }];
+`,
+      },
+    },
+    {
+      id: 'fetch-google-creds',
+      name: 'Fetch Google Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/google`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'send-gmail',
+      name: 'Send Gmail',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Google Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ (() => { const to = $("Set Submission Data").item.json.to; const subject = $("Set Submission Data").item.json.subject; const body = $("Set Submission Data").item.json.emailBody; const raw = ["To: " + to, "Subject: " + subject, "Content-Type: text/plain; charset=utf-8", "MIME-Version: 1.0", "", body].join("\\n"); const encoded = Buffer.from(raw).toString("base64").replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, ""); return JSON.stringify({ raw: encoded }); })() }}`,
+        options: {},
+      },
+    },
+    ...buildNotifyRespondNodes(userId, backendUrl, 'sheets_to_gmail', 'Send Gmail'),
+  ]
+
+  return {
+    humanName: 'Google Sheets → Gmail',
+    nodes,
+    connections: wireWebhookFlow('Webhook Trigger', 'Fetch Google Credentials', 'Send Gmail'),
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
 function buildPollingSlackWorkflow(userId, details, humanName, detailsType) {
   const channel = details.channel || details.slack_channel || '#general'
   const messageTemplate =
@@ -1704,6 +1781,164 @@ return [{ json: { text } }];
 
   return {
     humanName,
+    nodes,
+    connections: wireWebhookFlow('Webhook Trigger', 'Fetch Slack Credentials', 'Send Slack Message'),
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
+/** Sheets → Slack: message built from column_headers/column_values. */
+function buildSheetsToSlackWorkflow(userId, details) {
+  const channel = details.channel || details.slack_channel || '#general'
+  const webhookPath = `flowchat-sheets-slack-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    ...buildWebhookPair(webhookPath, testWebhookPath, 'Webhook Trigger'),
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const headers = body.column_headers || [];
+const values = body.column_values || [];
+const lines = headers.map((h, i) => h + ': ' + (values[i] || '')).join('\\n');
+return [{ json: { text: 'New row added:\\n' + lines, slackMessage: 'New row added:\\n' + lines } }];
+`,
+      },
+    },
+    {
+      id: 'fetch-slack-creds',
+      name: 'Fetch Slack Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/slack`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'send-slack',
+      name: 'Send Slack Message',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://slack.com/api/chat.postMessage',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Slack Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ channel: ${JSON.stringify(channel)}, text: $("Set Submission Data").item.json.slackMessage || $("Set Submission Data").item.json.text }) }}`,
+        options: {},
+      },
+    },
+    ...buildNotifyRespondNodes(userId, backendUrl, 'sheets_to_slack', 'Send Slack Message'),
+  ]
+
+  return {
+    humanName: 'Google Sheets → Slack',
+    nodes,
+    connections: wireWebhookFlow('Webhook Trigger', 'Fetch Slack Credentials', 'Send Slack Message'),
+    webhookPath,
+    testWebhookPath,
+  }
+}
+
+/** Gmail → Slack: subject/snippet live in column_values[2]/[3], not top-level. */
+function buildGmailToSlackWorkflow(userId, details) {
+  const channel = details.channel || details.slack_channel || '#general'
+  const webhookPath = `flowchat-gmail-slack-${userId}-${Date.now()}`
+  const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
+  const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const nodes = [
+    ...buildWebhookPair(webhookPath, testWebhookPath, 'Webhook Trigger'),
+    {
+      id: 'set-data',
+      name: 'Set Submission Data',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [512, 304],
+      parameters: {
+        jsCode: `
+const body = $input.first().json.body || $input.first().json;
+const values = body.column_values || [];
+const fromName = values[1] || body.submitter_name || 'someone';
+const subject = values[2] || body.raw?.subject || '';
+const snippet = values[3] || body.raw?.snippet || '';
+const slackMessage = 'New email from ' + fromName + ':\\n' + subject + '\\n' + snippet;
+return [{ json: { text: slackMessage, slackMessage } }];
+`,
+      },
+    },
+    {
+      id: 'fetch-slack-creds',
+      name: 'Fetch Slack Credentials',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [768, 304],
+      parameters: {
+        url: `${backendUrl}/api/auth/credentials/${userId}/slack`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: getInternalApiKey() }],
+        },
+        options: {},
+      },
+    },
+    {
+      id: 'send-slack',
+      name: 'Send Slack Message',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1024, 304],
+      parameters: {
+        method: 'POST',
+        url: 'https://slack.com/api/chat.postMessage',
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'Authorization',
+              value: '=Bearer {{ $("Fetch Slack Credentials").item.json.access_token }}',
+            },
+            { name: 'Content-Type', value: 'application/json' },
+          ],
+        },
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ channel: ${JSON.stringify(channel)}, text: $("Set Submission Data").item.json.slackMessage || $("Set Submission Data").item.json.text }) }}`,
+        options: {},
+      },
+    },
+    ...buildNotifyRespondNodes(userId, backendUrl, 'gmail_to_slack', 'Send Slack Message'),
+  ]
+
+  return {
+    humanName: 'Gmail → Slack',
     nodes,
     connections: wireWebhookFlow('Webhook Trigger', 'Fetch Slack Credentials', 'Send Slack Message'),
     webhookPath,
@@ -1794,11 +2029,18 @@ function buildSheetsToCalendarWorkflow(userId, details) {
       parameters: {
         jsCode: `
 const body = $input.first().json.body || $input.first().json;
-const name = body.submitter_name || '';
-const email = body.submitter_email || '';
-const submittedAt = body.submitted_at || new Date().toISOString();
-const start = new Date(submittedAt);
-const end = new Date(start.getTime() + ${durationMinutes} * 60 * 1000);
+const headers = body.column_headers || [];
+const values = body.column_values || [];
+const byHeader = (re) => {
+  const idx = headers.findIndex((h) => re.test(String(h || '')));
+  return idx >= 0 ? (values[idx] || '') : '';
+};
+const name = byHeader(/name/i) || body.submitter_name || values[0] || 'Unknown';
+const email = byHeader(/email/i) || body.submitter_email || '';
+const dateRaw = byHeader(/date|start|when/i) || body.submitted_at || new Date().toISOString();
+const start = new Date(dateRaw);
+const validStart = Number.isNaN(start.getTime()) ? new Date() : start;
+const end = new Date(validStart.getTime() + ${durationMinutes} * 60 * 1000);
 let summary = ${JSON.stringify(titleTemplate)};
 summary = summary
   .replace(/\\{\\{submitter_name\\}\\}/gi, name || 'Unknown')
@@ -1807,8 +2049,8 @@ summary = summary
 return [{
   json: {
     summary,
-    description: (body.column_headers || []).map((h, i) => h + ': ' + ((body.column_values || [])[i] || '')).join('\\n'),
-    startDateTime: start.toISOString(),
+    description: headers.map((h, i) => h + ': ' + (values[i] || '')).join('\\n'),
+    startDateTime: validStart.toISOString(),
     endDateTime: end.toISOString(),
     timezone: ${JSON.stringify(timezone)},
     invite_email: email || '',
@@ -1877,10 +2119,51 @@ return [{
   }
 }
 
-function buildPollingContactsWorkflow(userId, details, humanName, detailsType) {
+function buildPollingContactsWorkflow(userId, details, humanName, detailsType, options = {}) {
+  const fromSheets = options.fromSheets === true
   const webhookPath = `flowchat-poll-contacts-${userId}-${Date.now()}`
   const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
   const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
+
+  const sheetsSetCode = `
+const body = $input.first().json.body || $input.first().json;
+const headers = body.column_headers || [];
+const values = body.column_values || [];
+const nameIdx = headers.findIndex((h) => /name/i.test(String(h || '')));
+const emailIdx = headers.findIndex((h) => /email/i.test(String(h || '')));
+const contactName = nameIdx >= 0
+  ? (values[nameIdx] || '')
+  : (body.submitter_name || 'Unknown');
+const contactEmail = emailIdx >= 0
+  ? (values[emailIdx] || '')
+  : (body.submitter_email || '');
+const parts = String(contactName || '').trim().split(/\\s+/).filter(Boolean);
+return [{
+  json: {
+    contactName: contactName || 'Unknown',
+    contactEmail,
+    givenName: parts[0] || contactName || 'Unknown',
+    familyName: parts.slice(1).join(' ') || '',
+    submitter_email: contactEmail,
+  }
+}];
+`
+
+  const gmailSetCode = `
+const body = $input.first().json.body || $input.first().json;
+const name = body.submitter_name || '';
+const email = body.submitter_email || '';
+const parts = String(name || '').trim().split(/\\s+/).filter(Boolean);
+return [{
+  json: {
+    contactName: name || 'Unknown',
+    contactEmail: email,
+    givenName: parts[0] || name || 'Unknown',
+    familyName: parts.slice(1).join(' ') || '',
+    submitter_email: email,
+  }
+}];
+`
 
   const nodes = [
     ...buildWebhookPair(webhookPath, testWebhookPath, 'Webhook Trigger'),
@@ -1891,19 +2174,7 @@ function buildPollingContactsWorkflow(userId, details, humanName, detailsType) {
       typeVersion: 2,
       position: [512, 304],
       parameters: {
-        jsCode: `
-const body = $input.first().json.body || $input.first().json;
-const name = body.submitter_name || '';
-const email = body.submitter_email || '';
-const parts = String(name || '').trim().split(/\\s+/).filter(Boolean);
-return [{
-  json: {
-    givenName: parts[0] || name || 'Unknown',
-    familyName: parts.slice(1).join(' ') || '',
-    submitter_email: email,
-  }
-}];
-`,
+        jsCode: fromSheets ? sheetsSetCode : gmailSetCode,
       },
     },
     {
@@ -1945,7 +2216,9 @@ return [{
         specifyBody: 'json',
         jsonBody: `={{ JSON.stringify({
   names: [{ givenName: $("Set Submission Data").item.json.givenName, familyName: $("Set Submission Data").item.json.familyName }],
-  emailAddresses: $("Set Submission Data").item.json.submitter_email ? [{ value: $("Set Submission Data").item.json.submitter_email }] : []
+  emailAddresses: ($("Set Submission Data").item.json.contactEmail || $("Set Submission Data").item.json.submitter_email)
+    ? [{ value: $("Set Submission Data").item.json.contactEmail || $("Set Submission Data").item.json.submitter_email }]
+    : []
 }) }}`,
         options: {},
       },
@@ -2286,7 +2559,8 @@ function buildTypeformNotionWorkflow(userId, details) {
   const fieldMapping = rawMapping.map((f, i) => {
     const rawId = f.typeform_id || f.id || f.sourceField || `idx_${i}`
     return {
-      typeform_id: String(rawId).replace(/[^a-zA-Z0-9_]/g, '_'),
+      typeform_id: String(rawId),
+      safe_id: String(rawId).replace(/[^a-zA-Z0-9_]/g, '_'),
       notion_field: f.notion_field || f.notionColumn || f.name,
       notion_type: f.notion_type || f.notionType || 'rich_text',
     }
@@ -2296,22 +2570,8 @@ function buildTypeformNotionWorkflow(userId, details) {
   const testWebhookPath = `flowchat-test-${userId}-${Date.now() + 1}`
   const backendUrl = (process.env.BACKEND_URL || N8N_BACKEND_URL).replace(/\/$/, '')
 
-  const assignments = fieldMapping.map((f, i) => ({
-    id: `field-${f.typeform_id}`,
-    name: `field_${f.typeform_id}`,
-    value: `={{ $json.body?.column_values?.[${i}] || $json.column_values?.[${i}] || '' }}`,
-    type: 'string',
-  }))
-
-  assignments.unshift({
-    id: 'submitted-at',
-    name: 'submitted_at',
-    value: '={{ $json.body?.submitted_at || $json.submitted_at || new Date().toISOString() }}',
-    type: 'string',
-  })
-
   const notionPropertiesJs = fieldMapping.map((f) => {
-    const fieldRef = `$('Set Submission Data').item.json.field_${f.typeform_id}`
+    const fieldRef = `$('Set Submission Data').item.json.field_${f.safe_id}`
     const key = JSON.stringify(f.notion_field)
     if (f.notion_type === 'title') {
       return `${key}: { title: [{ text: { content: String(${fieldRef} || '') } }] }`
@@ -2349,17 +2609,50 @@ function buildTypeformNotionWorkflow(userId, details) {
     {
       id: 'set-data',
       name: 'Set Submission Data',
-      type: 'n8n-nodes-base.set',
-      typeVersion: 1,
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
       position: [512, 304],
       parameters: {
-        values: {
-          string: assignments.map((a) => ({
-            name: a.name,
-            value: a.value,
-          })),
-        },
-        options: {},
+        jsCode: `
+const extractAnswer = (answer) => {
+  if (!answer) return '';
+  switch (answer.type) {
+    case 'text': return answer.text || '';
+    case 'email': return answer.email || '';
+    case 'phone_number': return answer.phone_number || '';
+    case 'number': return answer.number != null ? String(answer.number) : '';
+    case 'boolean': return answer.boolean === true ? 'Yes' : answer.boolean === false ? 'No' : '';
+    case 'choice': return answer.choice?.label || answer.choice?.other || '';
+    case 'choices': return answer.choices?.labels?.join(', ') || answer.choices?.other || '';
+    case 'date': return answer.date || '';
+    case 'file_url': return answer.file_url || '';
+    case 'url': return answer.url || '';
+    default:
+      return answer.text || answer.email || answer.phone_number ||
+        (answer.number != null ? String(answer.number) : '') ||
+        answer.choice?.label || answer.choices?.labels?.join(', ') ||
+        answer.date || answer.file_url || answer.url || '';
+  }
+};
+
+const body = $input.first().json.body || $input.first().json;
+const answersMap = body.answers_map || {};
+const mapping = ${JSON.stringify(fieldMapping)};
+const out = {
+  submitted_at: body.submitted_at || new Date().toISOString(),
+};
+
+mapping.forEach((f, i) => {
+  const answer = answersMap[f.typeform_id];
+  let val = extractAnswer(answer);
+  if (!val && Array.isArray(body.column_values)) {
+    val = body.column_values[i] || '';
+  }
+  out['field_' + f.safe_id] = val;
+});
+
+return [{ json: out }];
+`,
       },
     },
     {
@@ -2738,26 +3031,11 @@ async function buildWorkflow(userId, userEmail, spec) {
     } else if (isTypeformToSlack) {
       workflow = buildTypeformSlackWorkflow(userId, details)
     } else if (isSheetsToGmail) {
-      workflow = buildPollingGmailWorkflow(
-        userId,
-        details,
-        'Google Sheets → Gmail',
-        'sheets_to_gmail'
-      )
+      workflow = buildSheetsToGmailWorkflow(userId, details)
     } else if (isSheetsToSlack) {
-      workflow = buildPollingSlackWorkflow(
-        userId,
-        details,
-        'Google Sheets → Slack',
-        'sheets_to_slack'
-      )
+      workflow = buildSheetsToSlackWorkflow(userId, details)
     } else if (isGmailToSlack) {
-      workflow = buildPollingSlackWorkflow(
-        userId,
-        details,
-        'Gmail → Slack',
-        'gmail_to_slack'
-      )
+      workflow = buildGmailToSlackWorkflow(userId, details)
     } else if (isGmailToSheets) {
       workflow = buildGmailToSheetsWorkflow(userId, details)
     } else if (isSheetsToCalendar) {
@@ -2767,7 +3045,8 @@ async function buildWorkflow(userId, userEmail, spec) {
         userId,
         details,
         'Google Sheets → Google Contacts',
-        'sheets_to_contacts'
+        'sheets_to_contacts',
+        { fromSheets: true }
       )
     } else if (isGmailToContacts) {
       workflow = buildPollingContactsWorkflow(
