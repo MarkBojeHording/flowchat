@@ -1,4 +1,5 @@
 const N8N_BACKEND_URL = 'https://flowchat-production-376f.up.railway.app'
+const { buildGenericWorkflow } = require('./workflow-generator/node-builder')
 
 function getInternalApiKey() {
   return process.env.INTERNAL_API_KEY || ''
@@ -2886,8 +2887,27 @@ async function buildWorkflow(userId, userEmail, spec) {
   const triggerApp = trigger_app?.toLowerCase().replace(/\s+/g, '_')
   const actionApp = action_app?.toLowerCase().replace(/\s+/g, '_')
   const actionEvent = normalizeActionEvent(action_event)
+  const workflowName = `${userEmail} — ${trigger_app} → ${action_app}`
 
   console.log('Template check:', triggerApp, actionApp, actionEvent)
+
+  // Try generic generator first for supported pairs.
+  const genericResult = buildGenericWorkflow({
+    userId,
+    triggerApp,
+    actionApp,
+    details,
+    workflowName,
+  })
+  if (genericResult) {
+    console.log(
+      `[workflow-generator] Using generic config for ${triggerApp} -> ${actionApp}`
+    )
+    return genericResult
+  }
+  console.log(
+    `[workflow-generator] No generic config for ${triggerApp} -> ${actionApp}, falling back to hardcoded template`
+  )
 
   const isTypeformToSheets =
     triggerApp === 'typeform' &&
