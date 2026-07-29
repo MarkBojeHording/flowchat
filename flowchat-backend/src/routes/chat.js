@@ -3436,4 +3436,89 @@ router.patch('/automations/:id/pause', async (req, res) => {
   }
 })
 
+// POST /api/chat/build_workflow_direct
+// Testing-only endpoint — bypasses the agent conversation
+// and calls buildWorkflow + n8n create/activate directly. Internal API key required.
+router.post('/build_workflow_direct', async (req, res) => {
+  const apiKey = req.headers['x-api-key']
+  if (apiKey !== process.env.INTERNAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const {
+    userId,
+    triggerApp,
+    triggerEvent,
+    actionApp,
+    actionEvent,
+    details,
+    name,
+  } = req.body
+
+  if (!userId || !triggerApp || !actionApp) {
+    return res
+      .status(400)
+      .json({ error: 'userId, triggerApp, actionApp required' })
+  }
+
+  try {
+    const { buildWorkflow } = require('../services/workflowBuilder')
+    const { createWorkflow, activateWorkflow } = require('../services/n8n')
+
+    const { data: userData } = await supabase.auth.admin.getUserById(userId)
+    const userEmail = userData?.user?.email || userId
+
+    const workflowName =
+      name || `TEST — ${userId} — ${triggerApp} → ${actionApp}`
+
+    // Same signature as the build_workflow tool handler:
+    // buildWorkflow(userId, userEmail, { trigger_app, ... })
+    const { workflow: workflowData, testWebhookPath } = await buildWorkflow(
+      userId,
+      userEmail,
+      {
+        trigger_app: triggerApp,
+        trigger_event: triggerEvent || 'default',
+        action_app: actionApp,
+        action_event: actionEvent || 'default',
+        details: details || {},
+      }
+    )
+
+    if (workflowName) {
+      workflowData.name = workflowName
+    }
+
+    // Same n8n creation path as the build_workflow tool
+    const created = await createWorkflow(workflowData)
+    await activateWorkflow(created.id)
+
+    const n8nBase = (process.env.N8N_BASE_URL || '').replace(/\/$/, '')
+    const testWebhookUrl = testWebhookPath
+      ? `${n8nBase}/webhook/${testWebhookPath}`
+      : null
+
+    const productionWebhookNode = workflowData.nodes?.find(
+      (node) =>
+        node.type === 'n8n-nodes-base.webhook' && node.name !== 'Test Webhook'
+    )
+    const productionWebhookUrl = productionWebhookNode?.parameters?.path
+      ? `${n8nBase}/webhook/${productionWebhookNode.parameters.path}`
+      : null
+
+    res.json({
+      success: true,
+      n8nWorkflowId: created.id,
+      name: created.name || workflowData.name,
+      testWebhookUrl,
+      productionWebhookUrl,
+      nodeNames: (workflowData.nodes || []).map((n) => n.name),
+      workflowDef: workflowData,
+    })
+  } catch (err) {
+    console.error('[build_workflow_direct] Error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 module.exports = router
