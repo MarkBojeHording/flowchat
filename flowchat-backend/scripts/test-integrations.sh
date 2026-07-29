@@ -87,32 +87,59 @@ except Exception as e:
 echo "Starting integration test suite..."
 echo "User: $USER_ID"
 
-# Test 1: Sheets -> Gmail
+# Test: Typeform -> Google Sheets (core path)
+run_test "typeform" "google_sheets" \
+  '{"form_id":"HPExk4sV","sheet_id":"1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8","sheet_tab":"Sheet1","field_mapping":[{"id":"61iCXR1UZZgI","title":"Full Name","type":"short_text"},{"id":"su7xFSJfwNKw","title":"Email Address","type":"email"}]}' \
+  '{"form_response":{"form_id":"HPExk4sV","submitted_at":"2026-07-29T18:00:00Z","answers":[{"type":"text","field":{"id":"61iCXR1UZZgI"},"text":"Test Beta User"},{"type":"email","field":{"id":"su7xFSJfwNKw"},"email":"betauser@example.com"}]}}'
+
+# Test: Typeform -> Gmail (core path)
+run_test "typeform" "gmail" \
+  '{"form_id":"HPExk4sV","to":"markhording@gmail.com","subject":"New form submission"}' \
+  '{"form_response":{"form_id":"HPExk4sV","submitted_at":"2026-07-29T18:00:00Z","answers":[{"type":"text","field":{"id":"61iCXR1UZZgI"},"text":"Test Beta User"},{"type":"email","field":{"id":"su7xFSJfwNKw"},"email":"betauser@example.com"}]}}'
+
+# Test: Schedule -> Slack (core path)
+run_test "schedule" "slack" \
+  '{"channel_id":"#general","message":"Weekly reminder test","cron_expression":"0 9 * * 1"}' \
+  '{}'
+
+# Test: Schedule -> Gmail (core path)
+run_test "schedule" "gmail" \
+  '{"to":"markhording@gmail.com","subject":"Weekly reminder","body":"This is your scheduled reminder","cron_expression":"0 9 * * 1"}' \
+  '{}'
+
+# Test: Sheets -> Gmail (generator)
 run_test "google_sheets" "gmail" \
   '{"to":"markhording@gmail.com","subject":"Test Sheet Row"}' \
   '{"column_headers":["Name","Email"],"column_values":["Test Person","test@example.com"]}'
 
-# Test 2: Sheets -> Slack
+# Test: Sheets -> Slack (generator)
 run_test "google_sheets" "slack" \
   '{"channel_id":"#general"}' \
   '{"column_headers":["Name","Email"],"column_values":["Test Person","test@example.com"]}'
 
-# Test 3: Gmail -> Slack
+# Test: Gmail -> Slack (generator)
 run_test "gmail" "slack" \
   '{"channel_id":"#general"}' \
   '{"column_values":["sender@example.com","John Sender","Test Subject","Test preview text"]}'
 
-# Test 4: Sheets -> Contacts
+# Test: Sheets -> Contacts (generator)
 run_test "google_sheets" "google_contacts" \
   '{}' \
   '{"column_headers":["Name","Email"],"column_values":["Jane Contact","jane@example.com"]}'
 
 echo ""
 echo "===================================="
-echo "SUMMARY"
+echo "SUMMARY — CORE PATHS (must be 100% before beta)"
 echo "===================================="
-for r in "${RESULTS[@]}"; do
-  echo "$r"
+for i in 0 1 2 3; do
+  echo "${RESULTS[$i]}"
 done
 echo ""
-echo "Passed: $PASS / $((PASS+FAIL))"
+echo "===================================="
+echo "SUMMARY — EXTENDED INTEGRATIONS"
+echo "===================================="
+for i in 4 5 6 7; do
+  echo "${RESULTS[$i]}"
+done
+echo ""
+echo "Total passed: $PASS / $((PASS+FAIL))"
