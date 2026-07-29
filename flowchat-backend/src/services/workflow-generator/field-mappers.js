@@ -18,4 +18,11 @@ module.exports = {
         ? `${JSON.stringify(details.body_template)} + "\\n\\n" + ${GENERIC_COLUMN_SUMMARY}`
         : GENERIC_COLUMN_SUMMARY,
   },
+
+  'google_sheets->slack': {
+    message: (details) =>
+      details.message_template
+        ? `${JSON.stringify(details.message_template)} + "\\n\\n" + ${GENERIC_COLUMN_SUMMARY}`
+        : `'New row added:\\n' + ${GENERIC_COLUMN_SUMMARY}`,
+  },
 }

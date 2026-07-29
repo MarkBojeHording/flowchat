@@ -119,7 +119,9 @@ function buildGenericWorkflow({
         },
         sendBody: true,
         specifyBody: 'json',
-        jsonBody: actionConfig.jsonBody(details.channel_id || ''),
+        jsonBody: actionConfig.jsonBody(
+          details.channel_id || details.channel || details.slack_channel || ''
+        ),
         options: {},
       },
     })
