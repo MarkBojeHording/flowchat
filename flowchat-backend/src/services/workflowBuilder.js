@@ -82,7 +82,7 @@ function testWebhookNode(testWebhookPath) {
     position: [250, 500],
     parameters: {
       path: testWebhookPath,
-      httpMethod: 'GET',
+      httpMethod: 'POST',
       responseMode: 'onReceived',
       responseData: 'firstEntryJson',
     },
@@ -195,6 +195,7 @@ function buildScheduleSlackWorkflow(userId, details) {
       position: [256, 512],
       webhookId: testWebhookPath,
       parameters: {
+        httpMethod: 'POST',
         path: testWebhookPath,
         responseMode: 'responseNode',
         options: {}
@@ -2808,6 +2809,7 @@ function buildScheduleGmailWorkflow(userId, details) {
       position: [256, 512],
       webhookId: testWebhookPath,
       parameters: {
+        httpMethod: 'POST',
         path: testWebhookPath,
         responseMode: 'responseNode',
         options: {}
