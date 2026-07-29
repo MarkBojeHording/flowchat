@@ -174,6 +174,26 @@ function buildScheduleSlackWorkflow(userId, details) {
   const channel = details.channel || details.slack_channel || '#general'
   const message = details.message || details.reminder_message || details.message_text || 'Reminder from Flowchat'
 
+  const testWebhookNodeDef = {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [256, 512],
+      webhookId: testWebhookPath,
+      parameters: {
+        httpMethod: 'POST',
+        path: testWebhookPath,
+        responseMode: 'responseNode',
+        options: {}
+      }
+    }
+
+  console.log(
+    '[DEBUG] Building schedule->slack, function: buildScheduleSlackWorkflow, httpMethod check:',
+    JSON.stringify(testWebhookNodeDef)
+  )
+
   const nodes = [
     {
       id: 'schedule-trigger',
@@ -187,20 +207,7 @@ function buildScheduleSlackWorkflow(userId, details) {
         }
       }
     },
-    {
-      id: 'test-webhook',
-      name: 'Test Webhook',
-      type: 'n8n-nodes-base.webhook',
-      typeVersion: 2,
-      position: [256, 512],
-      webhookId: testWebhookPath,
-      parameters: {
-        httpMethod: 'POST',
-        path: testWebhookPath,
-        responseMode: 'responseNode',
-        options: {}
-      }
-    },
+    testWebhookNodeDef,
     {
       id: 'fetch-slack-creds',
       name: 'Fetch Slack Credentials',
@@ -3041,6 +3048,11 @@ async function buildWorkflow(userId, userEmail, spec) {
     let workflow
 
     if (triggerApp === 'schedule' && actionApp === 'slack') {
+      console.log(
+        '[DEBUG] schedule->slack hasTemplate=true, actionEvent=',
+        actionEvent,
+        '→ calling buildScheduleSlackWorkflow'
+      )
       workflow = buildScheduleSlackWorkflow(userId, details)
     } else if (isTypeformToSheets) {
       workflow = buildTypeformSheetsWorkflow(userId, details)
@@ -3139,6 +3151,15 @@ async function buildWorkflow(userId, userEmail, spec) {
     action_app,
     '— using Builder Agent'
   )
+  if (triggerApp === 'schedule' && actionApp === 'slack') {
+    console.log(
+      '[DEBUG] Building schedule->slack, function: Builder Agent (NOT buildScheduleSlackWorkflow).',
+      'hasTemplate was false because actionEvent=',
+      JSON.stringify(actionEvent),
+      '(template requires actionEvent === "send_message").',
+      'build_workflow_direct defaults actionEvent to "default" when omitted.'
+    )
+  }
   const { buildWorkflowWithAI } = require('./builderAgent')
   return await buildWorkflowWithAI(userId, userEmail, spec)
 }
