@@ -22,6 +22,16 @@ function normalizeActionEvent(event) {
   return aliases[compact] || normalized
 }
 
+// Accept empty/omitted/"default" so build_workflow_direct and partial
+// agent calls still hit tested hardcoded templates instead of AI fallback.
+function matchesActionEvent(actionEvent, expected) {
+  return (
+    !actionEvent ||
+    actionEvent === 'default' ||
+    actionEvent === expected
+  )
+}
+
 function credentialsUrl(userId, platform) {
   return `${N8N_BACKEND_URL}/api/auth/credentials/${userId}/${platform}`
 }
@@ -2927,99 +2937,108 @@ async function buildWorkflow(userId, userEmail, spec) {
     (actionApp === 'google_calendar' ||
       actionApp === 'calendar' ||
       action_app?.toLowerCase() === 'google calendar') &&
-    (!actionEvent || actionEvent === 'create_event')
+    matchesActionEvent(actionEvent, 'create_event')
 
   const isTypeformToContacts =
     triggerApp === 'typeform' &&
     (actionApp === 'google_contacts' || actionApp === 'contacts') &&
-    (!actionEvent || actionEvent === 'create_contact')
+    matchesActionEvent(actionEvent, 'create_contact')
 
   const isTypeformToDriveFolder =
     triggerApp === 'typeform' &&
     (actionApp === 'google_drive' || actionApp === 'drive') &&
-    (actionEvent === 'create_folder' || !actionEvent)
+    matchesActionEvent(actionEvent, 'create_folder')
 
   const isTypeformToDocs =
     triggerApp === 'typeform' &&
     (actionApp === 'google_docs' ||
       actionApp === 'google_drive_docs' ||
       action_app?.toLowerCase() === 'google docs' ||
-      (actionApp === 'google_drive' && actionEvent === 'create_document'))
+      (actionApp === 'google_drive' &&
+        matchesActionEvent(actionEvent, 'create_document')))
 
   const isTypeformToGmail =
     triggerApp === 'typeform' &&
     actionApp === 'gmail' &&
-    (!actionEvent || actionEvent === 'send_email')
+    matchesActionEvent(actionEvent, 'send_email')
 
   const isTypeformToSlack =
     triggerApp === 'typeform' &&
     actionApp === 'slack' &&
-    (!actionEvent || actionEvent === 'send_message')
+    matchesActionEvent(actionEvent, 'send_message')
 
   const isSheetsToGmail =
     (triggerApp === 'google_sheets' || triggerApp === 'sheets') &&
     actionApp === 'gmail' &&
-    (!actionEvent || actionEvent === 'send_email')
+    matchesActionEvent(actionEvent, 'send_email')
 
   const isSheetsToSlack =
     (triggerApp === 'google_sheets' || triggerApp === 'sheets') &&
     actionApp === 'slack' &&
-    (!actionEvent || actionEvent === 'send_message')
+    matchesActionEvent(actionEvent, 'send_message')
 
   const isGmailToSlack =
     triggerApp === 'gmail' &&
     actionApp === 'slack' &&
-    (!actionEvent || actionEvent === 'send_message')
+    matchesActionEvent(actionEvent, 'send_message')
 
   const isGmailToSheets =
     triggerApp === 'gmail' &&
     (actionApp === 'google_sheets' || actionApp === 'sheets') &&
-    (!actionEvent || actionEvent === 'append_row')
+    matchesActionEvent(actionEvent, 'append_row')
 
   const isSheetsToCalendar =
     (triggerApp === 'google_sheets' || triggerApp === 'sheets') &&
     (actionApp === 'google_calendar' || actionApp === 'calendar') &&
-    (!actionEvent || actionEvent === 'create_event')
+    matchesActionEvent(actionEvent, 'create_event')
 
   const isSheetsToContacts =
     (triggerApp === 'google_sheets' || triggerApp === 'sheets') &&
     (actionApp === 'google_contacts' || actionApp === 'contacts') &&
-    (!actionEvent || actionEvent === 'create_contact')
+    matchesActionEvent(actionEvent, 'create_contact')
 
   const isGmailToContacts =
     triggerApp === 'gmail' &&
     (actionApp === 'google_contacts' || actionApp === 'contacts') &&
-    (!actionEvent || actionEvent === 'create_contact')
+    matchesActionEvent(actionEvent, 'create_contact')
 
   const isScheduleToSheets =
     triggerApp === 'schedule' &&
     (actionApp === 'google_sheets' || actionApp === 'sheets') &&
-    (!actionEvent || actionEvent === 'append_row')
+    matchesActionEvent(actionEvent, 'append_row')
+
+  const isScheduleToSlack =
+    triggerApp === 'schedule' &&
+    actionApp === 'slack' &&
+    matchesActionEvent(actionEvent, 'send_message')
+
+  const isScheduleToGmail =
+    triggerApp === 'schedule' &&
+    actionApp === 'gmail' &&
+    matchesActionEvent(actionEvent, 'send_email')
 
   const isCalendarToGmail =
     (triggerApp === 'google_calendar' || triggerApp === 'calendar') &&
     actionApp === 'gmail' &&
-    (!actionEvent || actionEvent === 'send_email')
+    matchesActionEvent(actionEvent, 'send_email')
 
   const isCalendarToSlack =
     (triggerApp === 'google_calendar' || triggerApp === 'calendar') &&
     actionApp === 'slack' &&
-    (!actionEvent || actionEvent === 'send_message')
+    matchesActionEvent(actionEvent, 'send_message')
 
   const isTypeformToNotion =
     triggerApp === 'typeform' &&
     actionApp === 'notion' &&
-    (!actionEvent || actionEvent === 'create_row')
+    matchesActionEvent(actionEvent, 'create_row')
 
   const isAnyTriggerToNotion =
     (triggerApp === 'any_trigger' || triggerApp === 'webhook' || triggerApp === 'any') &&
     actionApp === 'notion' &&
-    (!actionEvent || actionEvent === 'create_row')
+    matchesActionEvent(actionEvent, 'create_row')
 
   const hasTemplate =
-    (triggerApp === 'schedule' &&
-      actionApp === 'slack' &&
-      actionEvent === 'send_message') ||
+    isScheduleToSlack ||
     isTypeformToSheets ||
     isTypeformToCalendar ||
     isTypeformToContacts ||
@@ -3039,15 +3058,13 @@ async function buildWorkflow(userId, userEmail, spec) {
     isCalendarToSlack ||
     isTypeformToNotion ||
     isAnyTriggerToNotion ||
-    (triggerApp === 'schedule' &&
-      actionApp === 'gmail' &&
-      actionEvent === 'send_email')
+    isScheduleToGmail
 
   if (hasTemplate) {
     console.log('Using hardcoded template for:', triggerApp, '→', actionApp)
     let workflow
 
-    if (triggerApp === 'schedule' && actionApp === 'slack') {
+    if (isScheduleToSlack) {
       console.log(
         '[DEBUG] schedule->slack hasTemplate=true, actionEvent=',
         actionEvent,
@@ -3126,7 +3143,7 @@ async function buildWorkflow(userId, userEmail, spec) {
       workflow = buildTypeformNotionWorkflow(userId, details)
     } else if (isAnyTriggerToNotion) {
       workflow = buildAnyTriggerNotionWorkflow(userId, details)
-    } else if (triggerApp === 'schedule' && actionApp === 'gmail') {
+    } else if (isScheduleToGmail) {
       workflow = buildScheduleGmailWorkflow(userId, details)
     }
 
@@ -3144,19 +3161,15 @@ async function buildWorkflow(userId, userEmail, spec) {
     }
   }
 
-  console.log(
-    'No template found for:',
-    trigger_app,
-    '→',
-    action_app,
-    '— using Builder Agent'
+  console.warn(
+    `⚠️ [workflowBuilder] No hardcoded template matched for ${triggerApp} -> ${actionApp} (actionEvent: "${actionEvent}") — falling back to AI Builder Agent. This may produce untested output.`
   )
   if (triggerApp === 'schedule' && actionApp === 'slack') {
     console.log(
       '[DEBUG] Building schedule->slack, function: Builder Agent (NOT buildScheduleSlackWorkflow).',
       'hasTemplate was false because actionEvent=',
       JSON.stringify(actionEvent),
-      '(template requires actionEvent === "send_message").',
+      '(template requires actionEvent === "send_message" or "default" or empty).',
       'build_workflow_direct defaults actionEvent to "default" when omitted.'
     )
   }
