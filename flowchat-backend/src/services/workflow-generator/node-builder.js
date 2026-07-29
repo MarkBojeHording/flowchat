@@ -2,6 +2,20 @@ const actionSchemas = require('./action-schemas')
 const fieldMappers = require('./field-mappers')
 const specialCases = require('./special-cases')
 
+function normalizeTriggerDataNode() {
+  return {
+    id: 'normalize-data',
+    name: 'Normalize Trigger Data',
+    type: 'n8n-nodes-base.code',
+    typeVersion: 2,
+    position: [384, 304],
+    parameters: {
+      jsCode:
+        'const body = $input.first().json.body || $input.first().json; return [{ json: body }];',
+    },
+  }
+}
+
 function buildSpecialCaseWorkflow({
   userId,
   triggerApp,
@@ -45,12 +59,21 @@ function buildSpecialCaseWorkflow({
         options: {},
       },
     },
+    normalizeTriggerDataNode(),
+    {
+      id: 'build-payload',
+      name: 'Build Payload',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [640, 304],
+      parameters: { jsCode: specialCase.buildCodeNode(details) },
+    },
     {
       id: 'fetch-creds',
       name: 'Fetch Credentials',
       type: 'n8n-nodes-base.httpRequest',
       typeVersion: 4.2,
-      position: [512, 304],
+      position: [896, 304],
       parameters: {
         url: `${backendUrl}/api/auth/credentials/${userId}/${specialCase.apiConfig.credentialPlatform}`,
         sendHeaders: true,
@@ -61,19 +84,11 @@ function buildSpecialCaseWorkflow({
       },
     },
     {
-      id: 'build-payload',
-      name: 'Build Payload',
-      type: 'n8n-nodes-base.code',
-      typeVersion: 2,
-      position: [768, 304],
-      parameters: { jsCode: specialCase.buildCodeNode(details) },
-    },
-    {
       id: 'action-call',
       name: 'Action Call',
       type: 'n8n-nodes-base.httpRequest',
       typeVersion: 4.2,
-      position: [1024, 304],
+      position: [1152, 304],
       parameters: {
         method: specialCase.apiConfig.method,
         url: specialCase.apiConfig.url,
@@ -89,7 +104,7 @@ function buildSpecialCaseWorkflow({
         },
         sendBody: true,
         specifyBody: 'json',
-        jsonBody: '={{ JSON.stringify($json) }}',
+        jsonBody: "={{ JSON.stringify($('Build Payload').item.json) }}",
         options: {},
       },
     },
@@ -98,7 +113,7 @@ function buildSpecialCaseWorkflow({
       name: 'Notify Flowchat',
       type: 'n8n-nodes-base.httpRequest',
       typeVersion: 4.2,
-      position: [1280, 304],
+      position: [1408, 304],
       parameters: {
         method: 'POST',
         url: `${backendUrl}/api/executions/log`,
@@ -117,7 +132,7 @@ function buildSpecialCaseWorkflow({
       name: 'Respond to Webhook',
       type: 'n8n-nodes-base.respondToWebhook',
       typeVersion: 1.1,
-      position: [1536, 304],
+      position: [1664, 304],
       parameters: {
         respondWith: 'json',
         responseBody: '={{ JSON.stringify({ success: true }) }}',
@@ -128,15 +143,18 @@ function buildSpecialCaseWorkflow({
 
   const connections = {
     'Trigger Webhook': {
-      main: [[{ node: 'Fetch Credentials', type: 'main', index: 0 }]],
+      main: [[{ node: 'Normalize Trigger Data', type: 'main', index: 0 }]],
     },
     'Test Webhook': {
-      main: [[{ node: 'Fetch Credentials', type: 'main', index: 0 }]],
+      main: [[{ node: 'Normalize Trigger Data', type: 'main', index: 0 }]],
     },
-    'Fetch Credentials': {
+    'Normalize Trigger Data': {
       main: [[{ node: 'Build Payload', type: 'main', index: 0 }]],
     },
     'Build Payload': {
+      main: [[{ node: 'Fetch Credentials', type: 'main', index: 0 }]],
+    },
+    'Fetch Credentials': {
       main: [[{ node: 'Action Call', type: 'main', index: 0 }]],
     },
     'Action Call': {
@@ -202,6 +220,16 @@ function buildGenericWorkflow({
 
   const actionConfig = actionSchema.buildNode(fieldRefs)
 
+  // Build Payload must run immediately after Normalize Trigger Data so
+  // field-mapper $json expressions resolve to the trigger payload, matching
+  // the Set Submission Data pattern in the old hardcoded templates.
+  const buildPayloadJsCode = actionConfig.isCodeNode
+    ? actionConfig.codeNodeBody
+    : [
+        `const message = ${fieldRefs.message || "''"};`,
+        'return [{ json: { message } }];',
+      ].join('\n')
+
   const nodes = [
     {
       id: 'trigger-webhook',
@@ -229,12 +257,21 @@ function buildGenericWorkflow({
         options: {},
       },
     },
+    normalizeTriggerDataNode(),
+    {
+      id: 'build-payload',
+      name: 'Build Payload',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [640, 304],
+      parameters: { jsCode: buildPayloadJsCode },
+    },
     {
       id: 'fetch-creds',
       name: 'Fetch Credentials',
       type: 'n8n-nodes-base.httpRequest',
       typeVersion: 4.2,
-      position: [512, 304],
+      position: [896, 304],
       parameters: {
         url: `${backendUrl}/api/auth/credentials/${userId}/${actionConfig.credentialPlatform}`,
         sendHeaders: true,
@@ -244,118 +281,86 @@ function buildGenericWorkflow({
         options: {},
       },
     },
+    {
+      id: 'action-call',
+      name: 'Action Call',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1152, 304],
+      parameters: {
+        method: actionConfig.method,
+        url: actionConfig.url,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            { name: 'Authorization', value: actionConfig.authHeader },
+          ],
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: actionConfig.isCodeNode
+          ? "={{ JSON.stringify($('Build Payload').item.json) }}"
+          : `={{ JSON.stringify({ channel: ${JSON.stringify(
+              details.channel_id || details.channel || details.slack_channel || ''
+            )}, text: $('Build Payload').item.json.message }) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'notify-success',
+      name: 'Notify Flowchat',
+      type: 'n8n-nodes-base.httpRequest',
+      typeVersion: 4.2,
+      position: [1408, 304],
+      parameters: {
+        method: 'POST',
+        url: `${backendUrl}/api/executions/log`,
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [{ name: 'x-api-key', value: internalApiKey }],
+        },
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode, details: { type: "${triggerApp}_to_${actionApp}" } }) }}`,
+        options: {},
+      },
+    },
+    {
+      id: 'respond',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1664, 304],
+      parameters: {
+        respondWith: 'json',
+        responseBody: '={{ JSON.stringify({ success: true }) }}',
+        options: {},
+      },
+    },
   ]
 
-  if (actionConfig.isCodeNode) {
-    nodes.push({
-      id: 'build-payload',
-      name: 'Build Payload',
-      type: 'n8n-nodes-base.code',
-      typeVersion: 2,
-      position: [768, 304],
-      parameters: { jsCode: actionConfig.codeNodeBody },
-    })
-    nodes.push({
-      id: 'action-call',
-      name: 'Action Call',
-      type: 'n8n-nodes-base.httpRequest',
-      typeVersion: 4.2,
-      position: [1024, 304],
-      parameters: {
-        method: actionConfig.method,
-        url: actionConfig.url,
-        sendHeaders: true,
-        headerParameters: {
-          parameters: [{ name: 'Authorization', value: actionConfig.authHeader }],
-        },
-        sendBody: true,
-        specifyBody: 'json',
-        jsonBody: '={{ JSON.stringify($json) }}',
-        options: {},
-      },
-    })
-  } else {
-    nodes.push({
-      id: 'action-call',
-      name: 'Action Call',
-      type: 'n8n-nodes-base.httpRequest',
-      typeVersion: 4.2,
-      position: [768, 304],
-      parameters: {
-        method: actionConfig.method,
-        url: actionConfig.url,
-        sendHeaders: true,
-        headerParameters: {
-          parameters: [{ name: 'Authorization', value: actionConfig.authHeader }],
-        },
-        sendBody: true,
-        specifyBody: 'json',
-        jsonBody: actionConfig.jsonBody(
-          details.channel_id || details.channel || details.slack_channel || ''
-        ),
-        options: {},
-      },
-    })
-  }
-
-  nodes.push({
-    id: 'notify-success',
-    name: 'Notify Flowchat',
-    type: 'n8n-nodes-base.httpRequest',
-    typeVersion: 4.2,
-    position: [1280, 304],
-    parameters: {
-      method: 'POST',
-      url: `${backendUrl}/api/executions/log`,
-      sendHeaders: true,
-      headerParameters: {
-        parameters: [{ name: 'x-api-key', value: internalApiKey }],
-      },
-      sendBody: true,
-      specifyBody: 'json',
-      jsonBody: `={{ JSON.stringify({ userId: "${userId}", n8nWorkflowId: $workflow.id, status: "success", mode: $execution.mode, details: { type: "${triggerApp}_to_${actionApp}" } }) }}`,
-      options: {},
+  const connections = {
+    'Trigger Webhook': {
+      main: [[{ node: 'Normalize Trigger Data', type: 'main', index: 0 }]],
     },
-  })
-
-  nodes.push({
-    id: 'respond',
-    name: 'Respond to Webhook',
-    type: 'n8n-nodes-base.respondToWebhook',
-    typeVersion: 1.1,
-    position: [1536, 304],
-    parameters: {
-      respondWith: 'json',
-      responseBody: '={{ JSON.stringify({ success: true }) }}',
-      options: {},
+    'Test Webhook': {
+      main: [[{ node: 'Normalize Trigger Data', type: 'main', index: 0 }]],
     },
-  })
-
-  const connections = {}
-  const chain = actionConfig.isCodeNode
-    ? [
-        'Trigger Webhook',
-        'Fetch Credentials',
-        'Build Payload',
-        'Action Call',
-        'Notify Flowchat',
-        'Respond to Webhook',
-      ]
-    : [
-        'Trigger Webhook',
-        'Fetch Credentials',
-        'Action Call',
-        'Notify Flowchat',
-        'Respond to Webhook',
-      ]
-
-  for (let i = 0; i < chain.length - 1; i++) {
-    connections[chain[i]] = {
-      main: [[{ node: chain[i + 1], type: 'main', index: 0 }]],
-    }
-  }
-  connections['Test Webhook'] = {
-    main: [[{ node: chain[1], type: 'main', index: 0 }]],
+    'Normalize Trigger Data': {
+      main: [[{ node: 'Build Payload', type: 'main', index: 0 }]],
+    },
+    'Build Payload': {
+      main: [[{ node: 'Fetch Credentials', type: 'main', index: 0 }]],
+    },
+    'Fetch Credentials': {
+      main: [[{ node: 'Action Call', type: 'main', index: 0 }]],
+    },
+    'Action Call': {
+      main: [[{ node: 'Notify Flowchat', type: 'main', index: 0 }]],
+    },
+    'Notify Flowchat': {
+      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]],
+    },
   }
 
   return {

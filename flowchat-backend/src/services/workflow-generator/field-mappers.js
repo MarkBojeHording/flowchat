@@ -1,6 +1,10 @@
 // Declares how to fill each action's required fields from
 // a given trigger's normalized output. "columns" means
 // auto-build a formatted string from column_headers/column_values.
+//
+// These expressions evaluate in the Build Payload Code node, which
+// runs immediately after "Normalize Trigger Data", so bare $json
+// is the unwrapped trigger payload (not Fetch Credentials output).
 
 const GENERIC_COLUMN_SUMMARY =
   "(($json.body?.column_headers || $json.column_headers || []).map((h, i) => h + ': ' + (($json.body?.column_values || $json.column_values || [])[i] || '')).join('\\n'))"
