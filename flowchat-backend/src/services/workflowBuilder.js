@@ -1406,7 +1406,9 @@ const replace = (s) => String(s || '')
 subject = replace(subject);
 emailBody = replace(emailBody);
 to = replace(to);
-return [{ json: { submitter_name: name, submitter_email: email, subject, emailBody, to } }];
+const raw = ['To: ' + to, 'Subject: ' + subject, 'Content-Type: text/plain; charset=utf-8', 'MIME-Version: 1.0', '', emailBody].join('\\n');
+const encoded = Buffer.from(raw).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+return [{ json: { raw: encoded } }];
 `,
       },
     },
@@ -1447,7 +1449,9 @@ return [{ json: { submitter_name: name, submitter_email: email, subject, emailBo
         sendBody: true,
         contentType: 'json',
         specifyBody: 'json',
-        jsonBody: `={{ (() => { const to = $("Set Submission Data").item.json.to; const subject = $("Set Submission Data").item.json.subject; const body = $("Set Submission Data").item.json.emailBody; const raw = ["To: " + to, "Subject: " + subject, "Content-Type: text/plain; charset=utf-8", "MIME-Version: 1.0", "", body].join("\\n"); const encoded = Buffer.from(raw).toString("base64").replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, ""); return JSON.stringify({ raw: encoded }); })() }}`,
+        // Same as generator: fetch-creds sits between Code and HTTP, so use
+        // named node ref (not $json, which would be the credentials response).
+        jsonBody: "={{ JSON.stringify($('Set Submission Data').item.json) }}",
         options: {},
       },
     },
