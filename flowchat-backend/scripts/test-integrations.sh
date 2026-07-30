@@ -95,7 +95,7 @@ run_test "typeform" "google_sheets" \
 # Test: Typeform -> Gmail (core path)
 run_test "typeform" "gmail" \
   '{"form_id":"HPExk4sV","to":"markhording@gmail.com","subject":"New form submission"}' \
-  '{"form_response":{"form_id":"HPExk4sV","submitted_at":"2026-07-29T18:00:00Z","answers":[{"type":"text","field":{"id":"61iCXR1UZZgI"},"text":"Test Beta User"},{"type":"email","field":{"id":"su7xFSJfwNKw"},"email":"betauser@example.com"}]}}'
+  '{"submitter_name":"Test Beta User","submitter_email":"betauser@example.com","submitted_at":"2026-07-29T18:00:00Z","form_id":"HPExk4sV"}'
 
 # Test: Schedule -> Slack (core path)
 run_test "schedule" "slack" \
