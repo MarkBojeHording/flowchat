@@ -79,4 +79,14 @@ module.exports = {
     body: (details) =>
       "'New booking from ' + (($json.body?.column_values || $json.column_values || [])[0] || '') + '\\\\n' + (($json.body?.column_values || $json.column_values || [])[3] || '')",
   },
+
+  'calendly->google_contacts': {
+    name: () =>
+      "($json.body?.submitter_name || $json.submitter_name || 'Unknown')",
+    email: () =>
+      "($json.body?.submitter_email || $json.submitter_email || '')",
+  },
 }
+
+module.exports['calendly->contacts'] = module.exports['calendly->google_contacts']
+

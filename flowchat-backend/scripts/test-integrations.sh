@@ -127,6 +127,21 @@ run_test "google_sheets" "google_contacts" \
   '{}' \
   '{"column_headers":["Name","Email"],"column_values":["Jane Contact","jane@example.com"]}'
 
+# ─── CALENDLY ─────────────────────────────────────────────────
+CALENDLY_PAYLOAD='{"payload":{"name":"Jane Client","email":"jane.client@example.com","created_at":"2026-07-31T18:00:00Z","scheduled_event":{"name":"30 Minute Meeting","start_time":"2026-08-01T10:00:00Z","end_time":"2026-08-01T10:30:00Z"},"questions_and_answers":[]}}'
+
+run_test "calendly" "slack" \
+  '{"channel_id":"#general"}' \
+  "$CALENDLY_PAYLOAD"
+
+run_test "calendly" "gmail" \
+  '{"to":"markhording@gmail.com","subject":"New Calendly booking"}' \
+  "$CALENDLY_PAYLOAD"
+
+run_test "calendly" "google_contacts" \
+  '{}' \
+  "$CALENDLY_PAYLOAD"
+
 echo ""
 echo "===================================="
 echo "SUMMARY — CORE PATHS (must be 100% before beta)"
@@ -139,6 +154,13 @@ echo "===================================="
 echo "SUMMARY — EXTENDED INTEGRATIONS"
 echo "===================================="
 for i in 4 5 6 7; do
+  echo "${RESULTS[$i]}"
+done
+echo ""
+echo "===================================="
+echo "SUMMARY — CALENDLY"
+echo "===================================="
+for i in 8 9 10; do
   echo "${RESULTS[$i]}"
 done
 echo ""

@@ -77,6 +77,41 @@ return [{ json: payload }];
       credentialPlatform: 'google',
     },
   },
+
+  // Calendly normalize already produces column_values — no answers_map extraction
+  'calendly->notion': {
+    buildCodeNode: (details) => {
+      const fieldMapping = details.field_mapping || details.fieldMapping || []
+      const notionFieldsJs = fieldMapping
+        .map((f, i) => {
+          const notionField = f.notion_field || f.notionColumn || f.name
+          const notionType = f.notion_type || f.notionType || 'rich_text'
+          const valueRef = `(body.column_values || [])[${i}]`
+          if (notionType === 'title') {
+            return `${JSON.stringify(notionField)}: { title: [{ text: { content: String(${valueRef} || '') } }] }`
+          }
+          return `${JSON.stringify(notionField)}: { rich_text: [{ text: { content: String(${valueRef} || '') } }] }`
+        })
+        .join(',\n    ')
+
+      return `
+const body = $input.first().json.body || $input.first().json;
+const payload = {
+  parent: { database_id: ${JSON.stringify(details.database_id || details.databaseId || '')} },
+  properties: {
+    ${notionFieldsJs}
+  }
+};
+return [{ json: payload }];
+      `.trim()
+    },
+    apiConfig: {
+      method: 'POST',
+      url: 'https://api.notion.com/v1/pages',
+      credentialPlatform: 'notion',
+      extraHeaders: [{ name: 'Notion-Version', value: '2022-06-28' }],
+    },
+  },
 }
 
 // Alias accepted by build_workflow
