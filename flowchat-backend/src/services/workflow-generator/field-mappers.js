@@ -58,4 +58,25 @@ module.exports = {
   'google_sheets->contacts': sheetsToContacts,
   'sheets->google_contacts': sheetsToContacts,
   'sheets->contacts': sheetsToContacts,
+
+  // Calendly normalize column_values: [name, email, startTime, eventType, answers]
+  'calendly->slack': {
+    message: (details) =>
+      "'New Calendly booking: ' + " +
+      "(($json.body?.column_values || $json.column_values || [])[0] || 'Someone') + " +
+      "' booked ' + " +
+      "(($json.body?.column_values || $json.column_values || [])[3] || 'a meeting') + " +
+      "' for ' + " +
+      "(($json.body?.column_values || $json.column_values || [])[2] || '')",
+  },
+  'calendly->gmail': {
+    to: (details) =>
+      details.to
+        ? JSON.stringify(details.to)
+        : "($json.body?.submitter_email || $json.submitter_email || '')",
+    subject: (details) =>
+      JSON.stringify(details.subject || 'New Calendly booking'),
+    body: (details) =>
+      "'New booking from ' + (($json.body?.column_values || $json.column_values || [])[0] || '') + '\\\\n' + (($json.body?.column_values || $json.column_values || [])[3] || '')",
+  },
 }

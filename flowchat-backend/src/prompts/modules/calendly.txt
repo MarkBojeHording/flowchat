@@ -1,0 +1,38 @@
+CALENDLY TRIGGER MODULE
+
+Calendly fires when someone books or cancels a meeting.
+
+IMPORTANT — PAID PLAN REQUIREMENT
+Calendly webhooks only work on paid Calendly plans. Before
+setup, ask the user (as the FIRST question):
+"Quick check before we start — are you on a paid Calendly
+plan? Webhooks (which power this automation) require Calendly
+Standard, Teams, or Enterprise — the free plan doesn't support
+this."
+Return quick reply buttons: ["Yes, I'm on a paid plan", "I'm not sure"]
+
+If "I'm not sure": explain they can check at calendly.com/integrations
+or under Account Settings > Plan, and offer to continue anyway
+and handle it gracefully if webhook registration fails.
+
+SETUP:
+1. Confirm paid plan (above)
+2. Check connection, connect if needed
+3. Call get_user_resources "calendly_event_types" to list
+   the user's event types (e.g. "30 Minute Meeting")
+4. User picks which event type should trigger the automation
+5. Continue with standard action setup
+
+IF WEBHOOK REGISTRATION FAILS with requires_paid_plan error:
+"It looks like your Calendly plan doesn't support webhooks.
+You'll need to upgrade to Calendly Standard or higher to use
+this automation. Your automation is saved but won't run until
+you upgrade — let me know once you have and I'll activate it."
+
+PASS TO build_workflow:
+- trigger_app: "calendly"
+- trigger_event: "invitee_created"
+- details: { event_type_uri, event_type_name }
+
+NOTE: Calendly tokens expire and need refresh via refresh_token
+— unlike Notion/Typeform which don't expire.

@@ -228,6 +228,27 @@ router.get('/credentials/:userId/slack', async (req, res) => {
   }
 })
 
+// GET /api/auth/credentials/:userId/calendly
+router.get('/credentials/:userId/calendly', async (req, res) => {
+  const { userId } = req.params
+  const apiKey = req.headers['x-api-key']
+  if (apiKey !== process.env.INTERNAL_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+  try {
+    const { data: account } = await supabase
+      .from('platform_accounts')
+      .select('access_token, metadata')
+      .eq('user_id', userId)
+      .eq('platform', 'calendly')
+      .single()
+    if (!account) return res.status(404).json({ error: 'Calendly not connected' })
+    res.json({ access_token: account.access_token, metadata: account.metadata })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 router.get('/credentials/:userId/:platform', async (req, res) => {
   const { userId, platform } = req.params
   const apiKey = req.headers['x-api-key']
@@ -418,6 +439,92 @@ router.get('/callback/notion', async (req, res) => {
       err.response?.data || err.message
     )
     res.redirect(`${process.env.FRONTEND_URL}/dashboard?error=notion_auth`)
+  }
+})
+
+// ─── CALENDLY OAUTH ───────────────────────────────────────────
+
+// GET /api/auth/calendly
+router.get('/calendly', (req, res) => {
+  const { userId } = req.query
+  if (!userId) return res.status(400).json({ error: 'userId required' })
+
+  const params = new URLSearchParams({
+    client_id: process.env.CALENDLY_CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: `${process.env.BACKEND_URL}/api/auth/callback/calendly`,
+    state: userId,
+  })
+  res.redirect(`https://auth.calendly.com/oauth/authorize?${params}`)
+})
+
+// GET /api/auth/callback/calendly
+router.get('/callback/calendly', async (req, res) => {
+  const { code, state: userId } = req.query
+  if (!code || !userId) {
+    return res.redirect(`${process.env.FRONTEND_URL}/dashboard?error=calendly_auth`)
+  }
+
+  try {
+    const tokenRes = await axios.post(
+      'https://auth.calendly.com/oauth/token',
+      new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        client_id: process.env.CALENDLY_CLIENT_ID,
+        client_secret: process.env.CALENDLY_CLIENT_SECRET,
+        redirect_uri: `${process.env.BACKEND_URL}/api/auth/callback/calendly`,
+      }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    )
+
+    const { access_token, refresh_token } = tokenRes.data
+
+    // Get user's Calendly URI and organization URI
+    const meRes = await axios.get('https://api.calendly.com/users/me', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    })
+
+    const userUri = meRes.data.resource.uri
+    const orgUri = meRes.data.resource.current_organization
+    const email = meRes.data.resource.email
+
+    await supabase
+      .from('platform_accounts')
+      .upsert(
+        {
+          user_id: userId,
+          platform: 'calendly',
+          email: email || 'Calendly account',
+          access_token,
+          refresh_token,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,platform' }
+      )
+
+    // Store user_uri and org_uri for webhook registration later
+    // Requires: ALTER TABLE platform_accounts ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+    const { error: metaError } = await supabase
+      .from('platform_accounts')
+      .update({
+        metadata: { user_uri: userUri, org_uri: orgUri },
+      })
+      .eq('user_id', userId)
+      .eq('platform', 'calendly')
+
+    if (metaError) {
+      console.error(
+        '[calendly] Failed to store metadata (does platform_accounts.metadata exist?):',
+        metaError.message
+      )
+    }
+
+    console.log(`[calendly/${userId}] OAuth complete: ${email}`)
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard?connected=calendly`)
+  } catch (err) {
+    console.error('[calendly] OAuth error:', err.response?.data || err.message)
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard?error=calendly_auth`)
   }
 })
 

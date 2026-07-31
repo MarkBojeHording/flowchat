@@ -103,6 +103,7 @@ const TOOLS = [
             'typeform_response_count',
             'notion_databases',
             'notion_schema',
+            'calendly_event_types',
             'google_calendars',
             'google_drive_folders',
             'google_drive_files',
@@ -110,7 +111,7 @@ const TOOLS = [
             'google_forms',
           ],
           description:
-            'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds. Use notion_schema only after getting database_id from notion_databases. Use google_calendars to list writable Google Calendars. Use google_drive_folders to list Drive folders. Use google_drive_files with optional folder_id. Use gmail_labels for custom Gmail labels. Use google_forms to list Google Forms.',
+            'What to fetch. Use sheet_tabs only after getting sheet_id from sheets. Use typeform_fields only after getting form_id from typeform_forms. Use typeform_response_count after build succeeds. Use notion_schema only after getting database_id from notion_databases. Use calendly_event_types to list Calendly event types. Use google_calendars to list writable Google Calendars. Use google_drive_folders to list Drive folders. Use google_drive_files with optional folder_id. Use gmail_labels for custom Gmail labels. Use google_forms to list Google Forms.',
         },
         form_id: {
           type: 'string',
@@ -724,6 +725,34 @@ async function executeTool(name, input, userId, automationId = null) {
           }
         }
 
+        if (app === 'calendly_event_types') {
+          try {
+            const { data: account } = await supabase
+              .from('platform_accounts')
+              .select('access_token')
+              .eq('user_id', userId)
+              .eq('platform', 'calendly')
+              .single()
+            if (!account) return { result: 'Calendly not connected.' }
+
+            const calendly = require('../integrations/platforms/calendly')
+            const eventTypes = await calendly.fetchResources(
+              userId,
+              account.access_token
+            )
+            if (eventTypes.length === 0) return { result: 'No event types found.' }
+            return {
+              result: eventTypes
+                .map((e, i) => `${i + 1}. ${e.title} (ID: ${e.id})`)
+                .join('\n'),
+              eventTypes,
+            }
+          } catch (err) {
+            console.error('calendly_event_types error:', err.message)
+            return { result: 'Could not fetch Calendly event types.' }
+          }
+        }
+
         if (app === 'google_calendars') {
           try {
             const { callWithTokenRefresh } = require('../integrations/core/execute')
@@ -1038,6 +1067,31 @@ async function executeTool(name, input, userId, automationId = null) {
           triggerConfig = typeformTriggerConfig || {
             form_id: detailsObj.form_id || detailsObj.typeform_form_id
           }
+        } else if (triggerApp === 'calendly') {
+          const webhookNode =
+            workflowData.nodes?.find(
+              (node) =>
+                node.type === 'n8n-nodes-base.webhook' &&
+                node.name !== 'Test Webhook'
+            ) ||
+            workflowData.nodes?.find((node) => node.name === 'Test Webhook')
+          const webhookPath = webhookNode?.parameters?.path
+          if (webhookPath) {
+            webhookUrl = `${process.env.N8N_BASE_URL.replace(/\/$/, '')}/webhook/${webhookPath}`
+          }
+
+          const eventTypeUri =
+            detailsObj.event_type_uri ||
+            detailsObj.eventTypeUri ||
+            detailsObj.form_id ||
+            detailsObj.resource_id
+          triggerConfig = {
+            form_id: eventTypeUri,
+            resource_id: eventTypeUri,
+            event_type_uri: eventTypeUri,
+            event_type_name:
+              detailsObj.event_type_name || detailsObj.eventTypeName || null,
+          }
         } else if (
           (triggerApp === 'google_sheets' || triggerApp === 'sheets') &&
           (triggerEvent === 'new_row' ||
@@ -1233,6 +1287,59 @@ async function executeTool(name, input, userId, automationId = null) {
             }
           } catch (err) {
             console.error('Typeform webhook registration error:', err.message)
+          }
+        }
+
+        if (trigger_app === 'calendly') {
+          try {
+            const { data: calendlyAccount } = await supabase
+              .from('platform_accounts')
+              .select('access_token, metadata')
+              .eq('user_id', userId)
+              .eq('platform', 'calendly')
+              .single()
+
+            if (!calendlyAccount) {
+              console.error('Calendly not connected — skipping webhook registration')
+            } else {
+              const calendly = require('../integrations/platforms/calendly')
+              const callbackUrl = `${process.env.BACKEND_URL}/api/integrations/webhook/calendly/${userId}`
+              const meta = calendlyAccount.metadata || {}
+              const registered = await calendly.registerWebhook(
+                userId,
+                triggerConfig.event_type_uri,
+                calendlyAccount.access_token,
+                callbackUrl,
+                meta.org_uri,
+                meta.user_uri
+              )
+              console.log(
+                `✅ Calendly webhook registered: ${registered?.webhook_uri || 'ok'}`
+              )
+
+              if (automationId && registered?.webhook_uri) {
+                triggerConfig.webhook_uri = registered.webhook_uri
+                await supabase
+                  .from('workflows')
+                  .update({ trigger_config: triggerConfig })
+                  .eq('id', automationId)
+              }
+            }
+          } catch (err) {
+            console.error(
+              'Calendly webhook registration error:',
+              err.type || err.message,
+              err.response?.data || ''
+            )
+            if (err.type === 'requires_paid_plan') {
+              return {
+                success: true,
+                workflowId: created.id,
+                requires_paid_plan: true,
+                summary:
+                  "It looks like your Calendly plan doesn't support webhooks. You'll need to upgrade to Calendly Standard or higher to use this automation. Your automation is saved but won't run until you upgrade — let me know once you have and I'll activate it.",
+              }
+            }
           }
         }
 
