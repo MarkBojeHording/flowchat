@@ -135,6 +135,14 @@ export default function SettingsPage() {
       connectUrl: `${BACKEND_URL}/api/auth/notion?userId=${user?.id}`,
       icon: "📓",
     },
+    {
+      key: "calendly",
+      name: "Calendly",
+      description: "Trigger automations from bookings",
+      connectUrl: `${BACKEND_URL}/api/auth/calendly?userId=${user?.id}`,
+      icon: "📅",
+      note: "Requires a paid Calendly plan for webhooks",
+    },
   ];
 
   return (
@@ -225,6 +233,11 @@ export default function SettingsPage() {
                         <p className="text-xs text-[#8888aa]">
                           {app.description}
                         </p>
+                        {"note" in app && app.note ? (
+                          <p className="mt-0.5 text-xs text-[#666688]">
+                            {app.note}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     {isConnected ? (

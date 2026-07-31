@@ -35,6 +35,13 @@ const ALL_APPS = [
   { key: "slack", name: "Slack", description: "Send messages to channels", icon: "💬" },
   { key: "typeform", name: "Typeform", description: "Form submission triggers", icon: "📋" },
   { key: "notion", name: "Notion", description: "Create pages and database rows", icon: "📓" },
+  {
+    key: "calendly",
+    name: "Calendly",
+    description: "Trigger automations from bookings",
+    icon: "📅",
+    note: "Requires a paid Calendly plan for webhooks",
+  },
 ];
 
 /* Sidebar connected apps indicator — hidden for now, reconsidering placement
@@ -67,6 +74,7 @@ function ConnectedAppsSection({ userId }: { userId?: string }) {
     <div className="space-y-2">
       {ALL_APPS.map((app) => {
         const isConnected = connectedApps.includes(app.key);
+        const connectUrl = `${BACKEND_URL}/api/auth/${app.key}?userId=${userId}`;
         return (
           <div
             key={app.key}
@@ -77,6 +85,9 @@ function ConnectedAppsSection({ userId }: { userId?: string }) {
               <div>
                 <p className="text-sm font-medium text-foreground">{app.name}</p>
                 <p className="text-xs text-muted-foreground">{app.description}</p>
+                {"note" in app && app.note ? (
+                  <p className="mt-0.5 text-xs text-muted-foreground/80">{app.note}</p>
+                ) : null}
               </div>
             </div>
             {isConnected ? (
@@ -85,7 +96,7 @@ function ConnectedAppsSection({ userId }: { userId?: string }) {
                   ✓ Connected
                 </span>
                 <a
-                  href={`${BACKEND_URL}/api/auth/${app.key}?userId=${userId}`}
+                  href={connectUrl}
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
                   Reconnect
@@ -93,7 +104,7 @@ function ConnectedAppsSection({ userId }: { userId?: string }) {
               </div>
             ) : (
               <a
-                href={`${BACKEND_URL}/api/auth/${app.key}?userId=${userId}`}
+                href={connectUrl}
                 className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent/90"
               >
                 Connect
@@ -735,7 +746,7 @@ export default function DashboardPage() {
             rawMessages.push({ type: "user", text: turn.content });
           } else {
             const connectMatch = turn.content.match(
-              /https?:\/\/[^\s]+\/api\/auth\/(slack|google|typeform|airtable|notion)/
+              /https?:\/\/[^\s]+\/api\/auth\/(slack|google|typeform|airtable|notion|calendly)/
             );
             if (connectMatch) {
               const app = connectMatch[1];
