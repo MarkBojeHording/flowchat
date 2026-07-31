@@ -220,15 +220,43 @@ function buildGenericWorkflow({
 
   const actionConfig = actionSchema.buildNode(fieldRefs)
 
+  const finalUrl = actionSchema.urlBuilder
+    ? actionSchema.urlBuilder(details)
+    : actionConfig.url
+
   // Build Payload must run immediately after Normalize Trigger Data so
   // field-mapper $json expressions resolve to the trigger payload, matching
   // the Set Submission Data pattern in the old hardcoded templates.
-  const buildPayloadJsCode = actionConfig.isCodeNode
-    ? actionConfig.codeNodeBody
-    : [
-        `const message = ${fieldRefs.message || "''"};`,
-        'return [{ json: { message } }];',
-      ].join('\n')
+  let buildPayloadJsCode
+  if (actionConfig.isCodeNode) {
+    buildPayloadJsCode = actionConfig.codeNodeBody
+  } else if (fieldRefs.values) {
+    // google_sheets append — values is a JS array expression from the mapper
+    buildPayloadJsCode = [
+      `const values = ${fieldRefs.values};`,
+      'return [{ json: { values } }];',
+    ].join('\n')
+  } else {
+    // slack (and other message-based non-code actions)
+    buildPayloadJsCode = [
+      `const message = ${fieldRefs.message || "''"};`,
+      'return [{ json: { message } }];',
+    ].join('\n')
+  }
+
+  let actionJsonBody
+  if (actionConfig.isCodeNode) {
+    actionJsonBody = "={{ JSON.stringify($('Build Payload').item.json) }}"
+  } else if (typeof actionConfig.jsonBody === 'function') {
+    actionJsonBody = actionConfig.jsonBody(details)
+  } else if (actionConfig.jsonBody) {
+    actionJsonBody = actionConfig.jsonBody
+  } else {
+    // Backward-compatible Slack fallback
+    actionJsonBody = `={{ JSON.stringify({ channel: ${JSON.stringify(
+      details.channel_id || details.channel || details.slack_channel || ''
+    )}, text: $('Build Payload').item.json.message }) }}`
+  }
 
   const nodes = [
     {
@@ -289,7 +317,7 @@ function buildGenericWorkflow({
       position: [1152, 304],
       parameters: {
         method: actionConfig.method,
-        url: actionConfig.url,
+        url: finalUrl,
         sendHeaders: true,
         headerParameters: {
           parameters: [
@@ -298,11 +326,7 @@ function buildGenericWorkflow({
         },
         sendBody: true,
         specifyBody: 'json',
-        jsonBody: actionConfig.isCodeNode
-          ? "={{ JSON.stringify($('Build Payload').item.json) }}"
-          : `={{ JSON.stringify({ channel: ${JSON.stringify(
-              details.channel_id || details.channel || details.slack_channel || ''
-            )}, text: $('Build Payload').item.json.message }) }}`,
+        jsonBody: actionJsonBody,
         options: {},
       },
     },

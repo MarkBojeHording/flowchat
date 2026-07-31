@@ -80,6 +80,34 @@ module.exports = {
       "'New booking from ' + (($json.body?.column_values || $json.column_values || [])[0] || '') + '\\\\n' + (($json.body?.column_values || $json.column_values || [])[3] || '')",
   },
 
+  // values = JS array expression for Build Payload Code node (not HTTP jsonBody)
+  'calendly->google_sheets': {
+    values: () =>
+      "[($json.body?.submitter_name || $json.submitter_name || ''), " +
+      "($json.body?.submitter_email || $json.submitter_email || ''), " +
+      "($json.body?.start_time || $json.start_time || '')]",
+  },
+  'calendly->sheets': {
+    values: () =>
+      "[($json.body?.submitter_name || $json.submitter_name || ''), " +
+      "($json.body?.submitter_email || $json.submitter_email || ''), " +
+      "($json.body?.start_time || $json.start_time || '')]",
+  },
+
+  // Gmail poller column_values: [fromEmail, fromName, subject, snippet]
+  'gmail->google_sheets': {
+    values: () =>
+      "[(($json.body?.column_values || $json.column_values || [])[1] || ''), " +
+      "(($json.body?.column_values || $json.column_values || [])[0] || ''), " +
+      "(($json.body?.column_values || $json.column_values || [])[2] || '')]",
+  },
+  'gmail->sheets': {
+    values: () =>
+      "[(($json.body?.column_values || $json.column_values || [])[1] || ''), " +
+      "(($json.body?.column_values || $json.column_values || [])[0] || ''), " +
+      "(($json.body?.column_values || $json.column_values || [])[2] || '')]",
+  },
+
   'calendly->google_contacts': {
     name: () =>
       "($json.body?.submitter_name || $json.submitter_name || 'Unknown')",

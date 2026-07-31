@@ -31,8 +31,10 @@ const slack = {
     authHeader: "=Bearer {{ $('Fetch Credentials').item.json.access_token }}",
     credentialPlatform: 'slack',
     isCodeNode: false,
-    jsonBody: (channelId) =>
-      `={{ JSON.stringify({ channel: "${channelId}", text: ${fieldRefs.message} }) }}`,
+    jsonBody: (details) =>
+      `={{ JSON.stringify({ channel: ${JSON.stringify(
+        details.channel_id || details.channel || details.slack_channel || ''
+      )}, text: $('Build Payload').item.json.message }) }}`,
   }),
 }
 
@@ -57,9 +59,32 @@ return [{ json: payload }];
   }),
 }
 
+// Append one row. URL is per-sheet via urlBuilder(details) in node-builder.
+// fieldRefs.values is a JS array expression evaluated in Build Payload;
+// Action Call wraps it as { values: [row] } matching hardcoded templates.
+const google_sheets = {
+  requiredFields: ['values'],
+  urlBuilder: (details) => {
+    const sheetId = details.sheet_id || details.sheetId
+    const sheetTab = details.sheet_tab || details.sheetTab || 'Sheet1'
+    return `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetTab)}!A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`
+  },
+  buildNode: (fieldRefs) => ({
+    method: 'POST',
+    credentialPlatform: 'google',
+    authHeader: "=Bearer {{ $('Fetch Credentials').item.json.access_token }}",
+    isCodeNode: false,
+    // values already computed in Build Payload — do not interpolate $json here
+    jsonBody: () =>
+      "={{ JSON.stringify({ values: [$('Build Payload').item.json.values] }) }}",
+  }),
+}
+
 module.exports = {
   gmail,
   slack,
+  google_sheets,
+  sheets: google_sheets,
   // Primary key used by build_workflow; "contacts" is the accepted alias
   google_contacts,
   contacts: google_contacts,
