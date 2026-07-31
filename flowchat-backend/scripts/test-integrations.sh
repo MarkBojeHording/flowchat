@@ -127,6 +127,11 @@ run_test "google_sheets" "google_contacts" \
   '{}' \
   '{"column_headers":["Name","Email"],"column_values":["Jane Contact","jane@example.com"]}'
 
+# Test: Gmail -> Google Sheets (generator — sheets as action)
+run_test "gmail" "google_sheets" \
+  '{"sheet_id":"1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8","sheet_tab":"Sheet1"}' \
+  '{"column_values":["sender@example.com","John Sender","Test Subject","Test preview"]}'
+
 # ─── CALENDLY ─────────────────────────────────────────────────
 CALENDLY_PAYLOAD='{"payload":{"name":"Jane Client","email":"jane.client@example.com","created_at":"2026-07-31T18:00:00Z","scheduled_event":{"name":"30 Minute Meeting","start_time":"2026-08-01T10:00:00Z","end_time":"2026-08-01T10:30:00Z"},"questions_and_answers":[]}}'
 
@@ -140,6 +145,10 @@ run_test "calendly" "gmail" \
 
 run_test "calendly" "google_contacts" \
   '{}' \
+  "$CALENDLY_PAYLOAD"
+
+run_test "calendly" "google_sheets" \
+  '{"sheet_id":"1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8","sheet_tab":"Sheet1"}' \
   "$CALENDLY_PAYLOAD"
 
 echo ""
@@ -158,9 +167,14 @@ for i in 4 5 6 7; do
 done
 echo ""
 echo "===================================="
+echo "SUMMARY — GMAIL → GOOGLE SHEETS"
+echo "===================================="
+echo "${RESULTS[8]}"
+echo ""
+echo "===================================="
 echo "SUMMARY — CALENDLY"
 echo "===================================="
-for i in 8 9 10; do
+for i in 9 10 11 12; do
   echo "${RESULTS[$i]}"
 done
 echo ""
