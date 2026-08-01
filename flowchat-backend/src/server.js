@@ -6,16 +6,31 @@ const { runMaintenance } = require('./services/maintenance')
 dotenv.config()
 
 const app = express()
+
+// Railway sits in front of this app as a reverse proxy — without this,
+// req.ip resolves to Railway's proxy IP for every request, collapsing
+// per-client rate limiting into one shared global bucket.
+app.set('trust proxy', 1)
+
 app.use(cors())
+
+const { defaultLimiter, chatLimiter, authLimiter, webhookLimiter } = require('./middleware/rate-limit')
+app.use(defaultLimiter)
 
 const billingRouter = require('./routes/billing')
 
 // Stripe webhook needs raw body — must be before express.json()
 app.post(
   '/api/billing/webhook',
+  webhookLimiter,
   express.raw({ type: 'application/json' }),
   billingRouter.handleWebhook
 )
+
+app.use('/api/integrations/typeform/webhook', webhookLimiter)
+app.use('/api/integrations/webhook', webhookLimiter)
+app.use('/api/chat/message', chatLimiter)
+app.use('/api/auth', authLimiter)
 
 // Typeform + Calendly webhooks need raw body for signature verification —
 // same reason as the Stripe webhook above, must be before express.json()
