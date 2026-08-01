@@ -3,6 +3,7 @@ const router = express.Router()
 const { createClient } = require('@supabase/supabase-js')
 const axios = require('axios')
 const ws = require('ws')
+const { verifyTypeformSignature } = require('../../integrations/core/verify-webhook')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -141,10 +142,20 @@ async function callWithTypeformToken(userId, account, apiCall) {
 // Webhook receiver — called by Typeform on every form submission
 router.post('/webhook/:userId', async (req, res) => {
   const { userId } = req.params
-  const payload = req.body
+  const rawBody = req.body // Buffer — express.raw() on this path in server.js
 
   // Respond immediately — Typeform requires response within 10 seconds
   res.status(200).json({ received: true })
+
+  let payload
+  try {
+    payload = JSON.parse(rawBody.toString('utf8'))
+  } catch (err) {
+    console.error(`Typeform webhook for user ${userId}: invalid JSON body`)
+    return
+  }
+
+  const signatureHeader = req.headers['typeform-signature']
 
   try {
     const formResponse = payload.form_response
@@ -182,6 +193,12 @@ router.post('/webhook/:userId', async (req, res) => {
 
     for (const workflow of matchingWorkflows) {
       if (!workflow.webhook_url) continue
+
+      const verification = verifyTypeformSignature(rawBody, signatureHeader, workflow.trigger_config?.webhook_secret)
+      if (!verification.valid) {
+        console.warn(`⚠️ SECURITY: rejected Typeform webhook for workflow ${workflow.id} (user ${userId}, form ${formId}) — reason: ${verification.reason}`)
+        continue
+      }
 
       const fieldMapping = workflow.trigger_config?.field_mapping || []
 

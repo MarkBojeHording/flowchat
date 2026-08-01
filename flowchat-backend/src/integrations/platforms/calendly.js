@@ -86,7 +86,10 @@ module.exports = {
           },
         }
       )
-      return { webhook_uri: res.data.resource.uri }
+      return {
+        webhook_uri: res.data.resource.uri,
+        signing_key: res.data.resource.signing_key || null,
+      }
     } catch (err) {
       if (err.response?.status === 403) {
         const paidPlanError = new Error(

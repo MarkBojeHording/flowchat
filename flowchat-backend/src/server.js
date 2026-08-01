@@ -17,6 +17,11 @@ app.post(
   billingRouter.handleWebhook
 )
 
+// Typeform + Calendly webhooks need raw body for signature verification —
+// same reason as the Stripe webhook above, must be before express.json()
+app.use('/api/integrations/typeform/webhook', express.raw({ type: 'application/json' }))
+app.use('/api/integrations/webhook', express.raw({ type: 'application/json' }))
+
 app.use(express.json())
 
 app.get('/health', (req, res) => {

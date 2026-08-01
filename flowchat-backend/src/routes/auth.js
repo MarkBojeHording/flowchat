@@ -4,6 +4,7 @@ const { google } = require('googleapis')
 const axios = require('axios')
 const { createClient } = require('@supabase/supabase-js')
 const ws = require('ws')
+const crypto = require('crypto')
 const { sendWelcomeEmail } = require('../services/email')
 const { callWithTokenRefresh } = require('../integrations/core/execute')
 
@@ -529,24 +530,31 @@ router.get('/callback/calendly', async (req, res) => {
 })
 
 // Helper: Register webhook on a Typeform form
+// Returns the secret used to sign this webhook's payloads (null on failure) —
+// callers with a workflow row must persist it to trigger_config.webhook_secret
+// so the receiver can verify Typeform-Signature headers.
 async function registerTypeformWebhook(userId, formId, accessToken) {
   try {
     const tag = `flowchat-${userId}-${formId}`
     const webhookUrl = `${process.env.BACKEND_URL}/api/integrations/typeform/webhook/${userId}`
+    const secret = crypto.randomBytes(32).toString('hex')
 
     await axios.put(
       `https://api.typeform.com/forms/${formId}/webhooks/${tag}`,
       {
         url: webhookUrl,
         enabled: true,
-        verify_ssl: true
+        verify_ssl: true,
+        secret
       },
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
 
     console.log(`✅ Typeform webhook registered for form ${formId}`)
+    return secret
   } catch (err) {
     console.error('Typeform webhook registration error:', err.response?.data || err.message)
+    return null
   }
 }
 

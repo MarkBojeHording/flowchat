@@ -1274,8 +1274,14 @@ async function executeTool(name, input, userId, automationId = null) {
 
               if (tfAccount) {
                 const { registerTypeformWebhook } = require('./auth')
-                await registerTypeformWebhook(userId, formId, tfAccount.access_token)
+                const webhookSecret = await registerTypeformWebhook(userId, formId, tfAccount.access_token)
                 console.log(`✅ Typeform webhook registered for form ${formId}`)
+
+                if (webhookSecret) {
+                  triggerConfig.webhook_secret = webhookSecret
+                } else {
+                  console.error(`⚠️ No webhook secret stored for Typeform form ${formId} — signature verification will reject its webhooks`)
+                }
 
                 if (automationId) {
                   await supabase
@@ -1317,8 +1323,13 @@ async function executeTool(name, input, userId, automationId = null) {
                 `✅ Calendly webhook registered: ${registered?.webhook_uri || 'ok'}`
               )
 
+              if (!registered?.signing_key) {
+                console.error(`⚠️ No signing_key returned for Calendly webhook ${registered?.webhook_uri} — signature verification will reject its webhooks`)
+              }
+
               if (automationId && registered?.webhook_uri) {
                 triggerConfig.webhook_uri = registered.webhook_uri
+                triggerConfig.webhook_signing_key = registered.signing_key || null
                 await supabase
                   .from('workflows')
                   .update({ trigger_config: triggerConfig })
