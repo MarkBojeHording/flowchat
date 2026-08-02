@@ -151,6 +151,21 @@ run_test "calendly" "google_sheets" \
   '{"sheet_id":"1G5Zx-0cuvlbyJ0R1_cHLHIEOOWp5-ZKoDXO4HwVJcZ8","sheet_tab":"Sheet1"}' \
   "$CALENDLY_PAYLOAD"
 
+# ─── GOOGLE CALENDAR / DRIVE / DOCS (hardcoded templates, built but not live-tested) ─
+TYPEFORM_PAYLOAD='{"form_response":{"form_id":"HPExk4sV","submitted_at":"2026-08-02T12:00:00Z","answers":[{"type":"text","field":{"id":"61iCXR1UZZgI"},"text":"Test Beta User"},{"type":"email","field":{"id":"su7xFSJfwNKw"},"email":"betauser@example.com"}]}}'
+
+run_test "typeform" "google_calendar" \
+  '{"calendar_id":"primary","event_title_template":"Test event from {{submitter_name}}","duration_minutes":30}' \
+  "$TYPEFORM_PAYLOAD"
+
+run_test "typeform" "google_drive" \
+  '{"folder_name":"Test Folder — {{submitter_name}}"}' \
+  "$TYPEFORM_PAYLOAD"
+
+run_test "typeform" "google_docs" \
+  '{"doc_title":"Test Doc — Beta Submission"}' \
+  "$TYPEFORM_PAYLOAD"
+
 echo ""
 echo "===================================="
 echo "SUMMARY — CORE PATHS (must be 100% before beta)"
@@ -175,6 +190,13 @@ echo "===================================="
 echo "SUMMARY — CALENDLY"
 echo "===================================="
 for i in 9 10 11 12; do
+  echo "${RESULTS[$i]}"
+done
+echo ""
+echo "===================================="
+echo "SUMMARY — GOOGLE CALENDAR / DRIVE / DOCS"
+echo "===================================="
+for i in 13 14 15; do
   echo "${RESULTS[$i]}"
 done
 echo ""

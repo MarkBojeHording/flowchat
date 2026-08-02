@@ -1169,14 +1169,11 @@ return [{
               value:
                 "=Bearer {{ $('Fetch Google Credentials').item.json.access_token }}",
             },
-            {
-              name: 'Content-Type',
-              value: 'multipart/related; boundary=flowchat_boundary',
-            },
           ],
         },
         sendBody: true,
-        specifyBody: 'string',
+        contentType: 'raw',
+        rawContentType: 'multipart/related; boundary=flowchat_boundary',
         body: `=--flowchat_boundary\r\nContent-Type: application/json\r\n\r\n{"name":"${safeDocTitle} - {{ $('Set Submission Data').item.json.submitter_name }}","mimeType":"application/vnd.google-apps.document"}\r\n--flowchat_boundary\r\nContent-Type: text/html\r\n\r\n<h1>${safeDocTitle}</h1><p>Submitted by: {{ $('Set Submission Data').item.json.submitter_name }}</p><p>Email: {{ $('Set Submission Data').item.json.submitter_email }}</p><p>Date: {{ $('Set Submission Data').item.json.submitted_at }}</p>{{ $('Set Submission Data').item.json.answers_html }}\r\n--flowchat_boundary--`,
         options: {},
       },
@@ -2958,8 +2955,11 @@ async function buildWorkflow(userId, userEmail, spec) {
     (actionApp === 'google_docs' ||
       actionApp === 'google_drive_docs' ||
       action_app?.toLowerCase() === 'google docs' ||
-      (actionApp === 'google_drive' &&
-        matchesActionEvent(actionEvent, 'create_document')))
+      // Exact match only (not matchesActionEvent's wildcard) — 'google_drive'
+      // with no/'default' actionEvent must resolve to folder creation via
+      // isTypeformToDriveFolder, not overlap with it. See CLAUDE_CONTEXT.md
+      // Known Open Issues.
+      (actionApp === 'google_drive' && actionEvent === 'create_document'))
 
   const isTypeformToGmail =
     triggerApp === 'typeform' &&
