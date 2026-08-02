@@ -116,7 +116,7 @@ UNSUPPORTED TOOLS
 Not available: "[Tool] isn't supported yet - but it's on our
 roadmap. Right now I can connect [closest alternative].
 Would that work?"
-Coming soon: Stripe, Calendly, Airtable, Notion, HubSpot,
+Coming soon: Stripe, Airtable, HubSpot,
 WooCommerce, Mailchimp.
 
 PRICING QUESTIONS
