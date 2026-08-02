@@ -4,37 +4,30 @@
 
 module.exports = {
   'typeform->notion': {
+    // NOTE: reads body.column_values positionally, matching
+    // trigger_config.field_mapping's order — NOT body.answers_map.
+    // Production's actual Typeform webhook receiver
+    // (routes/integrations/typeform.js) never sends answers_map, only
+    // column_values/column_headers, so the previous version silently
+    // created blank Notion pages for every real submission. Same
+    // pattern as 'calendly->notion' below. See CLAUDE_CONTEXT.md
+    // Known Open Issues.
     buildCodeNode: (details) => {
       const fieldMapping = details.field_mapping || details.fieldMapping || []
       const notionFieldsJs = fieldMapping
-        .map((f) => {
-          const fieldId = f.typeform_id || f.id
-          const fieldRef = `answersMap[${JSON.stringify(String(fieldId || ''))}]`
+        .map((f, i) => {
           const notionField = f.notion_field || f.notionColumn || f.name
           const notionType = f.notion_type || f.notionType || 'rich_text'
+          const valueRef = `(body.column_values || [])[${i}]`
           if (notionType === 'title') {
-            return `${JSON.stringify(notionField)}: { title: [{ text: { content: String(extractAnswer(${fieldRef}) || '') } }] }`
+            return `${JSON.stringify(notionField)}: { title: [{ text: { content: String(${valueRef} || '') } }] }`
           }
-          return `${JSON.stringify(notionField)}: { rich_text: [{ text: { content: String(extractAnswer(${fieldRef}) || '') } }] }`
+          return `${JSON.stringify(notionField)}: { rich_text: [{ text: { content: String(${valueRef} || '') } }] }`
         })
         .join(',\n    ')
 
       return `
-function extractAnswer(answer) {
-  if (!answer) return '';
-  switch (answer.type) {
-    case 'text': return answer.text || '';
-    case 'email': return answer.email || '';
-    case 'phone_number': return answer.phone_number || '';
-    case 'number': return answer.number != null ? answer.number.toString() : '';
-    case 'boolean': return answer.boolean === true ? 'Yes' : answer.boolean === false ? 'No' : '';
-    case 'choice': return answer.choice?.label || '';
-    case 'choices': return answer.choices?.labels?.join(', ') || '';
-    default: return answer.text || answer.email || answer.phone_number || '';
-  }
-}
 const body = $input.first().json.body || $input.first().json;
-const answersMap = body.answers_map || {};
 const payload = {
   parent: { database_id: ${JSON.stringify(details.database_id || details.databaseId || '')} },
   properties: {
