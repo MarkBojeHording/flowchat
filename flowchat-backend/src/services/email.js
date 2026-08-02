@@ -207,4 +207,124 @@ async function sendWelcomeEmail(user) {
   }
 }
 
-module.exports = { sendBrokenAutomationEmail, sendWelcomeEmail }
+function emailShell(bodyHtml) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#0f0f1a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:560px;margin:40px auto;padding:0 20px;">
+
+    <div style="margin-bottom:32px;">
+      <span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.03em;">⚡ Flowchat</span>
+    </div>
+
+    ${bodyHtml}
+
+    <div style="margin-top:24px;text-align:center;">
+      <p style="font-size:12px;color:#4a4a6a;margin:0;">
+        Questions? Reply to this email or contact us at
+        <a href="mailto:contact@flowchat.now" style="color:#8888aa;">contact@flowchat.now</a>
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>`
+}
+
+function buildRunLimitWarningEmail({ firstName, planName, runsUsed, runsLimit, percentUsed, daysUntilReset }) {
+  const dashboardUrl = `${FRONTEND_URL}/dashboard`
+  const subject = `You've used ${percentUsed}% of your monthly runs`
+
+  const body = `
+    <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;padding:32px;">
+
+      <div style="width:44px;height:44px;background:rgba(251,191,36,0.1);border-radius:12px;text-align:center;line-height:44px;margin-bottom:20px;font-size:22px;">
+        ⚡
+      </div>
+
+      <h1 style="margin:0 0 8px;font-size:20px;font-weight:600;color:#e8e8f0;letter-spacing:-0.02em;">
+        Hey ${firstName}, you're at ${percentUsed}% of your monthly runs
+      </h1>
+
+      <p style="margin:0 0 16px;font-size:14px;color:#8888aa;line-height:1.6;">
+        You've used <strong style="color:#e8e8f0;">${runsUsed} of ${runsLimit}</strong> runs included in your
+        ${planName} plan this month. Your existing automations will keep running as normal, but once you hit
+        ${runsLimit}, you won't be able to build any new ones until you upgrade, top up, or your limit resets
+        in ${daysUntilReset} day${daysUntilReset === 1 ? '' : 's'}.
+      </p>
+
+      <a href="${dashboardUrl}"
+         style="display:inline-block;background:#00d4aa;color:#0f0f1a;font-size:14px;font-weight:600;padding:12px 24px;border-radius:100px;text-decoration:none;">
+        Manage your plan →
+      </a>
+    </div>`
+
+  return { subject, html: emailShell(body) }
+}
+
+function buildRunLimitCriticalEmail({ firstName, planName, runsUsed, runsLimit, daysUntilReset }) {
+  const dashboardUrl = `${FRONTEND_URL}/dashboard`
+  const subject = "You've reached your monthly run limit"
+
+  const body = `
+    <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;padding:32px;">
+
+      <div style="width:44px;height:44px;background:rgba(239,68,68,0.1);border-radius:12px;text-align:center;line-height:44px;margin-bottom:20px;font-size:22px;">
+        🛑
+      </div>
+
+      <h1 style="margin:0 0 8px;font-size:20px;font-weight:600;color:#e8e8f0;letter-spacing:-0.02em;">
+        You've used all ${runsLimit} runs on your ${planName} plan
+      </h1>
+
+      <p style="margin:0 0 16px;font-size:14px;color:#8888aa;line-height:1.6;">
+        Your existing automations will keep running as normal, but you won't be able to build any new
+        ones until you upgrade, top up, or your limit resets in ${daysUntilReset} day${daysUntilReset === 1 ? '' : 's'}.
+      </p>
+
+      <a href="${dashboardUrl}"
+         style="display:inline-block;background:#00d4aa;color:#0f0f1a;font-size:14px;font-weight:600;padding:12px 24px;border-radius:100px;text-decoration:none;">
+        Upgrade now →
+      </a>
+    </div>`
+
+  return { subject, html: emailShell(body) }
+}
+
+async function sendRunLimitWarningEmail(user, usage) {
+  const firstName = user.user_metadata?.full_name?.split(' ')[0] || 'there'
+  const { subject, html } = buildRunLimitWarningEmail({ firstName, ...usage })
+
+  try {
+    await resend.emails.send({ from: FROM_EMAIL, to: user.email, subject, html })
+    console.log('✅ Run-limit warning email sent to:', user.email)
+  } catch (err) {
+    console.error('Failed to send run-limit warning email:', err)
+  }
+}
+
+async function sendRunLimitCriticalEmail(user, usage) {
+  const firstName = user.user_metadata?.full_name?.split(' ')[0] || 'there'
+  const { subject, html } = buildRunLimitCriticalEmail({ firstName, ...usage })
+
+  try {
+    await resend.emails.send({ from: FROM_EMAIL, to: user.email, subject, html })
+    console.log('✅ Run-limit critical email sent to:', user.email)
+  } catch (err) {
+    console.error('Failed to send run-limit critical email:', err)
+  }
+}
+
+module.exports = {
+  sendBrokenAutomationEmail,
+  sendWelcomeEmail,
+  sendRunLimitWarningEmail,
+  sendRunLimitCriticalEmail,
+  buildRunLimitWarningEmail,
+  buildRunLimitCriticalEmail,
+}

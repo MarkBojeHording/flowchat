@@ -2,7 +2,11 @@ const express = require('express')
 const router = express.Router()
 const { createClient } = require('@supabase/supabase-js')
 const ws = require('ws')
-const { sendBrokenAutomationEmail } = require('../services/email')
+const {
+  sendBrokenAutomationEmail,
+  sendRunLimitWarningEmail,
+  sendRunLimitCriticalEmail,
+} = require('../services/email')
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -322,6 +326,85 @@ router.get('/admin/users', async (req, res) => {
   }
 })
 
+const RUN_LIMIT_PLAN_LIMITS = { free: 50, pro: 2000, business: 10000 }
+
+// Pure decision logic — no I/O — so it can be unit tested directly.
+// Decides at most one action per call: 'critical' takes priority over
+// 'warning' if both thresholds are newly crossed in the same increment.
+function decideRunLimitAction({
+  planId,
+  runsUsed,
+  topupRuns,
+  billingPeriodStart,
+  lastWarningSentAt,
+  lastCriticalSentAt,
+  now = new Date(),
+}) {
+  const id = planId || 'free'
+  const planName = id.charAt(0).toUpperCase() + id.slice(1)
+  const runsLimit = (RUN_LIMIT_PLAN_LIMITS[id] || 50) + (topupRuns || 0)
+  if (runsLimit <= 0) return { action: null }
+
+  const percentUsed = Math.round((runsUsed / runsLimit) * 100)
+  const billingStart = billingPeriodStart ? new Date(billingPeriodStart) : now
+  const daysSinceReset = Math.floor((now - billingStart) / (1000 * 60 * 60 * 24))
+  const daysUntilReset = Math.max(0, 30 - daysSinceReset)
+
+  const alreadySentThisPeriod = (ts) => Boolean(ts) && new Date(ts) >= billingStart
+  const usage = { planName, runsUsed, runsLimit, percentUsed, daysUntilReset }
+
+  // At/above 100% is its own branch — never falls through to a warning,
+  // since 100%+ always also satisfies the 80% check.
+  if (runsUsed >= runsLimit) {
+    if (!alreadySentThisPeriod(lastCriticalSentAt)) return { action: 'critical', usage }
+    return { action: null, usage }
+  }
+  if (percentUsed >= 80 && !alreadySentThisPeriod(lastWarningSentAt)) {
+    return { action: 'warning', usage }
+  }
+  return { action: null, usage }
+}
+
+// Sends an 80% warning and/or a 100% critical email at most once per
+// billing period each, using profiles.last_warning_sent_at /
+// last_critical_sent_at as dedup guards. Called after every real
+// (non-test) run increment.
+async function checkAndSendRunLimitEmails(userId) {
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan_id, runs_used, topup_runs, billing_period_start, last_warning_sent_at, last_critical_sent_at')
+      .eq('id', userId)
+      .single()
+
+    if (!profile) return
+
+    const { action, usage } = decideRunLimitAction({
+      planId: profile.plan_id,
+      runsUsed: profile.runs_used || 0,
+      topupRuns: profile.topup_runs || 0,
+      billingPeriodStart: profile.billing_period_start,
+      lastWarningSentAt: profile.last_warning_sent_at,
+      lastCriticalSentAt: profile.last_critical_sent_at,
+    })
+
+    if (!action) return
+
+    const { data: userData } = await supabase.auth.admin.getUserById(userId)
+    if (!userData?.user?.email) return
+
+    if (action === 'critical') {
+      await sendRunLimitCriticalEmail(userData.user, usage)
+      await supabase.from('profiles').update({ last_critical_sent_at: new Date().toISOString() }).eq('id', userId)
+    } else if (action === 'warning') {
+      await sendRunLimitWarningEmail(userData.user, usage)
+      await supabase.from('profiles').update({ last_warning_sent_at: new Date().toISOString() }).eq('id', userId)
+    }
+  } catch (err) {
+    console.error('checkAndSendRunLimitEmails error:', err)
+  }
+}
+
 // POST /api/executions/log - called by notify-success node on successful runs
 router.post('/log', async (req, res) => {
   const apiKey = req.headers['x-api-key']
@@ -360,6 +443,7 @@ router.post('/log', async (req, res) => {
     } else {
       await supabase.rpc('increment_runs_used', { user_id_input: userId })
       console.log(`✅ Real run logged for user ${userId}`)
+      await checkAndSendRunLimitEmails(userId)
     }
 
     res.json({ success: true })
@@ -385,3 +469,4 @@ router.post('/admin/maintenance', async (req, res) => {
 })
 
 module.exports = router
+module.exports.decideRunLimitAction = decideRunLimitAction
