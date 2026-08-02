@@ -152,19 +152,39 @@ run_test "calendly" "google_sheets" \
   "$CALENDLY_PAYLOAD"
 
 # ─── GOOGLE CALENDAR / DRIVE / DOCS (hardcoded templates, built but not live-tested) ─
-TYPEFORM_PAYLOAD='{"form_response":{"form_id":"HPExk4sV","submitted_at":"2026-08-02T12:00:00Z","answers":[{"type":"text","field":{"id":"61iCXR1UZZgI"},"text":"Test Beta User"},{"type":"email","field":{"id":"su7xFSJfwNKw"},"email":"betauser@example.com"}]}}'
+# NOTE: these three templates' "Set Submission Data" nodes read the ALREADY-NORMALIZED
+# shape (submitter_name/submitter_email/column_headers/column_values) — same convention
+# as the typeform->gmail test above, NOT the raw form_response.answers shape used by
+# typeform->google_sheets. Using the wrong shape here would silently pass with blank
+# interpolated values instead of failing outright — verified this the hard way.
+TYPEFORM_NORMALIZED_PAYLOAD='{"submitter_name":"Test Beta User","submitter_email":"betauser@example.com","submitted_at":"2026-08-02T12:00:00Z","form_id":"HPExk4sV"}'
 
 run_test "typeform" "google_calendar" \
-  '{"calendar_id":"primary","event_title_template":"Test event from {{submitter_name}}","duration_minutes":30}' \
-  "$TYPEFORM_PAYLOAD"
+  '{"calendar_id":"primary","event_title_template":"Test event from {{name}}","duration_minutes":30}' \
+  "$TYPEFORM_NORMALIZED_PAYLOAD"
 
 run_test "typeform" "google_drive" \
   '{"folder_name":"Test Folder — {{submitter_name}}"}' \
-  "$TYPEFORM_PAYLOAD"
+  "$TYPEFORM_NORMALIZED_PAYLOAD"
 
 run_test "typeform" "google_docs" \
   '{"doc_title":"Test Doc — Beta Submission"}' \
-  "$TYPEFORM_PAYLOAD"
+  "$TYPEFORM_NORMALIZED_PAYLOAD"
+
+# Sheets -> Calendar (generator, includes optional Google Meet link via conferenceData —
+# this is the actual "Calendar create event w/ Meet link" pair; typeform->google_calendar
+# above does NOT request a Meet link, it's a plain event)
+run_test "google_sheets" "google_calendar" \
+  '{"calendar_id":"primary","event_title_template":"Meet test with {{name}}","duration_minutes":30}' \
+  '{"column_headers":["Name","Email","Date"],"column_values":["Test Beta User","betauser@example.com","2026-08-03T10:00:00Z"]}'
+
+# Typeform -> Notion (special-case). Uses column_values positionally by
+# field_mapping index (fixed Aug 2 — was reading answers_map, which
+# production's Typeform receiver never sends, silently creating blank pages).
+# database_id/field names are Mark's real "Tester" Notion database.
+run_test "typeform" "notion" \
+  '{"database_id":"39c4cdda-02e6-8092-a1bb-c73f121d7451","field_mapping":[{"typeform_id":"61iCXR1UZZgI","notion_field":"Opgavenavn","notion_type":"title"},{"typeform_id":"su7xFSJfwNKw","notion_field":"Beskrivelse","notion_type":"rich_text"}]}' \
+  '{"form_id":"HPExk4sV","submitted_at":"2026-08-02T12:00:00Z","submitter_email":"betauser@example.com","submitter_name":"Test Beta User","columns":[{"title":"Full Name","value":"Test Beta User"},{"title":"Email Address","value":"betauser@example.com"}],"column_values":["Test Beta User","betauser@example.com"],"column_headers":["Full Name","Email Address"],"all_answers":"[]"}'
 
 echo ""
 echo "===================================="
@@ -196,7 +216,7 @@ echo ""
 echo "===================================="
 echo "SUMMARY — GOOGLE CALENDAR / DRIVE / DOCS"
 echo "===================================="
-for i in 13 14 15; do
+for i in 13 14 15 16 17; do
   echo "${RESULTS[$i]}"
 done
 echo ""
