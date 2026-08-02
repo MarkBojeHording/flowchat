@@ -3031,6 +3031,11 @@ async function buildWorkflow(userId, userEmail, spec) {
     actionApp === 'slack' &&
     matchesActionEvent(actionEvent, 'send_message')
 
+  const isFormsToSlack =
+    (triggerApp === 'google_forms' || triggerApp === 'googleforms') &&
+    actionApp === 'slack' &&
+    matchesActionEvent(actionEvent, 'send_message')
+
   const isTypeformToNotion =
     triggerApp === 'typeform' &&
     actionApp === 'notion' &&
@@ -3060,6 +3065,7 @@ async function buildWorkflow(userId, userEmail, spec) {
     isScheduleToSheets ||
     isCalendarToGmail ||
     isCalendarToSlack ||
+    isFormsToSlack ||
     isTypeformToNotion ||
     isAnyTriggerToNotion ||
     isScheduleToGmail
@@ -3142,6 +3148,19 @@ async function buildWorkflow(userId, userEmail, spec) {
         },
         'Google Calendar → Slack',
         'calendar_to_slack'
+      )
+    } else if (isFormsToSlack) {
+      workflow = buildPollingSlackWorkflow(
+        userId,
+        {
+          ...details,
+          message:
+            details.message ||
+            details.message_text ||
+            'New form response from {{submitter_name}} ({{submitter_email}})',
+        },
+        'Google Forms → Slack',
+        'forms_to_slack'
       )
     } else if (isTypeformToNotion) {
       workflow = buildTypeformNotionWorkflow(userId, details)
